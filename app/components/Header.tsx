@@ -149,7 +149,18 @@ export function Header() {
                 key={href}
                 href={href}
                 title={label}
-                onClick={() => setPendingHref(href)}
+                onClick={(e) => {
+                  // Modified clicks open a new tab; the current page stays put.
+                  if (
+                    e.metaKey ||
+                    e.ctrlKey ||
+                    e.shiftKey ||
+                    e.altKey ||
+                    e.button !== 0
+                  )
+                    return;
+                  if (!isActive(href, pathname)) setPendingHref(href);
+                }}
                 data-active={activeHref === href ? "" : undefined}
                 aria-current={current ? "page" : undefined}
               >

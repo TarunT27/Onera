@@ -36,7 +36,7 @@ import {
 import { ErrorBox } from "./components/ErrorBox";
 import { PaperLabel } from "./components/Badge";
 import { MonitoringPanel } from "./components/MonitoringPanel";
-import { Loading } from "./components/Card";
+import { EmptyState, Loading } from "./components/Card";
 import { formatCents } from "@/lib/finance/money";
 import { useRouter } from "next/navigation";
 
@@ -256,6 +256,15 @@ export default function OverviewPage() {
           />
           {accounts.loading && !accounts.data ? (
             <Loading />
+          ) : wallet.length === 0 ? (
+            accounts.data && (
+              <EmptyState>
+                No accounts yet.{" "}
+                <Link href="/accounts" className="quiet-link">
+                  Link a demo bank
+                </Link>
+              </EmptyState>
+            )
           ) : (
             <div
               className="wallet"
