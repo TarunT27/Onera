@@ -29,6 +29,8 @@ import {
   type RecipientsResponse,
 } from "./components/api";
 import { ErrorBox } from "./components/ErrorBox";
+import { PaperLabel } from "./components/Badge";
+import { MonitoringPanel } from "./components/MonitoringPanel";
 import { Loading } from "./components/Card";
 import { formatCents } from "@/lib/finance/money";
 import { useRouter } from "next/navigation";
@@ -90,6 +92,7 @@ export default function OverviewPage() {
       setBusy(false);
     }
   }
+  const paperAccounts = (accounts.data?.accounts ?? []).filter((a) => a.paper);
   const date = accounts.data ? new Date(accounts.data.asOf) : null;
   return (
     <div className="overview">
@@ -133,7 +136,8 @@ export default function OverviewPage() {
             <Loading label="Loading balance…" />
           )}
           <p className="balance-note">
-            Across your demo accounts · USD equivalent
+            Across your demo accounts · USD equivalent · paper trading
+            excluded
           </p>
           <div className="hero-actions">
             <Link href="/transfers" className="pill">
@@ -200,6 +204,24 @@ export default function OverviewPage() {
               );
             })}
             {accounts.loading && !accounts.data && <Loading />}
+            {paperAccounts.map((a) => (
+              <Link
+                href={`/accounts?id=${encodeURIComponent(a.id)}`}
+                key={a.id}
+                className="account-row paper-row"
+              >
+                <span className="round-icon muted">
+                  <TrendUp size={22} weight="light" aria-hidden />
+                </span>
+                <div className="row-body">
+                  <p className="row-title">{a.name}</p>
+                  <p className="row-meta">
+                    <PaperLabel />
+                  </p>
+                </div>
+                <CaretRight className="row-chevron" size={17} aria-hidden />
+              </Link>
+            ))}
           </div>
         </section>
         {(pending || changed) && (
@@ -385,6 +407,10 @@ export default function OverviewPage() {
             </div>
           </section>
         </div>
+        <MonitoringPanel
+          accounts={accounts.data?.accounts}
+          actions={actions.data?.actions}
+        />
       </div>
     </div>
   );

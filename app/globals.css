@@ -589,6 +589,123 @@
   font-size: 13px;
   margin: 8px 0 16px;
 }
+.monitoring-panel {
+  grid-column: 1/-1;
+}
+.monitoring-head {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.monitoring-advisory {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  color: #bfd8e3;
+  font-size: 14px;
+}
+.monitoring-status {
+  margin-bottom: 16px;
+  border: 1px solid #17678b;
+  background: #081c27;
+  color: #bfd8e3;
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+.monitoring-empty {
+  border: 1px dashed #34393c;
+  border-radius: 18px;
+  padding: 22px;
+  text-align: center;
+  color: #a4a9b2;
+  font-size: 14px;
+}
+.monitoring-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.monitoring-item {
+  border: 1px solid #333638;
+  border-left-width: 3px;
+  border-radius: 20px;
+  background: #1b1d1e;
+  padding: 16px 18px;
+  min-width: 0;
+}
+.monitoring-item.sev-critical {
+  border-left-color: #f87171;
+}
+.monitoring-item.sev-warning {
+  border-left-color: #f1c766;
+}
+.monitoring-item.sev-info {
+  border-left-color: #43c0ef;
+}
+.monitoring-title {
+  margin-top: 10px;
+  font-size: 16px;
+  font-weight: 550;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.monitoring-body {
+  margin-top: 6px;
+  color: #bec4cd;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.monitoring-evidence {
+  margin-top: 10px;
+  font-size: 13px;
+}
+.monitoring-evidence summary {
+  color: #b3bac4;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+.monitoring-evidence li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid #282b2e;
+  color: #bec4cd;
+  overflow-wrap: anywhere;
+}
+.monitoring-evidence a {
+  color: #bfd8e3;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.agent-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.agent-matrix th,
+.agent-matrix td {
+  text-align: left;
+  vertical-align: top;
+  padding: 10px 12px;
+  border-top: 1px solid #282b2e;
+}
+.agent-matrix thead th {
+  border-top: 0;
+  color: #a4a9b2;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+@media (max-width: 1000px) {
+  .monitoring-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 @media (min-width: 1800px) {
   .app-main {
     margin-right: 40px;
@@ -922,4 +1039,8 @@
   .sidebar nav a[aria-current] {
     background: #17303d;
   }
+}
+.account-row.paper-row {
+  min-height: 0;
+  padding: 16px 0;
 }
