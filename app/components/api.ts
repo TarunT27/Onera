@@ -14,6 +14,7 @@ import type {
   CreateTransferInput,
   EditTransferInput,
   ExecutionReceipt,
+  NetWorth,
   Recipient,
   RecipientStatus,
   SpendingSummary,
@@ -127,6 +128,8 @@ export interface SessionResponse {
 export interface AccountsResponse {
   accounts: Account[];
   netWorthCents: number;
+  /** Already returned by the server; optional for older demo responses. */
+  netWorth?: NetWorth;
   asOf: string;
 }
 export interface TransactionsResponse {
