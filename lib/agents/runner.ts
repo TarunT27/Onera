@@ -18,6 +18,7 @@ import { portfolioReview } from "./monitors/portfolio";
 import { securityReview } from "./monitors/security";
 import { spendingReview } from "./monitors/spending";
 import { subscriptionReview } from "./monitors/subscriptions";
+import { threatSweep } from "./monitors/threats";
 import { claimNextJob, completeJob, failJob, requeueExpiredJobs, toJob, type JobRow } from "./queue";
 import { agentForJobType } from "./registry";
 import { finishRun, startRun } from "./runs";
@@ -29,6 +30,7 @@ const HANDLERS: Record<AgentId, AgentHandler> = {
   security_sentinel: securityReview,
   portfolio_monitor: portfolioReview,
   connection_monitor: syncConnectionJob,
+  threat_monitor: threatSweep,
 };
 
 export const DEFAULT_RUN_LIMIT = 25;

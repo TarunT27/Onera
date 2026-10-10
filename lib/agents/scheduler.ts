@@ -6,6 +6,9 @@
  *    (key `${type}:${userId}:${YYYY-MM-DD}`, UTC)
  *  - every 15 minutes per healthy connection: sync_connection
  *    (key `sync_connection:${userId}:${connectionId}:${YYYY-MM-DDTHH:MM}` bucket start)
+ *  - per user, whenever new activity reaches the audit log: threat_sweep
+ *    (key `threat_sweep:${userId}:upto:${latestAuditId}`). An idle user gets no sweeps,
+ *    and nothing the threat monitor writes triggers one, so sweeps can't loop.
  */
 import type { DB } from "@/lib/db";
 import { listConnections } from "@/lib/providers";
@@ -15,6 +18,22 @@ import type { JobType, ScheduleReport } from "./types";
 
 export const DAILY_JOB_TYPES: JobType[] = ["spending_review", "subscription_review", "portfolio_review"];
 export const SYNC_INTERVAL_MS = 15 * 60_000;
+
+/**
+ * Newest audit event that should prompt a threat sweep. Routine agent run records, insight status changes and the
+ * seed don't count; other agents' failures and scope violations do. Nothing the threat monitor writes counts.
+ */
+export function latestSweepTrigger(db: DB, userId: UserId): number | null {
+  const row = db
+    .prepare(
+      `SELECT MAX(id) AS id FROM audit_events
+       WHERE user_id = ? AND actor != 'agent:threat_monitor'
+         AND event_type NOT IN ('agent.run_succeeded', 'agent.run_failed', 'demo.seeded')
+         AND event_type NOT LIKE 'insight.%'`,
+    )
+    .get(userId) as { id: number | null };
+  return row.id;
+}
 
 export function syncBucket(now: Date): string {
   return new Date(Math.floor(now.getTime() / SYNC_INTERVAL_MS) * SYNC_INTERVAL_MS).toISOString().slice(0, 16);
@@ -43,6 +62,9 @@ export function scheduleRecurring(
 
   for (const userId of users) {
     for (const type of DAILY_JOB_TYPES) add(userId, type, `${type}:${userId}:${day}`, {});
+
+    const latest = latestSweepTrigger(db, userId);
+    if (latest !== null) add(userId, "threat_sweep", `threat_sweep:${userId}:upto:${latest}`, { uptoAuditId: latest });
 
     // A providers failure for one user must not stop scheduling for the others.
     let connections: ReturnType<typeof listConnections> = [];

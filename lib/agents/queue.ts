@@ -111,7 +111,7 @@ export function claimNextJob(
        WHERE id = (
          SELECT id FROM jobs
          WHERE status IN ('queued','failed') AND run_after <= @now ${userClause}
-         ORDER BY CASE type WHEN 'security_review' THEN 0 ELSE 1 END, run_after, created_at, id
+         ORDER BY CASE type WHEN 'security_review' THEN 0 WHEN 'threat_sweep' THEN 0 ELSE 1 END, run_after, created_at, id
          LIMIT 1
        ) AND status IN ('queued','failed')
        RETURNING *`,

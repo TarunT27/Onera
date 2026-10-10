@@ -288,9 +288,11 @@
   filter: drop-shadow(0 4px 14px rgb(0 99 142 / 0.55));
 }
 .island {
+  /* --nav-n is set from the number of tabs in Header.tsx. */
+  --nav-w: 98px;
   position: relative;
   display: grid;
-  grid-template-columns: repeat(6, 104px);
+  grid-template-columns: repeat(var(--nav-n, 6), var(--nav-w));
   padding: 5px;
   border-radius: 999px;
   background: rgb(22 24 28 / 0.55);
@@ -335,7 +337,7 @@
   position: absolute;
   top: 5px;
   left: 5px;
-  width: 104px;
+  width: var(--nav-w);
   height: 42px;
   border-radius: 999px;
   background: linear-gradient(
@@ -1493,9 +1495,18 @@
 }
 
 /* ─── Responsive ─── */
+@media (max-width: 1280px) and (min-width: 1101px) {
+  .island {
+    --nav-w: 88px;
+  }
+  .island a {
+    gap: 5px;
+    font-size: 12.5px;
+  }
+}
 @media (max-width: 1100px) {
   .island {
-    grid-template-columns: repeat(6, 52px);
+    --nav-w: 52px;
   }
   .island a span {
     position: absolute;
@@ -1505,7 +1516,7 @@
     clip: rect(0 0 0 0);
   }
   .lens {
-    width: 52px;
+    width: var(--nav-w);
   }
   .demo-label span {
     display: none;
@@ -1531,7 +1542,7 @@
     left: 50%;
     bottom: max(14px, env(safe-area-inset-bottom));
     transform: translateX(-50%);
-    grid-template-columns: repeat(6, 56px);
+    --nav-w: 50px;
     padding: 6px;
   }
   .island a {
@@ -1549,7 +1560,7 @@
   .lens {
     top: 6px;
     left: 6px;
-    width: 56px;
+    width: var(--nav-w);
     height: 52px;
   }
   .session {

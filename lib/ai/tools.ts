@@ -18,6 +18,7 @@
 import type { BetaTool } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { z, ZodError } from "zod";
 import { createTransfer } from "@/lib/actions/service";
+import { findInjectionMarkers } from "@/lib/security/injection";
 import { listInsights } from "@/lib/agents";
 import { writeAudit } from "@/lib/audit";
 import type { DB } from "@/lib/db";
@@ -308,6 +309,15 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
         }
         const doc = getResearchDocument(p.document_id);
         if (!doc) return finish(false, { error: "Document not found" }, "Document not found");
+        // Label embedded instructions for the threat monitor. Detection only: the content is returned unchanged
+        // and the markers never feed policy or tool permissions.
+        const markers = findInjectionMarkers(doc.content);
+        if (markers.length > 0) {
+          writeAudit(db, {
+            userId, actor: "assistant", eventType: "assistant.untrusted_instructions",
+            detail: { source: doc.id, markers },
+          });
+        }
         return finish(
           true,
           {

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import {
   House,
   ArrowsLeftRight,
@@ -10,6 +10,7 @@ import {
   Bank,
   ChartLineUp,
   ArrowCounterClockwise,
+  ShieldWarning,
 } from "@phosphor-icons/react";
 import { clearfi, errorMessage } from "./api";
 import { useSession } from "./SessionContext";
@@ -23,6 +24,7 @@ const navigation = [
   { href: "/transfers", label: "Transfers", icon: ArrowsLeftRight },
   { href: "/trade", label: "Trade", icon: ChartLineUp },
   { href: "/chat", label: "Assistant", icon: ChatCircle },
+  { href: "/security", label: "Security", icon: ShieldWarning },
   { href: "/control", label: "Controls", icon: SlidersHorizontal },
 ];
 
@@ -148,7 +150,12 @@ export function Header() {
           <LogoMark />
           <span>ClearFi</span>
         </Link>
-        <nav aria-label="Main" className="island" ref={navRef}>
+        <nav
+          aria-label="Main"
+          className="island"
+          ref={navRef}
+          style={{ "--nav-n": navigation.length } as CSSProperties}
+        >
           <span className="lens" ref={lensRef} aria-hidden />
           {navigation.map(({ href, label, icon: Icon }) => {
             const current = isActive(href, pathname);

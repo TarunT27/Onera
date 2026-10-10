@@ -195,12 +195,14 @@ describe("scheduleRecurring", () => {
 
     const t0 = new Date(Date.UTC(2026, 9, 10, 12, 0, 0));
     const first = scheduleRecurring(db, t0);
-    // 2 users × 3 daily reviews + 1 sync for alice's healthy connection (the broken one is skipped).
-    expect(first).toMatchObject({ enqueued: 7, deduplicated: 0 });
+    // 2 users × 3 daily reviews + 1 sync for alice's healthy connection (the broken one is skipped)
+    // + 1 threat sweep per user for the seeded activity in the audit log.
+    expect(first).toMatchObject({ enqueued: 9, deduplicated: 0 });
 
-    expect(scheduleRecurring(db, new Date(t0.getTime() + 60 * SEC))).toMatchObject({ enqueued: 0, deduplicated: 7 });
+    expect(scheduleRecurring(db, new Date(t0.getTime() + 60 * SEC))).toMatchObject({ enqueued: 0, deduplicated: 9 });
     expect(scheduleRecurring(db, new Date(t0.getTime() + 14 * 60 * SEC))).toMatchObject({ enqueued: 0 });
-    expect(scheduleRecurring(db, new Date(t0.getTime() + 15 * 60 * SEC))).toMatchObject({ enqueued: 1, deduplicated: 6 });
+    expect(scheduleRecurring(db, new Date(t0.getTime() + 15 * 60 * SEC))).toMatchObject({ enqueued: 1, deduplicated: 8 });
+    // No new activity: daily reviews again, but no new threat sweep.
     expect(scheduleRecurring(db, new Date(t0.getTime() + 24 * 3_600 * SEC))).toMatchObject({ enqueued: 7 });
 
     const aliceKeys = listJobs(db, "alice", { limit: 200 }).map((j) => j.dedupeKey);
@@ -222,7 +224,7 @@ describe("scheduleRecurring", () => {
       return [connection("conn_bob", "bob")];
     });
     const report = scheduleRecurring(db, new Date(Date.UTC(2026, 9, 10, 9, 7)));
-    expect(report.enqueued).toBe(7);
+    expect(report.enqueued).toBe(9); // 6 daily reviews + bob's sync + 2 threat sweeps
     expect(listJobs(db, "bob").some((j) => j.type === "sync_connection")).toBe(true);
     err.mockRestore();
   });
@@ -230,7 +232,7 @@ describe("scheduleRecurring", () => {
   it("can schedule a single user (the demo button)", () => {
     const db = freshDb();
     const report = scheduleRecurring(db, new Date(Date.UTC(2026, 9, 10, 9, 0)), { userId: "bob", trigger: "manual" });
-    expect(report.enqueued).toBe(3);
+    expect(report.enqueued).toBe(4); // 3 daily reviews + 1 threat sweep
     expect(listJobs(db, "alice")).toHaveLength(0);
     expect(listJobs(db, "bob").every((j) => j.payload.trigger === "manual")).toBe(true);
   });

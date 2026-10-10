@@ -12,10 +12,12 @@ import type { DB } from "@/lib/db";
 import {
   toAccount,
   toAction,
+  toAuditEvent,
   toRecipient,
   toTransaction,
   type AccountRow,
   type ActionRow,
+  type AuditRow,
   type RecipientRow,
   type TransactionRow,
 } from "@/lib/db/rows";
@@ -26,6 +28,7 @@ import { listConnections, syncConnection, type Connection, type SyncSummary } fr
 import type {
   Account,
   ActionState,
+  AuditEvent,
   CurrencyCode,
   Recipient,
   SubscriptionIncrease,
@@ -63,6 +66,10 @@ export interface AgentReads {
   };
   portfolio: { get(): Portfolio; quote(symbol: string): Quote | null };
   connections: { list(): Connection[] };
+  audit: {
+    /** The user's own audit events created at or after sinceIso, oldest first. */
+    list(opts?: { sinceIso?: string; limit?: number }): AuditEvent[];
+  };
 }
 
 export interface AgentContext {
@@ -204,6 +211,20 @@ export function buildAgentContext(
       list() {
         needRead("connections", "connections.list");
         return listConnections(db, userId);
+      },
+    },
+    audit: {
+      list(opts = {}) {
+        needRead("audit", "audit.list");
+        const limit = Math.min(Math.max(opts.limit ?? 1000, 1), 5000);
+        // Newest `limit` rows in the window, returned oldest first.
+        const rows = db
+          .prepare(
+            `SELECT * FROM (SELECT * FROM audit_events WHERE user_id = ? AND created_at >= ? ORDER BY id DESC LIMIT ?)
+             ORDER BY id ASC`,
+          )
+          .all(userId, opts.sinceIso ?? "", limit);
+        return (rows as AuditRow[]).map(toAuditEvent);
       },
     },
   };
