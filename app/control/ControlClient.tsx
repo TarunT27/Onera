@@ -153,8 +153,11 @@ function LimitsCard({ controls, onSaved }: { controls: UserControls; onSaved: (c
     const errs: { perTransfer?: string; daily?: string } = {};
     if (!p.ok) errs.perTransfer = p.error;
     if (!d.ok) errs.daily = d.error;
+    if (p.ok && d.ok && p.cents > d.cents) {
+      errs.perTransfer = "Per-transfer limit cannot exceed daily limit.";
+    }
     setFieldErrors(errs);
-    if (!p.ok || !d.ok) return;
+    if (!p.ok || !d.ok || errs.perTransfer) return;
 
     const patch: { perTransferLimitCents?: number; dailyLimitCents?: number } = {};
     if (p.cents !== controls.perTransferLimitCents) patch.perTransferLimitCents = p.cents;

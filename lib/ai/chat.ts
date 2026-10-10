@@ -24,9 +24,9 @@ const MAX_TURNS = 8;
 let client: Anthropic | null = null;
 const getClient = () => (client ??= new Anthropic());
 
-// Server-side refusal fallback is a beta. If an account rejects it, retry once
-// without it and remember that for the rest of the process.
-let serverFallbackEnabled = true;
+// Optional beta: ordinary requests must work without account-specific access.
+// If an opted-in account rejects it, retry once without it for this process.
+let serverFallbackEnabled = process.env.CLEARFI_SERVER_FALLBACK === "true";
 
 async function createMessage(messages: BetaMessageParam[]): Promise<BetaMessage> {
   const params = {
@@ -35,7 +35,6 @@ async function createMessage(messages: BetaMessageParam[]): Promise<BetaMessage>
     system: [{ type: "text" as const, text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" as const } }],
     tools: TOOL_DEFINITIONS,
     messages,
-    output_config: { effort: "medium" as const },
   };
   if (!serverFallbackEnabled) return getClient().beta.messages.create(params);
   try {
