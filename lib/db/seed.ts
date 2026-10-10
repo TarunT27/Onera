@@ -1,5 +1,6 @@
 import type { DB } from "./index";
 import { buildSeedData } from "@/fixtures/seed-data";
+import { DEMO_FX_RATES } from "@/lib/finance/fx";
 
 const DAY_MS = 86_400_000;
 
@@ -15,11 +16,16 @@ export function seedDatabase(db: DB, asOf: Date): void {
     for (const u of data.users) insUser.run(u.id, u.name, u.email);
 
     const insAccount = db.prepare(`INSERT INTO accounts
-      (id, user_id, institution, name, type, mask, balance_cents, available_cents, capabilities, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      (id, user_id, institution, name, type, mask, balance_cents, available_cents, capabilities, is_paper, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     for (const a of data.accounts) {
       insAccount.run(a.id, a.userId, a.institution, a.name, a.type, a.mask,
-        a.balanceCents, a.balanceCents, JSON.stringify(a.capabilities), now);
+        a.balanceCents, a.balanceCents, JSON.stringify(a.capabilities), a.paper ? 1 : 0, now);
+    }
+
+    const insFx = db.prepare("INSERT INTO fx_rates (currency, rate_micros, as_of, source) VALUES (?, ?, ?, ?)");
+    for (const [currency, rate] of Object.entries(DEMO_FX_RATES)) {
+      insFx.run(currency, rate, now, "ClearFi demo FX (synthetic)");
     }
 
     const insTx = db.prepare(`INSERT INTO transactions

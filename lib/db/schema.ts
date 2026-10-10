@@ -1,8 +1,17 @@
 /**
- * SQLite schema. Owned by the finance/security role — coordinate changes.
+ * Core SQLite schema. Owned by the finance/security role — coordinate changes.
  * Every private table carries user_id; every query must filter on it.
+ *
+ * Feature modules (providers, markets, agents) add their own tables through
+ * lib/db/modules.ts; they never edit this file.
  */
-export const SCHEMA_SQL = /* sql */ `
+
+/** Bump when any schema (core or module) changes. Local demo DBs are rebuilt and reseeded. */
+export const SCHEMA_VERSION = 2;
+
+export const SUPPORTED_CURRENCIES = ["USD", "EUR", "GBP", "CAD"] as const;
+
+export const CORE_SCHEMA_SQL = /* sql */ `
 CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
   name          TEXT NOT NULL,
@@ -15,12 +24,15 @@ CREATE TABLE IF NOT EXISTS accounts (
   user_id         TEXT NOT NULL REFERENCES users(id),
   institution     TEXT NOT NULL,
   name            TEXT NOT NULL,
-  type            TEXT NOT NULL CHECK (type IN ('checking','savings','brokerage')),
-  currency        TEXT NOT NULL DEFAULT 'USD' CHECK (currency = 'USD'),
+  type            TEXT NOT NULL CHECK (type IN ('checking','savings','brokerage','credit')),
+  currency        TEXT NOT NULL DEFAULT 'USD' CHECK (currency IN ('USD','EUR','GBP','CAD')),
   mask            TEXT NOT NULL,
   balance_cents   INTEGER NOT NULL,
   available_cents INTEGER NOT NULL,
   capabilities    TEXT NOT NULL,          -- JSON array of AccountCapability
+  connection_id   TEXT,                   -- provider connection (lib/providers); NULL = built-in demo account
+  external_id     TEXT,                   -- provider's account ID
+  is_paper        INTEGER NOT NULL DEFAULT 0, -- paper-trading money; excluded from net worth
   updated_at      TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id);
@@ -33,13 +45,16 @@ CREATE TABLE IF NOT EXISTS transactions (
   description       TEXT NOT NULL,
   merchant          TEXT,
   category          TEXT NOT NULL,
-  amount_cents      INTEGER NOT NULL,     -- negative = outflow
+  amount_cents      INTEGER NOT NULL,     -- negative = outflow, in the account's currency
   currency          TEXT NOT NULL DEFAULT 'USD',
   status            TEXT NOT NULL DEFAULT 'posted' CHECK (status IN ('posted','pending')),
   transfer_group_id TEXT,                 -- links both legs of an internal transfer
-  action_id         TEXT
+  action_id         TEXT,
+  provider_tx_id    TEXT                  -- provider's transaction ID; makes repeated syncs idempotent
 );
 CREATE INDEX IF NOT EXISTS idx_tx_user_posted ON transactions(user_id, posted_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tx_provider ON transactions(account_id, provider_tx_id)
+  WHERE provider_tx_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS recipients (
   id               TEXT PRIMARY KEY,
@@ -104,9 +119,18 @@ CREATE TABLE IF NOT EXISTS audit_events (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_events(user_id, id DESC);
+
+-- Dated demo FX rates. rate_micros = units of USD per 1 unit of currency × 1,000,000.
+CREATE TABLE IF NOT EXISTS fx_rates (
+  currency    TEXT PRIMARY KEY CHECK (currency IN ('USD','EUR','GBP','CAD')),
+  rate_micros INTEGER NOT NULL CHECK (rate_micros > 0),
+  as_of       TEXT NOT NULL,
+  source      TEXT NOT NULL
+);
 `;
 
-export const DROP_SQL = /* sql */ `
+export const CORE_DROP_SQL = /* sql */ `
+DROP TABLE IF EXISTS fx_rates;
 DROP TABLE IF EXISTS audit_events;
 DROP TABLE IF EXISTS user_controls;
 DROP TABLE IF EXISTS actions;
