@@ -25,6 +25,7 @@ import { PaperLabel } from "../components/Badge";
 import "./account-explorer.css";
 import { AccountPanel } from "./AccountPanel";
 import { CurrencyValue } from "./CurrencyValue";
+import { directoryActivityScope } from "./presentation";
 
 export function AccountsClient() {
   const search = useSearchParams();
@@ -64,8 +65,9 @@ export function AccountsClient() {
       (kind === "all" || a.type === kind) &&
       `${a.name} ${a.institution} ${a.mask}`
         .toLowerCase()
-        .includes(query.toLowerCase()),
+        .includes(query.trim().toLowerCase()),
   );
+  const activityScope = directoryActivityScope(accounts.data?.accounts ?? [], kind, query);
   async function run(key: string, path: string, body?: unknown) {
     setBusy(key);
     setError(null);
@@ -252,7 +254,6 @@ export function AccountsClient() {
           subtitle={`${accounts.data?.accounts.length ?? "…"} synthetic accounts`}
           className="account-list-card"
           bodyClassName="account-list-body"
-          action={<Button variant="ghost" size="sm" onClick={() => choose(null)}>All activity</Button>}
         >
           <p className="account-list-hint">
             <span className="account-hint-desktop">Click an account to view its details and transactions.</span>
@@ -300,13 +301,14 @@ export function AccountsClient() {
           {activeId && !account ? (
             accounts.data ? <ErrorBox error={new Error("This account is not available. Choose another account.")} /> : <Loading label="Loading account…" />
           ) : <AccountPanel
-            key={`${activeId ?? "all"}:${preview ? "preview" : "details"}:${activityRevision}`}
+            key={`${activeId ?? "all"}:${kind}:${activityRevision}`}
             account={account}
             preview={preview}
             holding={holding}
             rates={rates}
             connection={connections.data?.connections.find((c) => c.id === account?.connectionId)}
-            query={query}
+            query={activityScope.query}
+            allowedAccountIds={accounts.data ? activityScope.accountIds : undefined}
             holdingsError={portfolio.error}
             onOpen={choose}
           />}

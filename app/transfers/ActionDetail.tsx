@@ -111,8 +111,8 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
 
   const approve = () =>
     run("approve", async () => {
-      const { action: a } = await clearfi.approveAction(action.id, action.version);
-      return { tone: "success", text: `Approved v${a.approvedVersion ?? action.version}. The approval is bound to this exact transfer.` };
+      await clearfi.approveAction(action.id, action.version);
+      return { tone: "success", text: "Transfer approved. Any changes will need your approval again." };
     });
 
   const execute = (op: "execute" | "forceExecute") =>
@@ -124,8 +124,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
           tone: "info",
           text: (
             <>
-              <strong>Already executed — same receipt returned, no second transfer.</strong> Receipt{" "}
-              <code className="font-mono text-xs break-all">{res.receipt.receiptId}</code>
+              <strong>No second transfer was made.</strong> This transfer is already complete.
             </>
           ),
         };
@@ -134,7 +133,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
         tone: op === "forceExecute" ? "warning" : "success",
         text: (
           <>
-            Executed (simulated). Receipt <code className="font-mono text-xs break-all">{res.receipt.receiptId}</code>
+            Transfer complete. This was a simulation; no real money moved.
           </>
         ),
       };
@@ -146,7 +145,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
       setJustVerified(true);
       return {
         tone: "info",
-        text: "Recipient verified (simulated out-of-band check). Now re-evaluate so policy runs again on this transfer.",
+        text: "Recipient verified for this demo. Check the transfer again to continue.",
       };
     });
 
@@ -158,9 +157,9 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
         tone: a.state === "HELD" ? "warning" : "success",
         text:
           a.state === "HELD"
-            ? `Re-evaluated: still held (${a.holdReasons.map(holdReasonLabel).join(", ") || "see checks"}).`
+            ? `Transfer still on hold: ${a.holdReasons.map(holdReasonLabel).join(", ") || "see the checks below"}.`
             : a.state === "AWAITING_APPROVAL"
-              ? "Re-evaluated: all checks pass. Ready for your approval."
+              ? "All checks passed. Ready for your approval."
               : `Re-evaluated: ${a.state}.`,
       };
     });
@@ -184,7 +183,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
       setEditing(false);
       return {
         tone: "warning",
-        text: `Amount changed — now v${a.version}. Any previous approval was discarded and policy re-ran (${a.state}).`,
+        text: `Amount updated. Previous approval was cleared and safety checks ran again.${a.state === "HELD" ? " Review the hold reasons below." : ""}`,
       };
     });
   }
@@ -196,7 +195,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-              Transfer proposal · <span className="tabular-nums">v{action.version}</span>
+              Transfer proposal
             </p>
             <p className="mt-1 text-3xl font-semibold tracking-tight">
               <Money cents={action.amountCents} />
@@ -205,7 +204,6 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
               to <span className="font-medium text-zinc-900 dark:text-zinc-100">{recipient.displayName}</span> from{" "}
               {sourceAccount.name} {mask(sourceAccount.mask)}
             </p>
-            <code className="mt-1 block font-mono text-[11px] break-all text-zinc-400 dark:text-zinc-500">{action.id}</code>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
             <ActionStateBadge state={state} />
@@ -297,7 +295,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
                 </div>
                 {editError && <p className="text-xs text-red-700 dark:text-red-400">{editError}</p>}
                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                  Saving creates v{action.version + 1}. Edits invalidate any approval and policy re-runs.
+                  Changing the amount clears your approval and runs the safety checks again.
                 </p>
               </form>
             ) : (
@@ -328,7 +326,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
           <Field label="Approval">
             {action.hasApproval ? (
               <p>
-                Approved <span className="tabular-nums">v{action.approvedVersion}</span>{" "}
+                Approved{" "}
                 <span className="text-zinc-500 dark:text-zinc-400">· {formatDateTime(action.approvedAt)}</span>
               </p>
             ) : (
@@ -381,17 +379,17 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
           <div className="flex flex-wrap gap-2">
             {state === "AWAITING_APPROVAL" && (
               <Button variant="primary" busy={busy === "approve"} disabled={anyBusy} onClick={() => void approve()}>
-                Approve exact transfer (v{action.version})
+                Approve transfer
               </Button>
             )}
             {state === "APPROVED" && (
               <Button variant="primary" busy={busy === "execute"} disabled={anyBusy} onClick={() => void execute("execute")}>
-                Execute (simulated)
+                Send demo transfer
               </Button>
             )}
             {state === "EXECUTED" && (
               <Button variant="secondary" busy={busy === "execute"} disabled={anyBusy} onClick={() => void execute("execute")}>
-                Execute again (duplicate check)
+                Check receipt
               </Button>
             )}
             {(state === "HELD" || state === "PROPOSED" || justVerified) && state !== "EXECUTED" && (
@@ -401,7 +399,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
                 disabled={anyBusy}
                 onClick={() => void evaluate()}
               >
-                Re-evaluate
+                Check again
               </Button>
             )}
             {(state === "HELD" || state === "AWAITING_APPROVAL") && (
@@ -430,6 +428,14 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
         </div>
 
         {receipt && <ReceiptView receipt={receipt} />}
+        <details className="mt-4 text-xs text-zinc-400">
+          <summary className="cursor-pointer py-2">Transfer reference details</summary>
+          <dl className="mt-2 grid gap-3 sm:grid-cols-2">
+            <Field label="Transfer reference"><code className="break-all">{action.id}</code></Field>
+            <Field label="Version">{action.version}</Field>
+            <Field label="Approved version">{action.approvedVersion ?? "Not approved"}</Field>
+          </dl>
+        </details>
       </Card>
 
       <PolicyCard action={action} />
@@ -466,17 +472,17 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
 function decisionHint(action: TransferAction, recipient: RecipientWithStatus): string {
   switch (action.state) {
     case "AWAITING_APPROVAL":
-      return `Approving binds to v${action.version}: this amount, this source account and this exact destination. Any edit invalidates it.`;
+      return "Your approval covers this amount and these accounts. Any changes need your approval again.";
     case "APPROVED":
-      return "Execution re-checks pause, limits and balance at the moment it runs. Money movement is simulated.";
+      return "We’ll check your limits and balance again before sending. No real money moves in this demo.";
     case "HELD":
       return recipient.status !== "verified"
-        ? "Held transfers can't be approved or executed. Verify the recipient, then re-evaluate."
-        : "Held transfers can't be approved or executed. Resolve the reasons above, then re-evaluate.";
+        ? "Verify the recipient, then check again. Transfers on hold can’t be sent."
+        : "Resolve the hold reasons above, then check again. This transfer can’t be sent yet.";
     case "EXECUTED":
-      return "Executing again tests idempotency: the server must return the same receipt instead of moving money twice.";
+      return "Checking again won’t send another transfer.";
     case "PROPOSED":
-      return "Not yet evaluated against your controls. Re-evaluate to run the policy checks.";
+      return "Check this transfer against your limits before approving it.";
     case "FAILED":
       return "The simulated transfer failed. No money moved.";
     default:
@@ -711,15 +717,14 @@ function PolicyCard({ action }: { action: TransferAction }) {
   const policy = action.policy;
   return (
     <Card
-      title="Policy checks"
+      title="Safety checks"
       subtitle={
         policy ? (
           <>
-            Decision{" "}
             <span className={`font-semibold ${policy.decision === "ALLOW" ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
-              {policy.decision}
+              {policy.decision === "ALLOW" ? "Checks passed" : "Needs attention"}
             </span>{" "}
-            · evaluated {formatDateTime(policy.evaluatedAt)}
+            · checked {formatDateTime(policy.evaluatedAt)}
           </>
         ) : (
           "Not evaluated yet"
@@ -727,13 +732,16 @@ function PolicyCard({ action }: { action: TransferAction }) {
       }
     >
       {!policy || policy.checks.length === 0 ? (
-        <EmptyState>No policy checks recorded for this version.</EmptyState>
+        <EmptyState>This transfer hasn’t been checked yet.</EmptyState>
       ) : (
+        <details open={policy.decision !== "ALLOW"}>
+          <summary className="cursor-pointer pb-3 text-sm">View safety checks</summary>
         <ul className="space-y-2">
           {policy.checks.map((c) => (
             <PolicyCheckRow key={c.id} check={c} />
           ))}
         </ul>
+        </details>
       )}
     </Card>
   );
@@ -779,33 +787,34 @@ function ReceiptView({ receipt }: { receipt: ExecutionReceipt }) {
   return (
     <div className="mt-5 rounded-2xl border border-green-200 bg-green-50/60 p-4 dark:border-green-900 dark:bg-green-950/30">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-semibold text-green-900 dark:text-green-200">✓ Receipt</p>
+        <p className="font-semibold text-green-900 dark:text-green-200">✓ Transfer complete</p>
         <div className="flex gap-1.5">
           <Badge tone="amber">Simulated</Badge>
           <SyntheticLabel />
         </div>
       </div>
       <dl className="mt-3 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-        <Field label="Receipt ID">
-          <code className="font-mono text-xs break-all">{receipt.receiptId}</code>
-        </Field>
-        <Field label="Executed at">{formatDateTime(receipt.executedAt, { full: true })}</Field>
+        <Field label="Sent on">{formatDateTime(receipt.executedAt, { full: true })}</Field>
         <Field label="Amount">
           <Money cents={receipt.amountCents} className="font-medium" />
         </Field>
-        <Field label="Destination">{receipt.destination}</Field>
-        <Field label="Source balance after">
+        <Field label="To">{receipt.destination}</Field>
+        <Field label="From account balance after">
           <Money cents={receipt.sourceBalanceAfterCents} />
         </Field>
         {receipt.destinationBalanceAfterCents !== null && (
-          <Field label="Destination balance after">
+          <Field label="To account balance after">
             <Money cents={receipt.destinationBalanceAfterCents} />
           </Field>
         )}
       </dl>
       <p className="mt-3 text-xs text-green-900/70 dark:text-green-200/70">
-        Simulated settlement against synthetic balances. No real funds moved.
+        Demo transfer using synthetic balances. No real money moved.
       </p>
+      <details className="mt-3 text-xs text-green-200/70">
+        <summary className="cursor-pointer py-2">Receipt reference</summary>
+        <code className="block break-all py-2">{receipt.receiptId}</code>
+      </details>
     </div>
   );
 }

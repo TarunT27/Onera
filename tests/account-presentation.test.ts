@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FxRate } from "@/lib/types";
-import { displayUsdCents, filterAccountActivity } from "@/app/accounts/presentation";
+import { directoryActivityScope, displayUsdCents, filterAccountActivity } from "@/app/accounts/presentation";
 import { convertToUsdCents } from "@/lib/finance/fx";
 
 const rates: FxRate[] = [{ currency: "GBP", rateMicros: 1_270_000, asOf: "2026-10-10", source: "Synthetic demo rate" }];
@@ -42,5 +42,19 @@ describe("account activity display isolation", () => {
   });
   it("supports all activity with no selected account", () => {
     expect(filterAccountActivity(txs, undefined, "")).toEqual(txs);
+  });
+  it("limits the directory activity to its filtered accounts, including an empty set", () => {
+    expect(filterAccountActivity(txs, undefined, "", ["checking"])).toEqual([txs[0]]);
+    expect(filterAccountActivity(txs, undefined, "", [])).toEqual([]);
+  });
+  it("account type and bank search scope activity without breaking merchant search", () => {
+    const accounts = [
+      { id: "checking", type: "checking" as const, name: "Checking", institution: "Demo Bank", mask: "1234" },
+      { id: "foreign", type: "savings" as const, name: "Savings", institution: "Barclays", mask: "5678" },
+    ];
+    expect(directoryActivityScope(accounts, "checking", "")).toEqual({ accountIds: ["checking"], query: "" });
+    expect(directoryActivityScope(accounts, "all", "Barclays")).toEqual({ accountIds: ["foreign"], query: "" });
+    expect(directoryActivityScope(accounts, "checking", "coffee")).toEqual({ accountIds: ["checking"], query: "coffee" });
+    expect(directoryActivityScope(accounts, "brokerage", "")).toEqual({ accountIds: [], query: "" });
   });
 });

@@ -80,7 +80,7 @@ export function NewTransferForm({
   const loading = accounts === null && !accountsError;
 
   return (
-    <Card title="New transfer" subtitle="Creates a proposal. Nothing moves until you approve it — and even then it's simulated.">
+    <Card title="New transfer" subtitle="Create a request to review. Nothing moves until you approve it. Demo money only.">
       <ErrorBox error={accountsError} title="Couldn't load accounts" className="mb-3" />
       <ErrorBox error={recipientsError} title="Couldn't load recipients" className="mb-3" />
       {loading ? (
@@ -100,7 +100,7 @@ export function NewTransferForm({
               ))}
             </select>
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Only accounts with the <em>transfer source</em> capability are listed.
+              Only accounts that can send demo transfers are shown.
             </p>
           </div>
 

@@ -34,6 +34,7 @@ import type {
   RunReport,
   ScheduleReport,
 } from "@/lib/agents";
+import { displayCache } from "./readCache";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -75,6 +76,23 @@ function isErrorEnvelope(v: unknown): v is { error: { code: ApiErrorCode; messag
 type Method = "GET" | "POST" | "PATCH";
 
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  if (method === "GET") {
+    const result = await fetchJson<T>(method, path, body);
+    if (path === "/api/session") {
+      displayCache.setSession((result as SessionResponse).user.id);
+    }
+    return result;
+  }
+  // A failed write may still change state (e.g. a refusal can hold a transfer).
+  displayCache.invalidate(false);
+  try {
+    return await fetchJson<T>(method, path, body);
+  } finally {
+    displayCache.invalidate(true, path === "/api/session" || path === "/api/demo/reset");
+  }
+}
+
+async function fetchJson<T>(method: Method, path: string, body?: unknown): Promise<T> {
   let res: Response;
   try {
     res = await fetch(path, {
