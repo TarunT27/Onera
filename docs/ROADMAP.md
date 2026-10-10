@@ -1,14 +1,14 @@
 # Finance Hub — Hackathon Architecture
 
-**Scope update:** This document is the longer-term product roadmap. For the four-person hackathon build, use [ClearFi MVP Scope](MVP_SCOPE.md). That plan supersedes the implementation scope, stack, build order, and acceptance criteria below for the event.
+**Scope update:** This document is the longer-term product roadmap. For the four-person hackathon build, use [Onera MVP Scope](MVP_SCOPE.md). That plan supersedes the implementation scope, stack, build order, and acceptance criteria below for the event.
 
-Prepared October 10, 2026. Working product name: **ClearFi**. Name availability has not been checked.
+Prepared October 10, 2026. Working product name: **Onera**. Name availability has not been checked.
 
 ## 1. Product and pitch
 
 **One place to understand your money, research investments, and control what AI can do with it.**
 
-ClearFi brings connected account information, spending, subscriptions, investments, research, and transfer previews into one application. Specialized background workers find useful changes and prepare suggestions. A governance service checks every proposed financial action against permissions and limits before an execution service can act.
+Onera brings connected account information, spending, subscriptions, investments, research, and transfer previews into one application. Specialized background workers find useful changes and prepare suggestions. A governance service checks every proposed financial action against permissions and limits before an execution service can act.
 
 The signature demo is a suspicious transfer being held while a legitimate transfer proceeds through approval. The account hub and investment research explain why someone would use the app every day; governance explains why they could trust its automation.
 
@@ -37,7 +37,7 @@ Ship a complete seeded demo first. Provider integrations enhance it without beco
 4. **Activity:** transactions, transfers, orders, recurring spending, and agent findings, filterable by account.
 5. **Control:** agent permissions, approval limits, automation mandates, and a pause button. This can be a settings sheet rather than another large dashboard.
 
-Keep one persistent “Ask ClearFi” entry point. Chat returns financial explanations and structured action previews. Final approval happens on a transaction card with explicit amounts and destinations.
+Keep one persistent “Ask Onera” entry point. Chat returns financial explanations and structured action previews. Final approval happens on a transaction card with explicit amounts and destinations.
 
 ## 4. Architecture
 
@@ -265,6 +265,6 @@ Acceptance criteria:
 4. **1:40–2:30:** Attempt a transfer to changed account details. The security finding explains the difference; governance holds the action until the recipient is verified. Show a valid own-account transfer proceeding through approval.
 5. **2:30–3:00:** Open Control. Show account-scoped agent permissions, daily paper limits, the audit trail, and pause automation.
 
-Pitch line: **“ClearFi connects your financial picture and gives AI useful work to do—with explicit limits on every action.”**
+Pitch line: **“Onera connects your financial picture and gives AI useful work to do—with explicit limits on every action.”**
 
 Architecture is proposed; no application or integrations have been implemented by this document.

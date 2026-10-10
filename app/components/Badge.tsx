@@ -73,7 +73,7 @@ export function RecipientStatusBadge({ status }: { status: RecipientStatus }) {
 
 export function CreatorBadge({ createdBy }: { createdBy: ActionCreator }) {
   return createdBy === "assistant" ? (
-    <Badge tone="violet" title="Proposed by the ClearFi assistant">
+    <Badge tone="violet" title="Proposed by the Onera assistant">
       Assistant
     </Badge>
   ) : (

@@ -177,8 +177,8 @@ export function NewTransferForm({
             {recipient && recipient.status !== "verified" && (
               <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">
                 {recipient.status === "changed"
-                  ? "This recipient's bank details changed since you verified them — ClearFi will hold the transfer."
-                  : "This recipient hasn't been verified — ClearFi will hold the transfer until you verify."}
+                  ? "This recipient's bank details changed since you verified them — Onera will hold the transfer."
+                  : "This recipient hasn't been verified — Onera will hold the transfer until you verify."}
               </p>
             )}
           </div>

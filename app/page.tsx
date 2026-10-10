@@ -237,7 +237,7 @@ export default function OverviewPage() {
                 <span className="knob" aria-hidden>
                   <Sparkle size={18} weight="fill" />
                 </span>
-                Ask ClearFi
+                Ask Onera
               </Link>
             </div>
           </section>

@@ -2,7 +2,7 @@
   "name": "clearfi",
   "version": "0.1.0",
   "private": true,
-  "description": "ClearFi — AI finance hub with enforced action controls (HackRU MVP).",
+  "description": "Onera — AI finance hub with enforced action controls (HackRU MVP).",
   "engines": {
     "node": ">=22"
   },

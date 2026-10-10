@@ -1,4 +1,4 @@
-# ClearFi — Four-Person Hackathon MVP
+# Onera — Four-Person Hackathon MVP
 
 Planning document, October 10, 2026. No application code is included. This scope supersedes the weekend implementation plan in [ROADMAP.md](ROADMAP.md); that document remains the product roadmap.
 

@@ -25,7 +25,7 @@ export function seedDatabase(db: DB, asOf: Date): void {
 
     const insFx = db.prepare("INSERT INTO fx_rates (currency, rate_micros, as_of, source) VALUES (?, ?, ?, ?)");
     for (const [currency, rate] of Object.entries(DEMO_FX_RATES)) {
-      insFx.run(currency, rate, now, "ClearFi demo FX (synthetic)");
+      insFx.run(currency, rate, now, "Onera demo FX (synthetic)");
     }
 
     const insTx = db.prepare(`INSERT INTO transactions

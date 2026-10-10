@@ -7,7 +7,7 @@ import type { HoldReason } from "@/lib/types";
 export interface HoldMessage {
   /** Short chip label. */
   label: string;
-  /** Why ClearFi held the transfer. */
+  /** Why Onera held the transfer. */
   explanation: string;
   /** What the user can do next. */
   recovery: string;

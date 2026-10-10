@@ -1,10 +1,10 @@
-# ClearFi — submission draft (HackRU Fall 2026)
+# Onera — submission draft (HackRU Fall 2026)
 
 *Draft for Person 3 to edit. Check the organizers' actual submission requirements before posting. Verify every claim against [FEATURES.md](FEATURES.md).*
 
 ## One-liner
 
-ClearFi puts all your accounts in one place and gives AI useful work to do, with explicit limits on every action.
+Onera puts all your accounts in one place and gives AI useful work to do, with explicit limits on every action.
 
 ## Inspiration
 
@@ -13,7 +13,7 @@ Money is spread across banks, cards, brokerages and accounts abroad. AI assistan
 ## What it does
 
 - **One hub:** balances, net worth across currencies, spending and subscriptions across simulated bank connections (TD Bank, Bank of America, JPMorgan Chase, Barclays UK, RBC — all simulated).
-- **Ask ClearFi:** a Claude-powered assistant that reads your data, explains it with evidence, and drafts transfers. It cannot approve or execute anything.
+- **Ask Onera:** a Claude-powered assistant that reads your data, explains it with evidence, and drafts transfers. It cannot approve or execute anything.
 - **Background AI agents:** monitor spending spikes, subscription price increases, risky transfers, portfolio concentration and connection health, and raise findings that cite their evidence.
 - **Governance that's enforced, not promised:** every transfer or paper trade goes through deterministic policy checks and your approval of the exact version. A changed recipient, an exceeded limit or a pause holds it. A malicious instruction hidden in an article can't get past the server.
 

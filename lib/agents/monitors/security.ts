@@ -72,7 +72,7 @@ export const securityReview: AgentHandler = (ctx) => {
     signals.push({
       code: "FIRST_TIME_RECIPIENT",
       severity: "warning",
-      text: `This is the first transfer to ${name} through ClearFi.`,
+      text: `This is the first transfer to ${name} through Onera.`,
     });
   }
 

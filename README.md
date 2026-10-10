@@ -1,8 +1,8 @@
-# ClearFi
+# Onera
 
 **Understand your money in one place, with AI that proposes actions and controls that enforce your decisions.**
 
-ClearFi is a HackRU 2026 project: a personal finance hub with a Claude-powered assistant. The assistant can read your accounts and draft transfers. A deterministic governance layer decides what can actually run, and you approve the exact transfer.
+Onera is a HackRU 2026 project: a personal finance hub with a Claude-powered assistant. The assistant can read your accounts and draft transfers. A deterministic governance layer decides what can actually run, and you approve the exact transfer.
 
 The main demo: **a rent transfer to a landlord whose bank details changed after an emailed "new payment instructions" request is held**, and neither the UI, a direct API call, nor the AI can push it through. A normal transfer between your own accounts goes through after you approve it, runs once, and produces a receipt.
 
@@ -106,7 +106,7 @@ These checks apply to the simulator. They don't establish production authenticat
 ## Three-minute demo
 
 1. **Hub (0:00–0:25):** "These are synthetic accounts. The AI integration and security checks are working." Show net worth and accounts.
-2. **Spending (0:25–0:55):** In Ask ClearFi, ask "What changed in my spending this month?" Show the StreamFlix increase ($15.49 → $22.99) and its evidence transactions.
+2. **Spending (0:25–0:55):** In Ask Onera, ask "What changed in my spending this month?" Show the StreamFlix increase ($15.49 → $22.99) and its evidence transactions.
 3. **Held transfer (0:55–1:55):** Ask "Pay Oak Street Properties $1,850 for rent." Open the proposal. The landlord's bank changed from Summit ••4821 to Harborview ••9930, so it's held for `RECIPIENT_CHANGED`. Click **Try to execute anyway** to show the server refusing.
 4. **Valid transfer (1:55–2:25):** Move $500 from checking to savings, approve the exact version, execute, show the receipt. Click execute again to show there's no duplicate.
 5. **Controls (2:25–3:00):** Ask the assistant to summarize `research_injected_article` and show the tool trace, or edit an approved amount to show the approval being discarded. Then pause execution in Control and show the audit log.

@@ -1,5 +1,5 @@
 /**
- * Shared ClearFi contract. UI, API routes, policy, simulator and AI tools all
+ * Shared Onera contract. UI, API routes, policy, simulator and AI tools all
  * use these types — change them deliberately and tell the team.
  *
  * Money is always integer cents plus an explicit currency. Never use floats

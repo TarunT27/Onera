@@ -72,7 +72,7 @@ export function TradeAssistant({ symbol, onReviewOrder }: { symbol: string; onRe
         <span className="squircle assistant-mark">
           <Sparkle size={16} weight="fill" aria-hidden />
         </span>
-        <h2>Ask ClearFi</h2>
+        <h2>Ask Onera</h2>
         <span className="row-meta">Not financial advice</span>
       </header>
 

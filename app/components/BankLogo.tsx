@@ -1,6 +1,6 @@
 /**
  * Institution logo tile. Real logos live in /public/images/banks. Institutions
- * with no real brand (the ClearFi demo bank, the fictional Northwind import,
+ * with no real brand (the Onera demo bank, the fictional Northwind import,
  * recipients' banks) fall back to a monogram so every row still has a mark.
  * Logos are decorative: the institution name is always rendered next to them.
  */
@@ -35,7 +35,7 @@ function monogram(institution: string): string {
     .split(/\s+/)
     .filter(Boolean);
   if (words.length === 0) return "?";
-  if (/^clearfi/i.test(institution)) return "C";
+  if (/^onera/i.test(institution)) return "O";
   return words
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())

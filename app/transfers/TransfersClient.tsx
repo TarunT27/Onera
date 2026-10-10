@@ -61,7 +61,7 @@ export function TransfersClient() {
     <div>
       <PageHeader
         title="Transfers"
-        description="Review and approve every transfer. ClearFi checks your limits before sending. All transfers here are simulated."
+        description="Review and approve every transfer. Onera checks your limits before sending. All transfers here are simulated."
       />
 
       {paused && (

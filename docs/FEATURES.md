@@ -1,4 +1,4 @@
-# ClearFi — what's real, simulated, and roadmap
+# Onera — what's real, simulated, and roadmap
 
 Use this list for the pitch, the submission and judge Q&A. If something isn't in "Real code", don't present it as working.
 
@@ -30,7 +30,7 @@ Use this list for the pitch, the submission and judge Q&A. If something isn't in
 | Money movement | "Simulated" receipts; no bank connection |
 | Stock/ETF prices | "Simulated prices — not real market data"; simulated market is always open |
 | Paper portfolio | "Paper · not in net worth" |
-| FX rates | "ClearFi demo FX (synthetic)" with a date |
+| FX rates | "Onera demo FX (synthetic)" with a date |
 | Recipient verification | "Simulated out-of-band check" |
 | The injected article | Labeled synthetic and malicious |
 
