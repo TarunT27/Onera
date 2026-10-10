@@ -10,6 +10,17 @@ export { enqueueJob, getJob, listJobs } from "./queue";
 export { runPendingJobs } from "./runner";
 export { scheduleRecurring } from "./scheduler";
 export {
+  DEFAULT_WORKER_INTERVAL_MS,
+  formatTickSummary,
+  interruptibleSleep,
+  runWorkerLoop,
+  runWorkerTick,
+  type WorkerLoopOptions,
+  type WorkerLoopResult,
+  type WorkerTickOptions,
+  type WorkerTickReport,
+} from "./worker";
+export {
   AGENT_REGISTRY,
   agentForJobType,
   getAgent,
