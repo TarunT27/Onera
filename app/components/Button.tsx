@@ -5,21 +5,21 @@ export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "warn
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    "bg-brand-700 text-white shadow-sm hover:bg-brand-800 disabled:bg-brand-700/50 dark:bg-brand-500 dark:text-zinc-950 dark:hover:bg-brand-400 dark:disabled:bg-brand-500/40",
+    "bg-white text-zinc-950 shadow-[0_8px_24px_-10px_rgb(0_0_0/0.6)] hover:bg-brand-100 disabled:bg-white/40",
   secondary:
-    "border border-zinc-300 bg-white text-zinc-800 shadow-sm hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800",
+    "bg-white/[0.08] text-zinc-100 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1),inset_0_1px_0_rgb(255_255_255/0.08)] hover:bg-white/[0.13] disabled:opacity-50",
   danger:
-    "bg-red-600 text-white shadow-sm hover:bg-red-700 disabled:opacity-50 dark:bg-red-500 dark:hover:bg-red-400 dark:text-zinc-950",
+    "bg-red-400/15 text-red-200 shadow-[inset_0_0_0_1px_rgb(248_113_113/0.25)] hover:bg-red-400/25 disabled:opacity-50",
   warning:
-    "border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200 dark:hover:bg-amber-900/50",
+    "bg-amber-300/12 text-amber-200 shadow-[inset_0_0_0_1px_rgb(252_211_77/0.22)] hover:bg-amber-300/20 disabled:opacity-50",
   ghost:
-    "text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-800",
+    "text-white/70 hover:bg-white/[0.07] hover:text-white disabled:opacity-50",
 };
 
 const SIZES = {
-  sm: "px-2.5 py-1.5 text-xs",
-  md: "px-3.5 py-2 text-sm",
-  lg: "px-5 py-3 text-base",
+  sm: "px-3 py-1.5 text-xs",
+  md: "px-4 py-2 text-sm",
+  lg: "px-6 py-3 text-base",
 };
 
 export function Button({
@@ -42,7 +42,7 @@ export function Button({
       type={type}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-full font-medium active:scale-[0.97] disabled:cursor-not-allowed ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...rest}
     >
       {busy && <Spinner className="size-3.5" />}
@@ -52,6 +52,6 @@ export function Button({
 }
 
 export const inputClass =
-  "block w-full min-w-0 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500";
+  "block w-full min-w-0 rounded-2xl border-0 bg-white/[0.06] px-4 py-2.5 text-sm text-zinc-100 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)] transition-shadow duration-300 placeholder:text-white/35 focus:bg-white/[0.08] focus:shadow-[inset_0_0_0_1px_rgb(140_185_204/0.6),0_0_0_4px_rgb(0_99_142/0.25)] focus:outline-none disabled:opacity-60";
 
-export const labelClass = "mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300";
+export const labelClass = "mb-1.5 block text-[13px] font-medium text-white/60";

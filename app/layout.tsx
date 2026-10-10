@@ -10,12 +10,15 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#000000",
+  themeColor: "#08090b",
+  viewportFit: "cover",
 };
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" data-scroll-behavior="smooth">
       <body>
+        <div className="ambient" aria-hidden />
+        <div className="grain" aria-hidden />
         <Header />
         <main id="main-content" className="app-main">
           {children}
