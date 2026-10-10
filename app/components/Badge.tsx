@@ -38,8 +38,8 @@ export function Badge({
 const STATE_META: Record<ActionState, { tone: BadgeTone; label: string }> = {
   PROPOSED: { tone: "gray", label: "Proposed" },
   HELD: { tone: "red", label: "Held" },
-  AWAITING_APPROVAL: { tone: "blue", label: "Awaiting approval" },
-  APPROVED: { tone: "indigo", label: "Approved" },
+  AWAITING_APPROVAL: { tone: "amber", label: "Ready for approval" },
+  APPROVED: { tone: "blue", label: "Approved" },
   EXECUTED: { tone: "green", label: "Executed" },
   FAILED: { tone: "red", label: "Failed" },
 };

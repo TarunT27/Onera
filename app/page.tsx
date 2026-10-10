@@ -35,12 +35,26 @@ export default function HubPage() {
   return (
     <div className="space-y-6">
       <NetWorth data={accounts.data} loading={accounts.loading} />
-      <ErrorBox error={accounts.error} title="Couldn't load accounts" onRetry={() => void accounts.reload()} />
+
+      <NeedsAttention
+        insights={insights.data}
+        insightsError={insights.error}
+        actions={actions.data?.actions ?? null}
+        actionsError={actions.error}
+        loading={(insights.loading && !insights.data) || (actions.loading && !actions.data)}
+        accountById={accountById}
+      />
 
       <section aria-labelledby="accounts-heading">
-        <h2 id="accounts-heading" className="sr-only">
-          Accounts
-        </h2>
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <h2 id="accounts-heading" className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+              Linked accounts
+            </h2>
+            <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">Synthetic balances and transfer capabilities.</p>
+          </div>
+        </div>
+        <ErrorBox error={accounts.error} title="Couldn't load accounts" className="mb-3" onRetry={() => void accounts.reload()} />
         {accounts.loading && !accounts.data ? (
           <Loading label="Loading accounts…" />
         ) : (
@@ -54,14 +68,6 @@ export default function HubPage() {
 
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="min-w-0 space-y-6 lg:col-span-3">
-          <NeedsAttention
-            insights={insights.data}
-            insightsError={insights.error}
-            actions={actions.data?.actions ?? null}
-            actionsError={actions.error}
-            loading={(insights.loading && !insights.data) || (actions.loading && !actions.data)}
-            accountById={accountById}
-          />
           <RecentActivity
             transactions={txns.data?.transactions ?? null}
             error={txns.error}
@@ -85,7 +91,8 @@ function NetWorth({ data, loading }: { data: AccountsResponse | null; loading: b
     <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Net worth across your linked accounts</p>
+          <h1 className="text-lg font-semibold tracking-tight text-balance text-zinc-900 dark:text-zinc-50">Your financial overview</h1>
+          <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">Net worth across your linked synthetic accounts</p>
           <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums text-zinc-900 sm:text-5xl dark:text-zinc-50">
             {total === null ? (loading ? <span className="text-zinc-300 dark:text-zinc-700">$—</span> : "—") : formatCents(total)}
           </p>
@@ -102,13 +109,13 @@ function NetWorth({ data, loading }: { data: AccountsResponse | null; loading: b
         <div className="flex flex-wrap gap-2">
           <Link
             href="/transfers"
-            className="rounded-lg bg-brand-700 px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-800 dark:bg-brand-500 dark:text-zinc-950 dark:hover:bg-brand-400"
+            className="inline-flex min-h-11 items-center rounded-lg bg-brand-700 px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-800 dark:bg-brand-500 dark:text-zinc-950 dark:hover:bg-brand-400"
           >
             New transfer
           </Link>
           <Link
             href="/chat"
-            className="rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+            className="inline-flex min-h-11 items-center rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
           >
             Ask ClearFi
           </Link>
@@ -162,7 +169,9 @@ function NeedsAttention({
   loading: boolean;
   accountById: Map<string, Account>;
 }) {
-  const pending = (actions ?? []).filter((a) => a.state === "HELD" || a.state === "AWAITING_APPROVAL");
+  const pending = (actions ?? []).filter(
+    (a) => a.state === "HELD" || a.state === "AWAITING_APPROVAL" || a.state === "APPROVED",
+  );
   const subs = insights?.subscriptions ?? [];
   const count = pending.length + subs.length;
 
@@ -201,7 +210,11 @@ function NeedsAttention({
                       </span>
                     </div>
                     <span className="text-sm font-medium text-brand-700 group-hover:underline dark:text-brand-400">
-                      {a.state === "AWAITING_APPROVAL" ? "Review & approve →" : "Review hold →"}
+                      {a.state === "AWAITING_APPROVAL"
+                        ? "Review & approve →"
+                        : a.state === "APPROVED"
+                          ? "Review & execute →"
+                          : "Review hold →"}
                     </span>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">

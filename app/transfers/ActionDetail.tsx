@@ -51,13 +51,18 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
   const [editValue, setEditValue] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const detailReady = detail.data !== null;
 
   useEffect(() => {
+    if (!detailReady) return;
+    headingRef.current?.focus({ preventScroll: true });
     // On phones the panel sits above the list; bring it into view when a transfer is selected.
     if (window.matchMedia("(max-width: 1023px)").matches) {
-      rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      rootRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
     }
-  }, []);
+  }, [detailReady]);
 
   async function run(op: string, fn: () => Promise<Notice | null>) {
     setBusy(op);
@@ -105,11 +110,12 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
   const state = action.state;
   const receipt: ExecutionReceipt | null = action.receipt ?? lastExecute?.receipt ?? null;
   const recipientNeedsVerify = recipient.status !== "verified" && state !== "EXECUTED";
-  const anyBusy = busy !== null;
+  const anyBusy = busy !== null || detail.error !== null;
 
   const approve = () =>
     run("approve", async () => {
       const { action: a } = await clearfi.approveAction(action.id, action.version);
+      if (detail.data) detail.setData({ ...detail.data, action: a });
       return { tone: "success", text: `Approved v${a.approvedVersion ?? action.version}. The approval is bound to this exact transfer.` };
     });
 
@@ -117,6 +123,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
     run(op, async () => {
       const res = await clearfi.executeAction(action.id);
       setLastExecute(res);
+      if (detail.data) detail.setData({ ...detail.data, action: res.action });
       if (res.duplicate) {
         return {
           tone: "info",
@@ -140,7 +147,8 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
 
   const verify = () =>
     run("verify", async () => {
-      await clearfi.verifyRecipient(recipient.id);
+      const { recipient: nextRecipient } = await clearfi.verifyRecipient(recipient.id);
+      if (detail.data) detail.setData({ ...detail.data, recipient: nextRecipient });
       setJustVerified(true);
       return {
         tone: "info",
@@ -151,6 +159,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
   const evaluate = () =>
     run("evaluate", async () => {
       const { action: a } = await clearfi.evaluateAction(action.id);
+      if (detail.data) detail.setData({ ...detail.data, action: a });
       setJustVerified(false);
       return {
         tone: a.state === "HELD" ? "warning" : "success",
@@ -179,6 +188,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
     setEditError(null);
     void run("edit", async () => {
       const { action: a } = await clearfi.editAction(action.id, { amountCents: parsed.cents });
+      if (detail.data) detail.setData({ ...detail.data, action: a });
       setEditing(false);
       return {
         tone: "warning",
@@ -189,34 +199,46 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
 
   return (
     <div ref={rootRef} className="min-w-0 scroll-mt-24 space-y-4">
+      {detail.error !== null && (
+        <ErrorBox
+          error={detail.error}
+          title="Couldn't refresh this transfer. Actions are disabled until its current state reloads."
+          onRetry={() => void detail.reload()}
+        />
+      )}
       <Card>
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-              Transfer proposal · <span className="tabular-nums">v{action.version}</span>
-            </p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight">
-              <Money cents={action.amountCents} />
-            </p>
-            <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
-              to <span className="font-medium text-zinc-900 dark:text-zinc-100">{recipient.displayName}</span> from{" "}
-              {sourceAccount.name} {mask(sourceAccount.mask)}
-            </p>
-            <code className="mt-1 block font-mono text-[11px] break-all text-zinc-400 dark:text-zinc-500">{action.id}</code>
-          </div>
-          <div className="flex shrink-0 flex-col items-end gap-2">
-            <ActionStateBadge state={state} />
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md px-1.5 text-lg leading-none text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-              aria-label="Close transfer details"
-            >
-              ×
-            </button>
-          </div>
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="text-xs font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400"
+          >
+            Transfer proposal · <span className="tabular-nums">v{action.version}</span>
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid size-11 shrink-0 place-items-center rounded-lg text-xl leading-none text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 sm:size-8 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            aria-label="Close transfer details"
+          >
+            ×
+          </button>
         </div>
+
+        <div className={`mt-3 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-sm ${stateCalloutTone(state)}`}>
+          <ActionStateBadge state={state} />
+          <p className="min-w-0 text-pretty">{stateSummary(action, recipient)}</p>
+        </div>
+
+        <p className="mt-4 text-3xl font-semibold tracking-tight tabular-nums">
+          <Money cents={action.amountCents} /> <span className="text-sm font-medium tracking-normal text-zinc-500 dark:text-zinc-400">USD</span>
+        </p>
+        <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+          to <span className="font-medium text-zinc-900 dark:text-zinc-100">{recipient.displayName}</span> from {sourceAccount.name}{" "}
+          {mask(sourceAccount.mask)}
+        </p>
+        <code className="mt-1 block font-mono text-[11px] break-all text-zinc-400 dark:text-zinc-500">{action.id}</code>
 
         <Stepper state={state} />
 
@@ -279,15 +301,16 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
                     <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-sm text-zinc-500">$</span>
                     <input
                       aria-label="New amount in dollars"
+                      name="amount"
                       className={`${inputClass} py-1.5 pl-6 tabular-nums`}
                       inputMode="decimal"
-                      autoFocus
+                      autoComplete="off"
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                     />
                   </div>
                   <Button size="sm" type="submit" variant="primary" busy={busy === "edit"} disabled={anyBusy}>
-                    Save
+                    Save new amount
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={anyBusy}>
                     Cancel
@@ -362,7 +385,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
             )}
             {state === "APPROVED" && (
               <Button variant="primary" busy={busy === "execute"} disabled={anyBusy} onClick={() => void execute("execute")}>
-                Execute (simulated)
+                Execute simulated transfer
               </Button>
             )}
             {state === "EXECUTED" && (
@@ -377,7 +400,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
                 disabled={anyBusy}
                 onClick={() => void evaluate()}
               >
-                Re-evaluate
+                Re-evaluate policy
               </Button>
             )}
             {(state === "HELD" || state === "AWAITING_APPROVAL") && (
@@ -424,7 +447,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
           <Loading />
         ) : audit.data && audit.data.events.length > 0 ? (
           <AuditList events={audit.data.events.slice(0, 10)} showActionLink={false} />
-        ) : (
+        ) : audit.error ? null : (
           <EmptyState>No audit events yet.</EmptyState>
         )}
         <p className="mt-3 text-xs">
@@ -438,6 +461,39 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
 }
 
 // ---------------------------------------------------------------------------
+
+function stateCalloutTone(state: ActionState): string {
+  if (state === "HELD" || state === "FAILED") {
+    return "border-red-200 bg-red-50 text-red-950 dark:border-red-900 dark:bg-red-950/40 dark:text-red-100";
+  }
+  if (state === "AWAITING_APPROVAL") {
+    return "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100";
+  }
+  if (state === "EXECUTED") {
+    return "border-green-200 bg-green-50 text-green-950 dark:border-green-900 dark:bg-green-950/40 dark:text-green-100";
+  }
+  return "border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100";
+}
+
+function stateSummary(action: TransferAction, recipient: RecipientWithStatus): string {
+  switch (action.state) {
+    case "HELD":
+      return recipient.status !== "verified"
+        ? "Transfer held. Verify the recipient through a trusted channel, then re-evaluate the policy."
+        : "Transfer held. Resolve the policy reasons below, then re-evaluate the transfer.";
+    case "AWAITING_APPROVAL":
+      return `Policy checks passed. Review this exact version before approving v${action.version}.`;
+    case "APPROVED":
+      return `Version ${action.approvedVersion ?? action.version} is approved. Execution still re-checks your controls.`;
+    case "EXECUTED":
+      return "The transfer executed as a simulation. The receipt and audit trail are recorded below.";
+    case "FAILED":
+      return "The simulated execution failed. No real funds moved; review the failure and audit details below.";
+    case "PROPOSED":
+    default:
+      return "This proposal is not yet evaluated. Run the policy checks before it can move to approval.";
+  }
+}
 
 function decisionHint(action: TransferAction, recipient: RecipientWithStatus): string {
   switch (action.state) {
@@ -767,7 +823,7 @@ function ReceiptView({ receipt }: { receipt: ExecutionReceipt }) {
         </Field>
         <Field label="Executed at">{formatDateTime(receipt.executedAt, { full: true })}</Field>
         <Field label="Amount">
-          <Money cents={receipt.amountCents} className="font-medium" />
+          <Money cents={receipt.amountCents} className="font-medium" /> <span className="text-zinc-500">USD</span>
         </Field>
         <Field label="Destination">{receipt.destination}</Field>
         <Field label="Source balance after">

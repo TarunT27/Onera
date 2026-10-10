@@ -25,7 +25,7 @@ export function Card({
       {(title || action) && (
         <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-4 pt-4 sm:px-5 sm:pt-5">
           <div className="min-w-0">
-            {title && <h2 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">{title}</h2>}
+            {title && <h2 className="text-base font-semibold tracking-tight text-balance text-zinc-900 dark:text-zinc-50">{title}</h2>}
             {subtitle && <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{subtitle}</p>}
           </div>
           {action && <div className="shrink-0">{action}</div>}
@@ -48,7 +48,7 @@ export function Spinner({ className = "" }: { className?: string }) {
   return (
     <span
       aria-hidden
-      className={`inline-block size-4 animate-spin rounded-full border-2 border-current border-r-transparent align-[-2px] ${className}`}
+      className={`inline-block size-4 animate-spin rounded-full border-2 border-current border-r-transparent align-[-2px] motion-reduce:animate-none ${className}`}
     />
   );
 }
@@ -66,8 +66,8 @@ export function PageHeader({ title, description, action }: { title: string; desc
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl dark:text-zinc-50">{title}</h1>
-        {description && <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">{description}</p>}
+        <h1 className="text-2xl font-semibold tracking-tight text-balance text-zinc-900 sm:text-3xl dark:text-zinc-50">{title}</h1>
+        {description && <p className="mt-1 max-w-2xl text-sm text-pretty text-zinc-600 dark:text-zinc-400">{description}</p>}
       </div>
       {action}
     </div>

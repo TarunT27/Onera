@@ -64,7 +64,7 @@ export function ControlClient() {
           <Loading />
         ) : audit.data && audit.data.events.length > 0 ? (
           <AuditList events={audit.data.events} variant="table" />
-        ) : (
+        ) : audit.error ? null : (
           <EmptyState>No audit events yet.</EmptyState>
         )}
       </Card>
@@ -105,7 +105,7 @@ function PauseCard({ controls, onSaved }: { controls: UserControls; onSaved: (c:
           <div className="flex items-center gap-2">
             <span
               aria-hidden
-              className={`inline-block size-2.5 rounded-full ${paused ? "bg-red-500" : "animate-pulse bg-green-500"}`}
+              className={`inline-block size-2.5 rounded-full ${paused ? "bg-red-500" : "bg-green-500"}`}
             />
             <h2 className="text-lg font-semibold tracking-tight">{paused ? "Execution is paused" : "Execution is active"}</h2>
           </div>
@@ -238,6 +238,7 @@ function DollarField({
         <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-zinc-500">$</span>
         <input
           id={id}
+          name={id}
           className={`${inputClass} pl-7 tabular-nums`}
           inputMode="decimal"
           autoComplete="off"
@@ -247,7 +248,7 @@ function DollarField({
         />
       </div>
       {error ? (
-        <p className="mt-1 text-xs text-red-700 dark:text-red-400">{error}</p>
+        <p role="alert" className="mt-1 text-xs text-red-700 dark:text-red-400">{error}</p>
       ) : (
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           Current: <Money cents={current} />
@@ -279,7 +280,7 @@ function UsageCard({ controls, executedTodayCents }: { controls: UserControls; e
         aria-label="Daily limit used"
       >
         <div
-          className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-red-500" : pct >= 75 ? "bg-amber-500" : "bg-brand-600 dark:bg-brand-500"}`}
+          className={`h-full rounded-full ${pct >= 100 ? "bg-red-500" : pct >= 75 ? "bg-amber-500" : "bg-brand-600 dark:bg-brand-500"}`}
           style={{ width: `${pct}%` }}
         />
       </div>

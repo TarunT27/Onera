@@ -56,15 +56,23 @@ async function createMessage(messages: BetaMessageParam[]): Promise<BetaMessage>
 }
 
 export async function runChat(db: DB, userId: UserId, request: ChatRequest): Promise<ChatResponse> {
+  const lastUser = request.messages[request.messages.length - 1]?.content ?? "";
+  writeAudit(db, { userId, actor: `user:${userId}`, eventType: "assistant.prompt", detail: { text: lastUser.slice(0, 500) } });
+
   if (process.env.CLEARFI_AI_MODE === "fallback") {
-    return fallbackReply(db, userId, request, "Fallback mode is forced by CLEARFI_AI_MODE.");
+    const fallback = fallbackReply(db, userId, request, "Fallback mode is forced by CLEARFI_AI_MODE.");
+    writeAudit(db, {
+      userId,
+      actor: "assistant",
+      eventType: "assistant.reply",
+      detail: { mode: "fallback", reason: "forced", toolCalls: fallback.trace.length, proposedActionIds: [] },
+    });
+    return fallback;
   }
 
   const ctx: ToolContext = { db, userId, proposedActionIds: [] };
   const trace: ToolTraceEntry[] = [];
   const messages: BetaMessageParam[] = request.messages.map((m) => ({ role: m.role, content: m.content }));
-  const lastUser = request.messages[request.messages.length - 1]?.content ?? "";
-  writeAudit(db, { userId, actor: `user:${userId}`, eventType: "assistant.prompt", detail: { text: lastUser.slice(0, 500) } });
 
   let response: BetaMessage | null = null;
   try {
@@ -99,9 +107,16 @@ export async function runChat(db: DB, userId: UserId, request: ChatRequest): Pro
       : null;
     if (!reason) throw err;
     console.warn("[clearfi] chat falling back:", err instanceof Error ? err.message : err);
-    const fallback = fallbackReply(db, userId, request, reason);
+    const fallback = fallbackReply(db, userId, request, reason, ctx.proposedActionIds);
     // Keep any real tool activity (e.g. a proposal) that happened before the failure.
-    return { ...fallback, trace: [...trace, ...fallback.trace], proposedActionIds: ctx.proposedActionIds };
+    const result = { ...fallback, trace: [...trace, ...fallback.trace] };
+    writeAudit(db, {
+      userId,
+      actor: "assistant",
+      eventType: "assistant.reply",
+      detail: { mode: "fallback", reason, toolCalls: result.trace.length, proposedActionIds: result.proposedActionIds },
+    });
+    return result;
   }
 
   const text = (response?.content ?? [])
