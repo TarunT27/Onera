@@ -6,6 +6,7 @@
  * AI tools) cannot choose whose data they act on.
  */
 import { randomBytes } from "node:crypto";
+import { enqueueJob } from "@/lib/agents/queue";
 import { writeAudit } from "@/lib/audit";
 import { executedTodayCents, getControls } from "@/lib/controls";
 import type { DB } from "@/lib/db";
@@ -56,12 +57,18 @@ function resolveEndpoints(db: DB, userId: UserId, sourceAccountId: string, recip
   if (!source.capabilities.includes("transfer_source")) {
     throw new ServiceError("UNSUPPORTED", `${source.name} is view-only and cannot send transfers`, 400);
   }
+  if (source.currency !== "USD" || source.paper) {
+    throw new ServiceError("UNSUPPORTED", "Transfers are limited to USD bank accounts in this demo", 400);
+  }
   const recipient = getOwnedRecipient(db, userId, recipientId);
   if (recipient.kind === "own_account") {
     if (recipient.accountId === source.id) throw badRequest("Source and destination are the same account");
     const dest = getOwnedAccount(db, userId, recipient.accountId!);
     if (!dest.capabilities.includes("transfer_destination")) {
       throw new ServiceError("UNSUPPORTED", `${dest.name} cannot receive transfers`, 400);
+    }
+    if (dest.currency !== "USD" || dest.paper) {
+      throw new ServiceError("UNSUPPORTED", "Transfers are limited to USD bank accounts in this demo", 400);
     }
   }
   return { source, recipient };
@@ -131,6 +138,8 @@ export function createTransfer(
         recipientVersion: recipient.version },
     });
     applyEvaluation(db, userId, loadActionRow(db, userId, id), "system");
+    // Advisory security review by the background sentinel. It can raise findings, never approve.
+    enqueueJob(db, { userId, type: "security_review", dedupeKey: `security_review:${id}:v1`, payload: { actionId: id } });
   })();
   return getAction(db, userId, id);
 }

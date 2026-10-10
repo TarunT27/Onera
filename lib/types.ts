@@ -10,16 +10,20 @@ import { z } from "zod";
 export const DEMO_USER_IDS = ["alice", "bob"] as const;
 export type UserId = (typeof DEMO_USER_IDS)[number];
 
+/** Home currency. Transfers, limits and totals are USD-only in this demo. */
 export const CURRENCY = "USD" as const;
 export type Currency = typeof CURRENCY;
+
+/** Currencies an account or transaction may be held in (international accounts are view-only). */
+export type CurrencyCode = "USD" | "EUR" | "GBP" | "CAD";
 
 // ---------------------------------------------------------------------------
 // Accounts, transactions, recipients
 // ---------------------------------------------------------------------------
 
-export type AccountType = "checking" | "savings" | "brokerage";
-/** What this app may do with an account. Visibility never implies transfer support. */
-export type AccountCapability = "view" | "transfer_source" | "transfer_destination";
+export type AccountType = "checking" | "savings" | "brokerage" | "credit";
+/** What this app may do with an account. Visibility never implies transfer or trading support. */
+export type AccountCapability = "view" | "transfer_source" | "transfer_destination" | "trade";
 
 export interface Account {
   id: string;
@@ -27,11 +31,16 @@ export interface Account {
   institution: string;
   name: string;
   type: AccountType;
-  currency: Currency;
+  currency: CurrencyCode;
   mask: string;
+  /** In the account's currency. Credit accounts are negative (amount owed). Brokerage = cash only. */
   balanceCents: number;
   availableCents: number;
   capabilities: AccountCapability[];
+  /** Provider connection (lib/providers), or null for built-in demo accounts. */
+  connectionId: string | null;
+  /** Paper-trading money: shown separately, never counted in net worth. */
+  paper: boolean;
   synthetic: true;
   updatedAt: string;
 }
@@ -46,14 +55,16 @@ export interface Transaction {
   description: string;
   merchant: string | null;
   category: string;
-  /** Negative = money out of the account, positive = money in. */
+  /** Negative = money out of the account, positive = money in. In the account's currency. */
   amountCents: number;
-  currency: Currency;
+  currency: CurrencyCode;
   status: TransactionStatus;
   /** Shared by both legs of a move between the user's own accounts. Excluded from spending. */
   transferGroupId: string | null;
   /** Set when the transaction was created by the simulator for an action. */
   actionId: string | null;
+  /** Provider's transaction ID for synced transactions (unique per account). */
+  providerTxId: string | null;
 }
 
 export type RecipientKind = "own_account" | "external";
@@ -197,6 +208,23 @@ export interface AuditEvent {
   createdAt: string;
 }
 
+export interface FxRate {
+  currency: CurrencyCode;
+  /** USD per 1 unit of currency × 1,000,000. */
+  rateMicros: number;
+  asOf: string;
+  source: string;
+}
+
+export interface NetWorth {
+  /** USD. Excludes paper-trading accounts. Includes brokerage positions at simulated prices. */
+  totalCents: number;
+  cashAndDebtCents: number;
+  investmentsCents: number;
+  fxRates: FxRate[];
+  asOf: string;
+}
+
 // ---------------------------------------------------------------------------
 // Insights
 // ---------------------------------------------------------------------------
@@ -222,6 +250,7 @@ export interface SpendingCategory {
 
 export interface SpendingSummary {
   month: string; // YYYY-MM
+  /** USD; foreign-currency spending is converted with the dated demo FX rate. */
   totalCents: number;
   previousMonth: string;
   previousTotalCents: number;

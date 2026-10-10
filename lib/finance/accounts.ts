@@ -12,7 +12,9 @@ import {
   type TransactionRow,
 } from "@/lib/db/rows";
 import { notFound } from "@/lib/errors";
-import type { Account, Recipient, Transaction, UserId } from "@/lib/types";
+import { getPortfolio } from "@/lib/markets";
+import type { Account, NetWorth, Recipient, Transaction, UserId } from "@/lib/types";
+import { listFxRates, usdConverter } from "./fx";
 
 export function listAccounts(db: DB, userId: UserId): Account[] {
   const rows = db.prepare("SELECT * FROM accounts WHERE user_id = ? ORDER BY type, id").all(userId);
@@ -25,8 +27,24 @@ export function getOwnedAccount(db: DB, userId: UserId, accountId: string): Acco
   return toAccount(row as AccountRow);
 }
 
-export function netWorthCents(accounts: Account[]): number {
-  return accounts.reduce((sum, a) => sum + a.balanceCents, 0);
+/**
+ * Net worth in USD: account balances (credit is negative) converted with the
+ * dated demo FX rate, plus brokerage positions at simulated prices. Paper
+ * trading accounts are excluded.
+ */
+export function netWorth(db: DB, userId: UserId, now: Date = new Date()): NetWorth {
+  const toUsd = usdConverter(db);
+  const cashAndDebtCents = listAccounts(db, userId)
+    .filter((a) => !a.paper)
+    .reduce((sum, a) => sum + toUsd(a.balanceCents, a.currency), 0);
+  const investmentsCents = getPortfolio(db, userId, now).investedValueCents;
+  return {
+    totalCents: cashAndDebtCents + investmentsCents,
+    cashAndDebtCents,
+    investmentsCents,
+    fxRates: listFxRates(db),
+    asOf: now.toISOString(),
+  };
 }
 
 export function listTransactions(

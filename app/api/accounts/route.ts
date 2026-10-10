@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { listAccounts, netWorthCents } from "@/lib/finance/accounts";
+import { listAccounts, netWorth } from "@/lib/finance/accounts";
 import { handler } from "@/lib/http";
 import { getSessionUserId } from "@/lib/session";
 
 export const GET = handler(async () => {
-  const accounts = listAccounts(getDb(), await getSessionUserId());
-  return NextResponse.json({ accounts, netWorthCents: netWorthCents(accounts), asOf: new Date().toISOString() });
+  const db = getDb();
+  const userId = await getSessionUserId();
+  const worth = netWorth(db, userId);
+  return NextResponse.json({
+    accounts: listAccounts(db, userId),
+    netWorthCents: worth.totalCents,
+    netWorth: worth,
+    asOf: worth.asOf,
+  });
 });

@@ -88,6 +88,7 @@ export function TransfersClient() {
 
         <div className="min-w-0 space-y-6 lg:col-span-5 lg:col-start-1 lg:row-start-1">
           <NewTransferForm
+            initialSourceId={searchParams.get("source") ?? undefined}
             accounts={accounts.data?.accounts ?? null}
             accountsError={accounts.error}
             recipients={recipients.data?.recipients ?? null}

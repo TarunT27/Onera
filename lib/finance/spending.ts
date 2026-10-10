@@ -5,6 +5,7 @@
 import type { DB } from "@/lib/db";
 import { toTransaction, type TransactionRow } from "@/lib/db/rows";
 import type { SpendingSummary, Transaction, UserId } from "@/lib/types";
+import { usdConverter } from "./fx";
 
 const monthKey = (d: Date) => d.toISOString().slice(0, 7);
 
@@ -32,21 +33,23 @@ export function spendingSummary(db: DB, userId: UserId, asOf: Date = new Date())
   const current = postedBetween(db, userId, cur.start, cur.end);
   const previous = postedBetween(db, userId, prev.start, prev.end);
 
+  const toUsd = usdConverter(db);
+  const usd = (t: Transaction) => toUsd(t.amountCents, t.currency);
   const spend = current.filter(isSpending);
   const byCat = new Map<string, number>();
-  for (const t of spend) byCat.set(t.category, (byCat.get(t.category) ?? 0) - t.amountCents);
+  for (const t of spend) byCat.set(t.category, (byCat.get(t.category) ?? 0) - usd(t));
 
   return {
     month: cur.key,
-    totalCents: spend.reduce((s, t) => s - t.amountCents, 0),
+    totalCents: spend.reduce((s, t) => s - usd(t), 0),
     previousMonth: prev.key,
-    previousTotalCents: previous.filter(isSpending).reduce((s, t) => s - t.amountCents, 0),
+    previousTotalCents: previous.filter(isSpending).reduce((s, t) => s - usd(t), 0),
     byCategory: [...byCat.entries()]
       .map(([category, totalCents]) => ({ category, totalCents }))
       .sort((a, b) => b.totalCents - a.totalCents),
     excludedInternalTransferCents: current
       .filter((t) => t.transferGroupId !== null && t.amountCents < 0)
-      .reduce((s, t) => s - t.amountCents, 0),
+      .reduce((s, t) => s - usd(t), 0),
     transactionCount: spend.length,
   };
 }

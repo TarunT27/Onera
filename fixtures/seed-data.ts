@@ -30,8 +30,10 @@ export interface SeedAccount {
   name: string;
   type: AccountType;
   mask: string;
+  /** Brokerage accounts: cash only; positions live in the markets module. */
   balanceCents: number;
   capabilities: AccountCapability[];
+  paper?: boolean;
 }
 
 export interface SeedTransaction {
@@ -104,14 +106,27 @@ export function buildSeedData(asOf: Date): SeedData {
       capabilities: ["view", "transfer_source", "transfer_destination"],
     },
     {
+      // Imported holdings: view-only. Positions are seeded by lib/markets.
       id: "acct_alice_brokerage",
       userId: "alice",
       institution: "Northwind Brokerage (demo import)",
       name: "Individual Brokerage",
       type: "brokerage",
       mask: "3091",
-      balanceCents: 842_015,
+      balanceCents: 42_015,
       capabilities: ["view"],
+    },
+    {
+      // Paper trading account: the only place orders can execute. Excluded from net worth.
+      id: "acct_alice_paper",
+      userId: "alice",
+      institution: "ClearFi Paper Trading (simulated)",
+      name: "Paper Portfolio",
+      type: "brokerage",
+      mask: "0001",
+      balanceCents: 500_000,
+      capabilities: ["view", "trade"],
+      paper: true,
     },
     {
       id: "acct_bob_checking",
@@ -132,6 +147,17 @@ export function buildSeedData(asOf: Date): SeedData {
       mask: "6634",
       balanceCents: 500_000,
       capabilities: ["view", "transfer_source", "transfer_destination"],
+    },
+    {
+      id: "acct_bob_paper",
+      userId: "bob",
+      institution: "ClearFi Paper Trading (simulated)",
+      name: "Paper Portfolio",
+      type: "brokerage",
+      mask: "0002",
+      balanceCents: 100_000,
+      capabilities: ["view", "trade"],
+      paper: true,
     },
   ];
 

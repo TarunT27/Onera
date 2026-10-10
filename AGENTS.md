@@ -16,7 +16,9 @@ ClearFi is a hackathon finance demo whose whole pitch is that AI can't move mone
 
 ## Conventions
 
-- Shared contract: `lib/types.ts`. HTTP contract: `docs/API.md`. Update both together.
+- Shared contract: `lib/types.ts`, `lib/db/modules.ts` and each module's `lib/<module>/index.ts`. HTTP contract: `docs/API.md`. Backend architecture: `docs/BACKEND_PLAN.md`.
+- Feature modules (`lib/providers`, `lib/markets`, `lib/agents`) call each other only through their `index.ts`. They register tables via their own `db.ts`, never by editing `lib/db/schema.ts`.
+- Delegating to subagents: follow `docs/agents/SUBAGENT_DELEGATION.md`.
 - Services throw `ServiceError` (`lib/errors.ts`); routes wrap handlers with `handler()` from `lib/http.ts`.
 - New state-changing logic needs a Vitest test in `tests/` (use `freshDb()` from `tests/helpers.ts`, an in-memory seeded database).
 - UI code talks to the server only through `/api/*` fetches; never import `lib/db`, `lib/actions` or `lib/ai` into client components.

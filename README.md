@@ -115,15 +115,21 @@ Closing line: **"The AI helps you decide. Your permissions determine what it can
 
 ## Team ownership
 
-| Role | Owns |
-|---|---|
-| 1 — Interface | `app/` pages and components |
-| 2 — Finance/security | `lib/db`, `lib/types.ts`, `lib/policy`, `lib/actions`, `lib/controls.ts`, `fixtures/seed-data.ts` |
-| 3 — AI/insights | `lib/ai`, `lib/finance/spending.ts`, `lib/finance/subscriptions.ts`, `fixtures/articles` |
-| 4 — Integration/demo | `tests/`, README, demo script, recording, submission |
+Two engineering roles and two business/AI-governance roles. Full plan: [docs/TEAM_PLAN.md](docs/TEAM_PLAN.md).
 
-Change shared files (`lib/types.ts`, `lib/db/schema.ts`, `fixtures/seed-data.ts`) only through their owner. Merge small working flows often. Guidance for AI coding assistants is in [AGENTS.md](AGENTS.md).
+| Person | Role | Owns in this repo |
+|---|---|---|
+| 1 | Product Engineer — frontend and AI experience | `app/` (pages, components, `app/api/chat`), `lib/ai/`, `fixtures/articles/` |
+| 2 | Systems Engineer — finance and security | `lib/types.ts`, `lib/db/`, `lib/finance/`, `lib/policy/`, `lib/actions/`, `lib/controls.ts`, `lib/audit.ts`, `lib/session.ts`, financial routes under `app/api/`, `fixtures/seed-data.ts`, `tests/` |
+| 3 | Product and business lead | Brief, competitor comparison, demo script, slides, submission |
+| 4 | AI governance and evaluation lead | Permission and policy matrices, scenario fixtures (loaded by Person 2), evaluation results, claim review |
+
+Shared files (`lib/types.ts`, `lib/db/schema.ts`, `fixtures/seed-data.ts`, `docs/API.md`) change only through Person 2. Review of money and control code stays with Person 2 even when an assistant writes it. Merge small working flows often. Guidance for AI coding assistants is in [AGENTS.md](AGENTS.md).
 
 ## Roadmap
 
 [docs/ROADMAP.md](docs/ROADMAP.md) covers the longer-term product: multi-bank aggregation (Plaid), paper trading and research (Alpaca), background monitoring agents, bounded automation mandates, and international accounts. None of that is implemented here, so don't present it as working in the pitch.
+
+## Azure UI and browser QA
+
+The selected Obsidian Flow design is implemented with a dedicated Accounts workspace, five simulated bank profiles, connection recovery, brokerage holdings and responsive navigation. See [the implementation and QA guide](docs/UI-IMPLEMENTATION.md) for the isolated demo launch, recovered backend modules, data initialization and validation limits. Run `npm run test:e2e` for the desktop/mobile Playwright suite.

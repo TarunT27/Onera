@@ -20,11 +20,14 @@ export interface AccountRow {
   institution: string;
   name: string;
   type: Account["type"];
-  currency: "USD";
+  currency: Account["currency"];
   mask: string;
   balance_cents: number;
   available_cents: number;
   capabilities: string;
+  connection_id: string | null;
+  external_id: string | null;
+  is_paper: number;
   updated_at: string;
 }
 
@@ -40,6 +43,8 @@ export function toAccount(r: AccountRow): Account {
     balanceCents: r.balance_cents,
     availableCents: r.available_cents,
     capabilities: JSON.parse(r.capabilities),
+    connectionId: r.connection_id,
+    paper: r.is_paper === 1,
     synthetic: true,
     updatedAt: r.updated_at,
   };
@@ -54,10 +59,11 @@ export interface TransactionRow {
   merchant: string | null;
   category: string;
   amount_cents: number;
-  currency: "USD";
+  currency: Transaction["currency"];
   status: Transaction["status"];
   transfer_group_id: string | null;
   action_id: string | null;
+  provider_tx_id: string | null;
 }
 
 export function toTransaction(r: TransactionRow): Transaction {
@@ -74,6 +80,7 @@ export function toTransaction(r: TransactionRow): Transaction {
     status: r.status,
     transferGroupId: r.transfer_group_id,
     actionId: r.action_id,
+    providerTxId: r.provider_tx_id,
   };
 }
 
