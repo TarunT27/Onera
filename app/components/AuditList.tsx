@@ -12,7 +12,8 @@ export function actorMeta(actor: string): { label: string; tone: BadgeTone } {
 
 function eventTone(eventType: string): string {
   const t = eventType.toLowerCase();
-  if (/(refus|reject|denied|fail|block|held|hold|stale|invalid)/.test(t)) return "text-red-700 dark:text-red-400";
+  if (/(refus|reject|denied|fail|block|held|hold|stale|invalid)/.test(t))
+    return "text-red-700 dark:text-red-400";
   if (/(execut|receipt)/.test(t)) return "text-green-700 dark:text-green-400";
   if (/approv/.test(t)) return "text-indigo-700 dark:text-indigo-400";
   if (/(verif)/.test(t)) return "text-brand-700 dark:text-brand-400";
@@ -33,7 +34,8 @@ export function AuditList({
   showActionLink?: boolean;
 }) {
   const table = variant === "table";
-  const cols = "md:grid md:grid-cols-[9.5rem_6.5rem_minmax(0,13rem)_8.5rem_minmax(0,1fr)] md:items-baseline md:gap-x-4";
+  const cols =
+    "xl:grid xl:grid-cols-[9.5rem_6.5rem_minmax(0,13rem)_8.5rem_minmax(0,1fr)] xl:items-baseline xl:gap-x-4";
 
   return (
     <div className="min-w-0 text-sm">
@@ -51,55 +53,68 @@ export function AuditList({
       <ol className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {events.map((e) => {
           const actor = actorMeta(e.actor);
-          const detail = compactJson(e.detail, table ? 240 : 140);
+          const detail = compactJson(e.detail, 4000);
+          const eventLabel = e.eventType
+            .replace(/[._]/g, " ")
+            .replace(/^./, (c) => c.toUpperCase());
           return (
             <li key={e.id} className={`min-w-0 py-2.5 ${table ? cols : ""}`}>
               {table ? (
                 <>
-                  <span className="hidden text-xs text-zinc-500 tabular-nums md:block dark:text-zinc-400">
+                  <span className="hidden text-xs text-zinc-500 tabular-nums xl:block dark:text-zinc-400">
                     {formatDateTime(e.createdAt, { full: true })}
                   </span>
-                  <span className="hidden md:block">
+                  <span className="hidden xl:block">
                     <Badge tone={actor.tone} title={e.actor}>
                       {actor.label}
                     </Badge>
                   </span>
                 </>
               ) : null}
-              <div className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 ${table ? "md:block" : ""}`}>
-                <code className={`font-mono text-xs font-semibold break-all ${eventTone(e.eventType)}`}>{e.eventType}</code>
-                <span className={table ? "md:hidden" : ""}>
+              <div
+                className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 ${table ? "xl:block" : ""}`}
+              >
+                <span
+                  className={`text-sm font-medium ${eventTone(e.eventType)}`}
+                >
+                  {eventLabel}
+                </span>
+                <span className={table ? "xl:hidden" : ""}>
                   <Badge tone={actor.tone} title={e.actor}>
                     {actor.label}
                   </Badge>
                 </span>
-                <span className={`text-xs text-zinc-500 tabular-nums dark:text-zinc-400 ${table ? "md:hidden" : ""}`}>
+                <span
+                  className={`text-xs text-zinc-500 tabular-nums dark:text-zinc-400 ${table ? "xl:hidden" : ""}`}
+                >
                   {formatDateTime(e.createdAt, { full: true })}
                 </span>
               </div>
               {(table || (showActionLink && e.actionId)) && (
-                <div className={`mt-1 min-w-0 text-xs ${table ? "md:mt-0" : ""}`}>
+                <div
+                  className={`mt-1 min-w-0 text-xs ${table ? "xl:mt-0" : ""}`}
+                >
                   {showActionLink && e.actionId ? (
                     <Link
                       href={`/transfers?id=${encodeURIComponent(e.actionId)}`}
                       className="font-mono break-all text-brand-700 hover:underline dark:text-brand-400"
                     >
-                      {e.actionId}
+                      View transfer
                     </Link>
                   ) : (
-                    <span className="hidden text-zinc-400 md:inline">—</span>
+                    <span className="hidden text-zinc-400 xl:inline">—</span>
                   )}
                 </div>
               )}
               {detail ? (
-                <code
-                  className={`mt-1 block font-mono text-[11px] leading-relaxed break-all text-zinc-500 dark:text-zinc-400 ${table ? "md:mt-0" : ""}`}
-                  title={compactJson(e.detail, 4000)}
-                >
-                  {detail}
-                </code>
+                <details className="mt-1 text-xs text-zinc-400">
+                  <summary className="min-h-9 py-2">View event details</summary>
+                  <pre className="max-h-60 overflow-auto whitespace-pre-wrap break-all py-2 font-mono text-[11px]">
+                    {JSON.stringify(e.detail, null, 2)}
+                  </pre>
+                </details>
               ) : table ? (
-                <span className="hidden text-xs text-zinc-400 md:block">—</span>
+                <span className="hidden text-xs text-zinc-400 xl:block">—</span>
               ) : null}
             </li>
           );

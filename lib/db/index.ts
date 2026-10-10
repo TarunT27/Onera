@@ -44,7 +44,7 @@ export function openDb(file: string, asOf: Date = new Date()): DB {
 /** Shared connection for the Next.js server and worker (survives dev hot reloads). */
 export function getDb(): DB {
   if (!globalForDb.__clearfiDb) {
-    const file = path.resolve(process.env.CLEARFI_DB_PATH ?? "./data/clearfi.db");
+    const file = path.resolve(/* turbopackIgnore: true */ process.env.CLEARFI_DB_PATH ?? "./data/clearfi.db");
     globalForDb.__clearfiDb = openDb(file);
   }
   return globalForDb.__clearfiDb;

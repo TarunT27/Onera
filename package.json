@@ -13,10 +13,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:reset": "tsx scripts/reset-db.ts"
+    "db:reset": "tsx scripts/reset-db.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
+    "@phosphor-icons/react": "^2.1.10",
     "better-sqlite3": "^13.0.3",
     "next": "^16.4.0",
     "react": "^19.3.0",
@@ -24,6 +27,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.20.5",

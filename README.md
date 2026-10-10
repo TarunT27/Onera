@@ -129,3 +129,7 @@ Shared files (`lib/types.ts`, `lib/db/schema.ts`, `fixtures/seed-data.ts`, `docs
 ## Roadmap
 
 [docs/ROADMAP.md](docs/ROADMAP.md) covers the longer-term product: multi-bank aggregation (Plaid), paper trading and research (Alpaca), background monitoring agents, bounded automation mandates, and international accounts. None of that is implemented here, so don't present it as working in the pitch.
+
+## Azure UI and browser QA
+
+The selected Obsidian Flow design is implemented with a dedicated Accounts workspace, five simulated bank profiles, connection recovery, brokerage holdings and responsive navigation. See [the implementation and QA guide](docs/UI-IMPLEMENTATION.md) for the isolated demo launch, recovered backend modules, data initialization and validation limits. Run `npm run test:e2e` for the desktop/mobile Playwright suite.

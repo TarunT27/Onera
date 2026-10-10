@@ -26,3 +26,8 @@ coverage/
 
 # local Claude Code worktrees
 .claude/worktrees/
+
+# Isolated UI and browser test builds
+.next-*/
+playwright-report/
+test-results/

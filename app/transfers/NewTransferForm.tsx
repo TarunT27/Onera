@@ -15,7 +15,9 @@ export function NewTransferForm({
   recipients,
   recipientsError,
   onCreated,
+  initialSourceId,
 }: {
+  initialSourceId?: string;
   accounts: Account[] | null;
   accountsError: unknown;
   recipients: RecipientWithStatus[] | null;
@@ -35,8 +37,8 @@ export function NewTransferForm({
 
   // Default to the first eligible source once accounts load.
   useEffect(() => {
-    if (!sourceId && sources.length > 0) setSourceId(sources[0].id);
-  }, [sources, sourceId]);
+    if (!sourceId && sources.length > 0) setSourceId(sources.find(a => a.id === initialSourceId)?.id ?? sources[0].id);
+  }, [sources, sourceId, initialSourceId]);
 
   const recipient = recipients?.find((r) => r.id === recipientId) ?? null;
   const source = sources.find((a) => a.id === sourceId) ?? null;

@@ -1,16 +1,22 @@
 /**
  * Public surface of the background agents module (durable job queue, monitors,
  * insights, agent registry). Other modules import only from "@/lib/agents",
- * except lib/actions, which imports "@/lib/agents/queue" to avoid cycles.
- *
- * PLACEHOLDER: implementations are filled in by the agents workstream.
+ * except lib/actions — and any module that @/lib/agents itself depends on, such
+ * as lib/providers — which import "@/lib/agents/queue" to avoid import cycles.
  */
-import type { DB } from "@/lib/db";
-import type { RunReport } from "./types";
-
 export type * from "./types";
-export { enqueueJob } from "./queue";
-
-export function runPendingJobs(_db: DB, _opts: { limit?: number; now?: Date } = {}): RunReport {
-  return { processed: 0, succeeded: 0, failed: 0, dead: 0 };
-}
+export { JOB_TYPES, isJobType } from "./types";
+export { enqueueJob, getJob, listJobs } from "./queue";
+export { runPendingJobs } from "./runner";
+export { scheduleRecurring } from "./scheduler";
+export {
+  AGENT_REGISTRY,
+  agentForJobType,
+  getAgent,
+  permissionMatrix,
+  permissionMatrixMarkdown,
+  type PermissionRow,
+} from "./registry";
+export { getInsight, listInsights, parseInsightStatus, setInsightStatus } from "./insights";
+export { lastRunByAgent, listRuns } from "./runs";
+export { ScopeViolationError, PermanentJobError } from "./errors";
