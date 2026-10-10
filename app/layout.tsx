@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Header } from "./components/Header";
 import { SessionProvider } from "./components/SessionContext";
 import "./globals.css";
+import "./obsidian.css";
 export const metadata: Metadata = {
   title: { default: "ClearFi", template: "%s · ClearFi" },
   description:
@@ -17,7 +18,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className="dark" data-scroll-behavior="smooth">
-      <body>
+      <body className="obsidian-app">
         <div className="ambient" aria-hidden />
         <div className="grain" aria-hidden />
         <SessionProvider>
