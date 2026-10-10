@@ -1,7 +1,7 @@
 /**
  * Institution logo tile. Real logos live in /public/images/banks. Institutions
- * with no real brand (the Onera demo bank, the fictional Northwind import,
- * recipients' banks) fall back to a monogram so every row still has a mark.
+ * with no real brand (the fictional Northwind import, recipients' banks) fall
+ * back to a monogram so every row still has a mark.
  * Logos are decorative: the institution name is always rendered next to them.
  */
 const LOGOS: { match: RegExp; src: string; mark?: string }[] = [
@@ -10,6 +10,8 @@ const LOGOS: { match: RegExp; src: string; mark?: string }[] = [
   { match: /chase/i, src: "/images/banks/chase.svg" },
   { match: /barclays/i, src: "/images/banks/barclays.svg" },
   { match: /\brbc\b|royal bank/i, src: "/images/banks/rbc.svg" },
+  // The house brand: Onera Demo Bank, Onera Paper Trading.
+  { match: /\bonera\b/i, src: "/images/banks/onera.png" },
 ];
 
 /** Every tile is the same size (width = size * TILE_ASPECT) so rows line up; artwork is scaled to fit. */
@@ -25,7 +27,7 @@ export function bankLogoSrc(institution: string): string | null {
 export function BankMark({ institution }: { institution: string }) {
   const logo = findLogo(institution);
   if (!logo) return null;
-  // eslint-disable-next-line @next/next/no-img-element -- static SVGs, no optimisation needed
+  // eslint-disable-next-line @next/next/no-img-element -- static logo assets, no optimisation needed
   return <img className="bank-mark" src={logo.mark ?? logo.src} alt="" aria-hidden />;
 }
 
@@ -65,7 +67,7 @@ export function BankLogo({
       aria-hidden
     >
       {src ? (
-        // eslint-disable-next-line @next/next/no-img-element -- static SVGs, no optimisation needed
+        // eslint-disable-next-line @next/next/no-img-element -- static logo assets, no optimisation needed
         <img src={src} alt="" />
       ) : (
         monogram(institution)
