@@ -4,6 +4,7 @@ import type { TransferAction } from "@/lib/types";
 import { ActionStateBadge, CreatorBadge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Card, EmptyState, Loading } from "../components/Card";
+import { BankLogo } from "../components/BankLogo";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatDateTime, mask } from "../components/format";
 import { Money } from "../components/Money";
@@ -55,7 +56,8 @@ export function ActionList({
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    <BankLogo institution={a.destination.institution} size={32} className="mr-2" />
+                    <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{a.destination.displayName}</p>
                       <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
                         {a.destination.institution} {mask(a.destination.accountMask)}

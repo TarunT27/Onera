@@ -2,10 +2,6 @@
 import type { Portfolio } from "@/lib/markets";
 import Link from "next/link";
 import {
-  Bank,
-  CreditCard,
-  ChartBar,
-  TrendUp,
   CaretRight,
   Sparkle,
   Info,
@@ -18,6 +14,7 @@ import {
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useApiData } from "./components/useApiData";
+import { BankLogo } from "./components/BankLogo";
 import {
   paths,
   clearfi,
@@ -165,21 +162,13 @@ export default function OverviewPage() {
               onRetry={() => void portfolio.reload()}
             />
             {accts.slice(0, 3).map((a) => {
-              const Icon =
-                a.type === "checking"
-                  ? CreditCard
-                  : a.type === "savings"
-                    ? ChartBar
-                    : TrendUp;
               return (
                 <Link
                   href={`/accounts?id=${encodeURIComponent(a.id)}`}
                   key={a.id}
                   className="account-row"
                 >
-                  <span className="round-icon">
-                    <Icon size={26} weight="light" aria-hidden />
-                  </span>
+                  <BankLogo institution={a.institution} />
                   <div className="row-body">
                     <p className="row-title">{a.name}</p>
                     <p className="row-meta">•• {a.mask}</p>
@@ -210,9 +199,7 @@ export default function OverviewPage() {
                 key={a.id}
                 className="account-row paper-row"
               >
-                <span className="round-icon muted">
-                  <TrendUp size={22} weight="light" aria-hidden />
-                </span>
+                <BankLogo institution={a.institution} size={48} />
                 <div className="row-body">
                   <p className="row-title">{a.name}</p>
                   <p className="row-meta">

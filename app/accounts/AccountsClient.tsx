@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Bank,
   MagnifyingGlass,
   Plus,
   ArrowsClockwise,
@@ -25,6 +24,7 @@ import { Button, inputClass, labelClass } from "../components/Button";
 import { Card, Loading, EmptyState } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
 import { PaperLabel } from "../components/Badge";
+import { BankLogo, BankMark } from "../components/BankLogo";
 import { formatCents } from "@/lib/finance/money";
 
 export function AccountsClient() {
@@ -160,11 +160,7 @@ export function AccountsClient() {
                 );
                 return (
                   <article className="bank-item" key={i.id}>
-                    <Bank
-                      size={24}
-                      className="mb-3 text-brand-300"
-                      aria-hidden
-                    />
+                    <BankLogo institution={i.brand} size={52} className="mb-3" />
                     <h3>{i.name}</h3>
                     <p>
                       {i.country} · {i.currency} · {i.products.join(", ")}
@@ -254,6 +250,7 @@ export function AccountsClient() {
                 <span className="row-body">
                   <span className="row-title block">{a.name}</span>
                   <span className="row-meta block">
+                    <BankMark institution={a.institution} />
                     {a.institution} · ••{a.mask}
                   </span>
                   {a.paper && (
@@ -460,7 +457,9 @@ export function AccountsClient() {
                   className="rounded-2xl border border-zinc-800 p-5"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
+                    <div className="flex items-start gap-3">
+                      <BankLogo institution={c.institutionName} size={44} />
+                      <div>
                       <h3 className="text-base font-semibold">
                         {c.institutionName}
                       </h3>
@@ -478,6 +477,7 @@ export function AccountsClient() {
                           {c.lastError}
                         </p>
                       )}
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {c.status === "disconnected" ? (
