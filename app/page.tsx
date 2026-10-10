@@ -36,7 +36,7 @@ import { ErrorBox } from "./components/ErrorBox";
 import { PaperLabel } from "./components/Badge";
 import { MonitoringPanel } from "./components/MonitoringPanel";
 import { useSession } from "./components/SessionContext";
-import { Loading } from "./components/Card";
+import { EmptyState, Loading } from "./components/Card";
 import { formatCents } from "@/lib/finance/money";
 import { useRouter } from "next/navigation";
 
@@ -147,7 +147,6 @@ export default function OverviewPage() {
       setBusy(false);
     }
   }
-  const paperAccounts = (accounts.data?.accounts ?? []).filter((a) => a.paper);
   // Specular highlight follows the pointer across the glass.
   function onHeroPointer(e: React.PointerEvent<HTMLElement>) {
     const el = heroRef.current;
@@ -156,6 +155,7 @@ export default function OverviewPage() {
     el.style.setProperty("--mx", `${((e.clientX - r.left) / r.width) * 100}%`);
     el.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`);
   }
+  const paperAccounts = (accounts.data?.accounts ?? []).filter((a) => a.paper);
   const date = accounts.data ? new Date(accounts.data.asOf) : null;
   const evidence = sub
     ? sub.evidenceTransactionIds
@@ -223,7 +223,8 @@ export default function OverviewPage() {
               </div>
             )}
             <p className="balance-note">
-              Across your demo accounts · USD equivalent · paper trading excluded
+              Across your demo accounts · USD equivalent · paper trading
+              excluded
             </p>
             <div className="hero-actions">
               <Link href="/transfers" className="pill">
@@ -257,6 +258,15 @@ export default function OverviewPage() {
           />
           {accounts.loading && !accounts.data ? (
             <Loading />
+          ) : wallet.length === 0 ? (
+            accounts.data && (
+              <EmptyState>
+                No accounts yet.{" "}
+                <Link href="/accounts" className="quiet-link">
+                  Link a demo bank
+                </Link>
+              </EmptyState>
+            )
           ) : (
             <div
               className="wallet"
@@ -303,24 +313,28 @@ export default function OverviewPage() {
               ))}
             </div>
           )}
-            {paperAccounts.map((a) => (
-              <Link
-                href={`/accounts?id=${encodeURIComponent(a.id)}`}
-                key={a.id}
-                className="ios-row"
-              >
-                <span className="squircle">
-                  <TrendUp size={22} weight="light" aria-hidden />
-                </span>
-                <div className="ios-row-body">
-                  <p className="row-title">{a.name}</p>
-                  <p className="row-meta">
-                    <PaperLabel />
-                  </p>
-                </div>
-                <CaretRight className="row-chevron" size={17} aria-hidden />
-              </Link>
-            ))}
+          {paperAccounts.length > 0 && (
+            <div className="ios-list paper-list">
+              {paperAccounts.map((a) => (
+                <Link
+                  href={`/accounts?id=${encodeURIComponent(a.id)}`}
+                  key={a.id}
+                  className="ios-row paper-row"
+                >
+                  <span className="squircle">
+                    <TrendUp size={19} aria-hidden />
+                  </span>
+                  <span className="ios-row-body">
+                    <span className="row-title block">{a.name}</span>
+                    <span className="row-meta block">
+                      <PaperLabel />
+                    </span>
+                  </span>
+                  <CaretRight size={14} weight="bold" aria-hidden />
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
 
         {(pending || changed) && (

@@ -103,7 +103,7 @@ export function PaperLabel({ className = "" }: { className?: string }) {
   return (
     <span
       title="Paper trading account: simulated money, excluded from net worth"
-      className={`inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${TONES.violet} ${className}`}
+      className={`inline-flex max-w-full items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-medium ${TONES.violet} ${className}`}
     >
       {PAPER_LABEL}
     </span>
