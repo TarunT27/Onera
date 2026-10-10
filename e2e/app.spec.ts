@@ -251,7 +251,7 @@ test("edit invalidates approval; paused controls stop execution; limits save", a
   await page.getByRole("button", { name: "Approve transfer", exact: true }).click();
   await page.getByRole("button", { name: "Edit amount" }).click();
   await page.getByLabel("New amount in dollars").fill("30");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save new amount", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Approve transfer", exact: true }),
   ).toBeEnabled();
@@ -477,6 +477,8 @@ test("paper account is labeled, excluded from net worth and read-only", async ({
   await expect(
     detail.getByRole("button", { name: /buy|sell|trade|order/i }),
   ).toHaveCount(0);
+  // Back on the accounts list, the paper row keeps its label too.
+  await page.getByRole("button", { name: "All accounts" }).click();
   await expect(
     page
       .getByRole("button", { name: /Paper Portfolio/ })
