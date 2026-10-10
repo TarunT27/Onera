@@ -1,42 +1,99 @@
 @import "tailwindcss";
 
-/*
- * ClearFi theme. Neutral zinc palette plus one accent ("brand", a calm teal).
- * Swap the brand values here to re-skin the whole app.
- * Dark mode follows prefers-color-scheme (Tailwind v4 default `dark:` variant).
- */
+/* Dark mode is deliberate. Palettes reuse the existing neutral/brand tokens. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-  --color-brand-50: oklch(98.4% 0.014 180.72);
-  --color-brand-100: oklch(95.3% 0.051 180.801);
-  --color-brand-200: oklch(91% 0.096 180.426);
-  --color-brand-300: oklch(85.5% 0.138 181.071);
-  --color-brand-400: oklch(77.7% 0.152 181.912);
-  --color-brand-500: oklch(70.4% 0.14 182.503);
-  --color-brand-600: oklch(60% 0.118 184.704);
-  --color-brand-700: oklch(51.1% 0.096 186.391);
-  --color-brand-800: oklch(43.7% 0.078 188.216);
-  --color-brand-900: oklch(38.6% 0.063 188.416);
-  --color-brand-950: oklch(27.7% 0.046 192.524);
+  --color-zinc-50: #ffffff;
+  --color-zinc-100: #f1f2f4;
+  --color-zinc-200: #dce0e5;
+  --color-zinc-300: #c1c6ce;
+  --color-zinc-400: #a7adb7;
+  --color-zinc-500: #8c929d;
+  --color-zinc-600: #676d78;
+  --color-zinc-700: #4b5059;
+  --color-zinc-800: #3a3a3a;
+  --color-zinc-900: #242424;
+  --color-zinc-950: #1a1a1a;
+  --color-brand-50: #fff3d6;
+  --color-brand-100: #ffe8ad;
+  --color-brand-200: #f9df99;
+  --color-brand-300: #f6d365;
+  --color-brand-400: #f5c746;
+  --color-brand-500: #f2b705;
+  --color-brand-600: #d19b07;
+  --color-brand-700: #a87708;
+  --color-brand-800: #755410;
+  --color-brand-900: #493a1b;
+  --color-brand-950: #30291b;
+}
+
+html[data-palette="midnight"] {
+  --color-zinc-50: #ffffff;
+  --color-zinc-100: #eff3fa;
+  --color-zinc-200: #d9e2ee;
+  --color-zinc-300: #becadb;
+  --color-zinc-400: #a2b0c6;
+  --color-zinc-500: #8293ad;
+  --color-zinc-600: #5e7391;
+  --color-zinc-700: #3b506c;
+  --color-zinc-800: #283b54;
+  --color-zinc-900: #152338;
+  --color-zinc-950: #0b1423;
+  --color-brand-50: #fff7e5;
+  --color-brand-100: #fff0d0;
+  --color-brand-200: #f5e2b9;
+  --color-brand-300: #efd49b;
+  --color-brand-400: #e9c77d;
+  --color-brand-500: #ddba72;
+  --color-brand-600: #bd9b56;
+  --color-brand-700: #937641;
+  --color-brand-800: #685631;
+  --color-brand-900: #3d3629;
+  --color-brand-950: #282820;
+}
+
+html[data-palette="plum"] {
+  --color-zinc-50: #ffffff;
+  --color-zinc-100: #f3f0f7;
+  --color-zinc-200: #ded9e7;
+  --color-zinc-300: #c7c0d3;
+  --color-zinc-400: #afa5bf;
+  --color-zinc-500: #968ba8;
+  --color-zinc-600: #736782;
+  --color-zinc-700: #594a68;
+  --color-zinc-800: #42344e;
+  --color-zinc-900: #2a2034;
+  --color-zinc-950: #191320;
+  --color-brand-50: #fff9ee;
+  --color-brand-100: #f6eedc;
+  --color-brand-200: #eee0c4;
+  --color-brand-300: #e5d0a9;
+  --color-brand-400: #d8bd8f;
+  --color-brand-500: #cdb184;
+  --color-brand-600: #ad8e60;
+  --color-brand-700: #8c6d46;
+  --color-brand-800: #634e37;
+  --color-brand-900: #44372e;
+  --color-brand-950: #322a27;
+}
+
+.summary-surface {
+  background: linear-gradient(115deg, color-mix(in oklab, var(--color-zinc-900) 92%, var(--color-brand-400)), var(--color-zinc-900) 65%);
+  border-color: color-mix(in oklab, var(--color-zinc-800) 78%, var(--color-brand-400));
 }
 
 @layer base {
   html {
-    color-scheme: light dark;
+    color-scheme: dark;
     -webkit-text-size-adjust: 100%;
   }
 
   body {
     /* Explicit background so the page never renders transparent. */
-    background-color: var(--color-zinc-50);
-    color: var(--color-zinc-900);
+    background-color: var(--color-zinc-950);
+    color: var(--color-zinc-100);
     overflow-x: clip;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    body {
-      background-color: var(--color-zinc-950);
-      color: var(--color-zinc-100);
-    }
   }
 
   button:not(:disabled),
@@ -50,7 +107,7 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-brand-600);
+    outline: 2px solid var(--color-brand-400);
     outline-offset: 2px;
   }
 

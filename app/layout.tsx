@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { DemoBanner, Header } from "./components/Header";
+import { PaletteSwitcher } from "./components/PaletteSwitcher";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,15 +13,12 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
-    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
-  ],
+  themeColor: "#1a1a1a",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark" data-palette="graphite">
       <body className="min-h-dvh bg-zinc-50 font-sans text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100">
         <a
           href="#main-content"
@@ -31,6 +29,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <DemoBanner />
         <Header />
         <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:py-8">
+          <PaletteSwitcher />
           {children}
         </main>
         <footer className="mx-auto max-w-7xl px-4 pb-10 text-xs text-zinc-500 sm:px-6 dark:text-zinc-500">

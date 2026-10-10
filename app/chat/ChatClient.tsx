@@ -306,7 +306,7 @@ function UserBubble({ content, delivery }: { content: string; delivery?: "unknow
   return (
     <li className="flex justify-end">
       <div
-        className={`max-w-[85%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm break-words whitespace-pre-wrap text-white ${
+        className={`max-w-[85%] rounded-2xl rounded-br-md px-4 py-2.5 text-sm break-words whitespace-pre-wrap text-white dark:text-zinc-950 ${
           delivery === "unknown" ? "bg-amber-700 dark:bg-amber-600" : "bg-brand-700 dark:bg-brand-600"
         }`}
       >

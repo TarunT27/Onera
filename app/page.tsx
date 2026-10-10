@@ -88,7 +88,7 @@ export default function HubPage() {
 function NetWorth({ data, loading }: { data: AccountsResponse | null; loading: boolean }) {
   const total = data ? (Number.isFinite(data.netWorthCents) ? data.netWorthCents : data.accounts.reduce((s, a) => s + a.balanceCents, 0)) : null;
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="summary-surface rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-lg font-semibold tracking-tight text-balance text-zinc-900 dark:text-zinc-50">Your financial overview</h1>
