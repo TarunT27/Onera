@@ -7,6 +7,8 @@ Conventions shared with [../API.md](../API.md):
 - **Identity.** Every private route gets the user from `getSessionUserId()`. No body or query field can carry a user ID: request schemas are strict objects, so an unknown key such as `userId`, `state`, `version` (on create), `createdBy`, `mandateId` or `approvalHash` is a `400`.
 - **Ownership.** Every SQL query on `orders`, `positions`, `mandates`, `trading_controls` and `accounts` filters on `user_id`. If a record belongs to another user, the route returns `404 NOT_FOUND`, exactly as if the record did not exist.
 - **Errors.** `{ "error": { "code", "message", "details"? } }`. Zod validation failures are `400 BAD_REQUEST`, with message `"Invalid request"` and `details` set to the Zod issues. Unhandled errors are `500 INTERNAL`.
+- **Clock.** Every write (create, edit, evaluate, approve, execute, mandate create/revoke, `proposeMandateOrder`) reads the real server clock. None of them accepts a time, so a stale timestamp can never price an order, reset the daily window or outlive a mandate's expiry. Reads (`getQuote`, `getPortfolio`, `listMandates`, `getMandate`, …) still take an optional `now` for display. Tests move time with Vitest fake timers (`vi.useFakeTimers({ toFake: ["Date"] })` + `vi.setSystemTime`).
+- **Concurrency.** Every load-then-write runs in one `BEGIN IMMEDIATE` transaction, and every `UPDATE` is guarded by the expected state (and version where it matters). If the order changed underneath, the call is `409 INVALID_STATE` and nothing is written, never a lost update or a `500`.
 - **Money and shares.** Money is integer cents in USD. Share quantities are integer **micro-shares** (`quantityMicros`, shares × 1,000,000). Every share × price product goes through `mulDiv` (BigInt) in `lib/markets/math.ts`. Floats appear only inside the price simulator and in display-only percentages (`changePct`, `weightPct`).
 
 ## Simulation labels (must stay visible)
@@ -121,12 +123,12 @@ The bound is part of the approval hash (`lib/markets/approval.ts`). The hash cov
 | GET | `/api/orders` | `?state=&limit=` | `{ orders: PaperOrder[] }`, newest first. `limit` defaults to 50, clamped to 1–500. An unrecognized `state` returns `[]` | – |
 | POST | `/api/orders` | `{ accountId, symbol, side: "buy"\|"sell", quantityMicros? , notionalCents? }` | `201 { order }`, with `createdBy: "user"` and state `HELD` or `AWAITING_APPROVAL` | `400 BAD_REQUEST` (validation), `404 NOT_FOUND` (account), `400 UNSUPPORTED` (view-only/bank account) |
 | GET | `/api/orders/:id` | – | `{ order, instrument: Instrument \| null, quote: Quote \| null }` | `404` |
-| PATCH | `/api/orders/:id` | any of `{ accountId, symbol, side, quantityMicros, notionalCents }` (at least one, at most one sizing field; setting one sizing field clears the other) | `{ order }`: version + 1, approval cleared, mandate detached, re-priced and re-evaluated | `400` (validation, or a sell without `quantityMicros`), `404`, `409 INVALID_STATE` (`EXECUTED`/`FAILED`), `400 UNSUPPORTED` |
-| POST | `/api/orders/:id/evaluate` | – | `{ order }`: re-priced and re-evaluated. Version + 1 only if the bound changed | `404`, `409 INVALID_STATE` unless `PROPOSED`/`HELD`/`AWAITING_APPROVAL` |
+| PATCH | `/api/orders/:id` | any of `{ accountId, symbol, side, quantityMicros, notionalCents }` (at least one, at most one sizing field; setting one sizing field clears the other) | `{ order }`: version + 1, approval cleared, mandate detached, re-priced and re-evaluated | `400` (validation, or a sell without `quantityMicros`), `404`, `409 INVALID_STATE` (`EXECUTED`/`FAILED`, or the order's state/version changed concurrently), `400 UNSUPPORTED` |
+| POST | `/api/orders/:id/evaluate` | – | `{ order }`: re-priced and re-evaluated. Version + 1 only if the bound changed | `404`, `409 INVALID_STATE` unless `PROPOSED`/`HELD`/`AWAITING_APPROVAL` (also if the state changed concurrently) |
 | POST | `/api/orders/:id/approve` | `{ version }` (positive integer; other keys are ignored and are never treated as a hash) | `{ order }` → `APPROVED`, `approvedBy: "user:<id>"`, `hasApproval: true` | `400`, `404`, `409 INVALID_STATE` unless `AWAITING_APPROVAL`, `409 STALE_VERSION` if `version` isn't current, `409 POLICY_HOLD` (`details.reasons`): policy now fails, the order was re-evaluated (it may be `HELD`, or re-priced to a new version) |
-| POST | `/api/orders/:id/execute` | – | `{ order, fill: OrderFill, duplicate: boolean }`. Repeats return the original fill with `duplicate: true` and move nothing | `404`; `409 INVALID_STATE` unless `APPROVED` (`details.state`); `409 APPROVAL_INVALID` if the stored hash no longer matches the current version (the approval is discarded and the order re-evaluated); `409 POLICY_HOLD` (`details.reasons`) if pause, limits, cash/shares, mandate or the price bound now fail (the approval is discarded and the order re-evaluated); `500 INTERNAL` `"Paper order failed: …"` if the broker hits an internal error (the order becomes `FAILED`, with `failureReason`) |
+| POST | `/api/orders/:id/execute` | – | `{ order, fill: OrderFill, duplicate: boolean }`. Repeats return the original fill with `duplicate: true` and move nothing | `404`; `409 INVALID_STATE` unless `APPROVED` (`details.state`); `409 APPROVAL_INVALID` if the stored hash no longer matches the current version (the approval is discarded and the order re-evaluated); `409 POLICY_HOLD` (`details.reasons`) if pause, limits, cash/shares, mandate or the price bound now fail (the approval is discarded and the order re-evaluated); `503 INTERNAL` with `details: { retryable: true }` if the database is locked (`SQLITE_BUSY`/`SQLITE_LOCKED`): nothing executed, the order stays `APPROVED`, retry; `500 INTERNAL` `"Paper order failed: …"` if the broker hits an internal error (the order becomes `FAILED`, with `failureReason`, stamped with the attempt's time) |
 
-The execute route runs as `user:<id>`. A `409` from approve or execute still commits the re-evaluation, so the order's new state is in the database.
+The execute route runs as `user:<id>`, always: `executeOrder(db, userId, orderId)` takes no actor or time. The mandate execution path (`executeMandateOrder` in `lib/markets/broker.ts`) is internal, is not exported from `@/lib/markets`, and is called only by `proposeMandateOrder`. A `409` from approve or execute still commits the re-evaluation, so the order's new state is in the database.
 
 **Approval hash.** The server computes the hash and stores it in `orders.approval_hash`. It is never serialized: `toOrder()` exposes only `hasApproval: boolean`. No route accepts a hash. Audit events record only `approvalHashPrefix` (first 12 hex characters), the same as core transfers.
 
@@ -173,8 +175,7 @@ proposeMandateOrder(
   mandateId: string,
   agentId: string,         // the calling agent's registry id, e.g. "dca-bot"
   input: { symbol: string; notionalCents: number },  // strict; notional $1–$1,000,000
-  now?: Date,
-): MandateOrderResult      // { order: PaperOrder; fill: OrderFill | null; executed: boolean; refusal: { code; message } | null }
+): MandateOrderResult      // no `now`: real clock. { order: PaperOrder; fill: OrderFill | null; executed: boolean; refusal: { code; message } | null }
 ```
 
 | Outcome | Result |
@@ -187,9 +188,12 @@ proposeMandateOrder(
 | Well-formed `agentId` that isn't the mandate's agent | not thrown: the order is created as `agent:<agentId>` and `HELD` with `MANDATE_INVALID` |
 | Mandate not found for this user | throws `404 NOT_FOUND` |
 | The mandate's account is no longer tradable | throws `400 UNSUPPORTED` |
+| Database locked during execution | throws `503 INTERNAL` (`details.retryable`), order stays `APPROVED` |
 | Paper broker internal error | throws `500 INTERNAL`, order `FAILED` |
 
-Agents must not call `approveOrder`, `createMandate`, `revokeMandate`, `updateTradingControls` or `editOrder`. They must not call `executeOrder` directly either: `proposeMandateOrder` is the only governed path to execution.
+Agents must not call `approveOrder`, `createMandate`, `revokeMandate`, `updateTradingControls` or `editOrder`. They must not call `executeOrder` directly either: `proposeMandateOrder` is the only governed path to execution. Internally it executes through `executeMandateOrder`, which runs as `agent:<agentId>` and refuses (409 `INVALID_STATE`, audit `order.execute_refused` / `AGENT_NOT_AUTHORIZED`) anything but that agent's own order authorized as `mandate:<mandateId>` for the same mandate, so a user-approved order can never be executed through the mandate path. Only `lib/markets` (and tests) may import `@/lib/markets/*` internals (`tests/markets-hardening.test.ts` checks this).
+
+Product notes (unchanged): `agentId` is checked for format only, not against the agents registry (a mismatched agent is `HELD` with `MANDATE_INVALID`); sells count against the per-order and daily limits like buys.
 
 ## Audit events
 
