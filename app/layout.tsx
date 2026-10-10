@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Header } from "./components/Header";
+import { SessionProvider } from "./components/SessionContext";
 import "./globals.css";
+import "./obsidian.css";
 export const metadata: Metadata = {
   title: { default: "ClearFi", template: "%s · ClearFi" },
   description:
@@ -10,12 +12,16 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#000000",
+  themeColor: "#08090b",
+  viewportFit: "cover",
 };
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body>
+    <html lang="en" className="dark" data-scroll-behavior="smooth">
+      <body className="obsidian-app">
+        <div className="ambient" aria-hidden />
+        <div className="grain" aria-hidden />
+        <SessionProvider>
         <Header />
         <main id="main-content" className="app-main">
           {children}
@@ -24,6 +30,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           All accounts and transactions are synthetic. Transfers are simulated.
           You approve every action.
         </footer>
+        </SessionProvider>
       </body>
     </html>
   );

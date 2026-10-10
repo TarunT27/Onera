@@ -298,7 +298,16 @@ export const UpdateControlsSchema = z
   .refine((v) => Object.keys(v).length > 0, "No changes supplied");
 export type UpdateControlsInput = z.infer<typeof UpdateControlsSchema>;
 
+/**
+ * Assistant personas. Each one is the same model with a narrower tool set,
+ * enforced in lib/ai/agents.ts (the tool list sent to the model AND runTool).
+ */
+export const ASSISTANT_AGENTS = ["general", "research", "chart", "risk", "drafter"] as const;
+export type AssistantAgentId = (typeof ASSISTANT_AGENTS)[number];
+
 export const ChatRequestSchema = z.object({
+  /** Defaults to "general". */
+  agent: z.enum(ASSISTANT_AGENTS).optional(),
   messages: z
     .array(
       z.object({
@@ -334,6 +343,10 @@ export interface ChatResponse {
   trace: ToolTraceEntry[];
   /** Proposals created during this turn. Approval still happens in the UI. */
   proposedActionIds: string[];
+  /** Paper-order proposals created during this turn (Trade drafter only). Approval still happens in the UI. */
+  proposedOrderIds: string[];
+  /** The agent that answered. */
+  agent: AssistantAgentId;
   notice?: string;
 }
 

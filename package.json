@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -22,6 +22,7 @@
     "@anthropic-ai/sdk": "^0.133.0",
     "@phosphor-icons/react": "^2.1.10",
     "better-sqlite3": "^13.0.3",
+    "lightweight-charts": "^5.2.1",
     "next": "^16.4.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

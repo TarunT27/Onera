@@ -55,7 +55,7 @@ There is deliberately **no** route that lets a client set an action's state or s
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| POST | `/api/chat` | `ChatRequest` (`{ messages: { role, content }[] }`, full visible history) | `ChatResponse` — `mode` is `live` (real model call) or `fallback` (labeled deterministic summary). `trace` lists every tool call the model made. `proposedActionIds` are proposals it created; the user still approves on the transfer card |
+| POST | `/api/chat` | `ChatRequest` (`{ agent?, messages: { role, content }[] }`, full visible history). `agent` is `general` (default), `research`, `chart`, `risk` or `drafter`; each gets only its own tools (`lib/ai/agents.ts`) | `ChatResponse` — `mode` is `live` (real model call) or `fallback` (labeled deterministic summary). `trace` lists every tool call the model made. `proposedActionIds` are transfer proposals and `proposedOrderIds` paper-order proposals (Trade drafter only) it created; the user still approves on the transfer card or the Trade page. `agent` is the agent that answered |
 
 Assistant tools are read-only plus `propose_transfer`. There is no approve or execute tool.
 

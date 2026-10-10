@@ -37,7 +37,7 @@ export function ActionList({
       <ErrorBox error={error} title="Couldn't load transfers" className="mb-3" />
       {loading ? (
         <Loading />
-      ) : !actions || actions.length === 0 ? (
+      ) : error && !actions ? null : !actions || actions.length === 0 ? (
         <EmptyState>No transfers yet. Create one above or ask the assistant to propose one.</EmptyState>
       ) : (
         <ul className="space-y-2">
@@ -46,6 +46,7 @@ export function ActionList({
             return (
               <li key={a.id}>
                 <button
+                  id={`transfer-list-${a.id}`}
                   type="button"
                   onClick={() => onSelect(a.id)}
                   aria-current={selected ? "true" : undefined}

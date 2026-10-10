@@ -1,7 +1,6 @@
 "use client";
 import type { Portfolio } from "@/lib/markets";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   MagnifyingGlass,
@@ -9,7 +8,6 @@ import {
   ArrowsClockwise,
   CaretRight,
   ArrowLeft,
-  ArrowUpRight,
   CreditCard,
 } from "@phosphor-icons/react";
 import type { Connection, Institution, SyncSummary } from "@/lib/providers";
@@ -17,25 +15,27 @@ import {
   api,
   paths,
   type AccountsResponse,
-  type TransactionsResponse,
 } from "../components/api";
 import { useApiData } from "../components/useApiData";
-import { Button, inputClass, labelClass } from "../components/Button";
+import { Button, inputClass } from "../components/Button";
 import { Card, Loading, EmptyState } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
 import { PaperLabel } from "../components/Badge";
 import { BankLogo, BankMark } from "../components/BankLogo";
-import { formatCents } from "@/lib/finance/money";
+import "./account-explorer.css";
+import { AccountPanel } from "./AccountPanel";
+import { CurrencyValue } from "./CurrencyValue";
+import { directoryActivityScope } from "./presentation";
 
 export function AccountsClient() {
   const search = useSearchParams();
   const router = useRouter();
   const selected = search.get("id");
   useEffect(() => {
-    if (selected && window.matchMedia("(max-width: 1000px)").matches) {
-      document
-        .getElementById("account-detail")
-        ?.scrollIntoView({ block: "start" });
+    if (selected) {
+      const heading = document.getElementById("account-heading");
+      heading?.scrollIntoView({ block: "start" });
+      heading?.focus({ preventScroll: true });
     }
   }, [selected]);
   const portfolio = useApiData<{ portfolio: Portfolio }>("/api/portfolio");
@@ -46,32 +46,28 @@ export function AccountsClient() {
   const institutions = useApiData<{ institutions: Institution[] }>(
     "/api/institutions",
   );
-  const transactions = useApiData<TransactionsResponse>(
-    paths.transactions({ accountId: selected ?? undefined, limit: 100 }),
-  );
-  const [visibleCount, setVisibleCount] = useState(12);
+  const [activityRevision, setActivityRevision] = useState(0);
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("all");
   const [showBanks, setShowBanks] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState("");
-  const account = accounts.data?.accounts.find((a) => a.id === selected);
+  const activeId = selected;
+  const preview = false;
+  const account = accounts.data?.accounts.find((a) => a.id === activeId);
+  const rates = accounts.data?.netWorth?.fxRates ?? [];
   const holding = portfolio.data?.portfolio.accounts.find(
-    (a) => a.accountId === selected,
+    (a) => a.accountId === activeId,
   );
   const rows = (accounts.data?.accounts ?? []).filter(
     (a) =>
       (kind === "all" || a.type === kind) &&
       `${a.name} ${a.institution} ${a.mask}`
         .toLowerCase()
-        .includes(query.toLowerCase()),
+        .includes(query.trim().toLowerCase()),
   );
-  const txs = (transactions.data?.transactions ?? []).filter((t) =>
-    `${t.description} ${t.merchant ?? ""} ${t.category}`
-      .toLowerCase()
-      .includes(query.toLowerCase()),
-  );
+  const activityScope = directoryActivityScope(accounts.data?.accounts ?? [], kind, query);
   async function run(key: string, path: string, body?: unknown) {
     setBusy(key);
     setError(null);
@@ -88,8 +84,8 @@ export function AccountsClient() {
       await Promise.all([
         accounts.reload(),
         connections.reload(),
-        transactions.reload(),
       ]);
+      setActivityRevision((value) => value + 1);
       if (key.startsWith("link")) setShowBanks(false);
     } catch (e) {
       setError(e);
@@ -99,7 +95,6 @@ export function AccountsClient() {
   }
   function choose(id: string | null) {
     setQuery("");
-    setVisibleCount(12);
     router.push(
       id
         ? `/accounts?id=${encodeURIComponent(id)}&view=activity`
@@ -107,8 +102,35 @@ export function AccountsClient() {
       { scroll: false },
     );
   }
+  if (selected) {
+    const openedAccount = accounts.data?.accounts.find((a) => a.id === selected);
+    return (
+      <div className="account-detail-page">
+        <Button variant="ghost" className="account-back" onClick={() => choose(null)}><ArrowLeft size={18} aria-hidden />All accounts</Button>
+        <div className="page-intro account-detail-intro">
+          <h1 id="account-heading" tabIndex={-1}>{openedAccount?.name ?? "Account details"}</h1>
+          <p>{openedAccount ? `${openedAccount.institution} · ••${openedAccount.mask} · ${openedAccount.currency}` : "Your account information"}</p>
+        </div>
+        <p className="account-disclaimer">{openedAccount?.paper ? "Paper account · Excluded from total balance. " : ""}Synthetic account and transaction data. No real funds or bank credentials are used.</p>
+        <ErrorBox error={accounts.error} onRetry={() => void accounts.reload()} />
+        <ErrorBox error={connections.error} onRetry={() => void connections.reload()} />
+        {!accounts.data ? <Loading label="Loading account…" /> : !openedAccount ? (
+          <ErrorBox error={new Error("This account is not available. Return to All accounts to choose another.")} />
+        ) : (
+          <>
+            <label className="sr-only" htmlFor="account-activity-search">Search this account's transactions</label>
+            <input id="account-activity-search" className={`${inputClass} account-activity-search`} placeholder="Search this account’s transactions" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <AccountPanel key={`${selected}:${activityRevision}`} account={openedAccount} preview={false}
+              holding={portfolio.data?.portfolio.accounts.find((a) => a.accountId === selected)} rates={rates}
+              connection={connections.data?.connections.find((c) => c.id === openedAccount.connectionId)}
+              query={query} holdingsError={portfolio.error} onOpen={choose} />
+          </>
+        )}
+      </div>
+    );
+  }
   return (
-    <div>
+    <div className="account-directory">
       <div className="page-intro flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1>Your accounts</h1>
@@ -118,15 +140,15 @@ export function AccountsClient() {
           variant="primary"
           onClick={() => setShowBanks(!showBanks)}
           aria-expanded={showBanks}
+          aria-label={showBanks ? "Close bank picker" : "Link demo bank"}
         >
           <Plus size={18} aria-hidden />
           {showBanks ? "Close bank picker" : "Link demo bank"}
         </Button>
       </div>
-      <p className="mb-6 text-sm text-zinc-400">
+      <p className="account-disclaimer">
         Simulated connections only. No bank credentials or real funds are used.
-        International accounts are view-only; totals use dated demo exchange
-        rates.
+        International accounts are view-only; totals use dated demo exchange rates.
       </p>
       <ErrorBox error={error} />
       <ErrorBox error={accounts.error} onRetry={() => void accounts.reload()} />
@@ -226,10 +248,13 @@ export function AccountsClient() {
         <Card
           title="Accounts"
           subtitle={`${accounts.data?.accounts.length ?? "…"} synthetic accounts`}
+          className="account-list-card"
+          bodyClassName="account-list-body"
         >
-          <Button variant="ghost" onClick={() => choose(null)} className="mb-3">
-            All activity
-          </Button>
+          <p className="account-list-hint">
+            <span className="account-hint-desktop">Click an account to view its details and transactions.</span>
+            <span className="account-hint-mobile">Tap an account to view its details and transactions.</span>
+          </p>
           {accounts.loading && !accounts.data ? (
             <Loading />
           ) : rows.length === 0 ? (
@@ -242,7 +267,7 @@ export function AccountsClient() {
                 key={a.id}
                 onClick={() => choose(a.id)}
                 aria-pressed={selected === a.id}
-                className={`account-row w-full text-left ${selected === a.id ? "account-selected" : ""}`}
+                className="account-row w-full text-left"
               >
                 <span className="round-icon">
                   <CreditCard size={23} aria-hidden />
@@ -253,189 +278,37 @@ export function AccountsClient() {
                     <BankMark institution={a.institution} />
                     {a.institution} · ••{a.mask}
                   </span>
-                  {a.paper && (
-                    <span className="mt-1.5 block">
-                      <PaperLabel />
-                    </span>
-                  )}
+                  {a.paper && <span className="mt-1.5 block"><PaperLabel /></span>}
                 </span>
                 <span className="row-value">
                   {a.type === "brokerage" && !portfolio.data
                     ? portfolio.error
                       ? "Unavailable"
                       : "Loading…"
-                    : formatCents(
-                        portfolio.data?.portfolio.accounts.find(
+                    : <CurrencyValue cents={portfolio.data?.portfolio.accounts.find(
                           (p) => p.accountId === a.id,
-                        )?.totalCents ?? a.balanceCents,
-                        a.currency,
-                      )}
+                        )?.totalCents ?? a.balanceCents} currency={a.currency} rates={rates} />}
                 </span>
                 <CaretRight size={16} aria-hidden />
               </button>
             ))
           )}
         </Card>
-        <div className="space-y-6">
-          {selected && accounts.data && !account && (
-            <ErrorBox
-              error={
-                new Error(
-                  "This account is not available. Choose another account.",
-                )
-              }
-            />
-          )}
-          <Card
-            id="account-detail"
-            title={account?.name ?? "Recent activity"}
-            subtitle={
-              account
-                ? `${account.institution} · ••${account.mask} · ${account.currency}`
-                : "Latest 100 transactions across your accounts"
-            }
-            action={
-              account ? (
-                <Button variant="ghost" size="sm" onClick={() => choose(null)}>
-                  <ArrowLeft size={16} aria-hidden />
-                  All accounts
-                </Button>
-              ) : undefined
-            }
-          >
-            {account && (
-              <div className="mb-6 rounded-2xl bg-brand-950 p-5">
-                <p className="text-xs text-brand-200">
-                  {account.type === "brokerage"
-                    ? "Cash balance"
-                    : "Available balance"}
-                </p>
-                <p className="my-2 text-3xl tracking-tight">
-                  {formatCents(account.availableCents, account.currency)}
-                </p>
-                <p className="text-xs text-zinc-400">
-                  {account.capabilities.includes("transfer_source")
-                    ? "Eligible for simulated transfers"
-                    : "View only · cannot send transfers"}
-                </p>
-                {account.paper && (
-                  <div className="mt-3 space-y-2">
-                    <PaperLabel />
-                    <p className="text-xs text-zinc-400">
-                      Paper trading available via API — no trading UI in this
-                      demo. Orders here use simulated prices and never touch
-                      your bank balances.
-                    </p>
-                  </div>
-                )}
-                {account.capabilities.includes("transfer_source") && (
-                  <Link
-                    href={`/transfers?source=${encodeURIComponent(account.id)}`}
-                    className="quiet-link mt-3"
-                  >
-                    Transfer from this account
-                    <ArrowUpRight size={16} aria-hidden />
-                  </Link>
-                )}
-              </div>
-            )}
-            <ErrorBox error={portfolio.error} title="Couldn't load holdings" />
-            {holding && (
-              <section className="mb-6">
-                <h3 className="mb-2 text-base font-semibold">Holdings</h3>
-                <p className="mb-3 text-xs text-zinc-400">
-                  {holding.label} · Prices are simulated · Read-only view
-                  {holding.paper ? " · Not counted in net worth" : ""}
-                </p>
-                {holding.positions.length === 0 && (
-                  <EmptyState>No positions in this account.</EmptyState>
-                )}
-                <ul className="divide-y divide-zinc-800">
-                  {holding.positions.map((p) => (
-                    <li
-                      key={p.symbol}
-                      className="flex justify-between gap-3 py-3 text-sm"
-                    >
-                      <span>
-                        {p.symbol}
-                        <span className="block text-xs text-zinc-400">
-                          {(p.quantityMicros / 1_000_000).toLocaleString(
-                            undefined,
-                            { maximumFractionDigits: 6 },
-                          )}{" "}
-                          shares
-                        </span>
-                      </span>
-                      <span>{formatCents(p.marketValueCents)}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-3 text-sm">
-                  Cash + holdings{" "}
-                  <strong className="float-right">
-                    {formatCents(holding.totalCents)}
-                  </strong>
-                </p>
-              </section>
-            )}
-            <ErrorBox
-              error={transactions.error}
-              onRetry={() => void transactions.reload()}
-            />
-            {transactions.loading ? (
-              <Loading label="Loading activity…" />
-            ) : txs.length === 0 ? (
-              <EmptyState>No matching transactions.</EmptyState>
-            ) : (
-              <ul className="divide-y divide-zinc-800">
-                {txs.slice(0, visibleCount).map((t) => (
-                  <li key={t.id} className="py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-medium break-words">
-                          {t.merchant ?? t.description}
-                        </p>
-                        <p className="mt-1 text-xs text-zinc-400">
-                          {new Date(t.postedAt).toLocaleDateString()} ·{" "}
-                          {t.category} · {t.status}
-                        </p>
-                      </div>
-                      <span className="shrink-0 tabular-nums">
-                        {formatCents(t.amountCents, t.currency)}
-                      </span>
-                    </div>
-                    <details className="mt-2 text-xs text-zinc-400">
-                      <summary className="min-h-8 py-2">
-                        Transaction details
-                      </summary>
-                      <p className="py-2">
-                        {t.description}
-                        {t.transferGroupId
-                          ? " · Transfer between your accounts"
-                          : ""}
-                      </p>
-                      {t.actionId && (
-                        <Link
-                          className="text-brand-200 underline"
-                          href={`/transfers?id=${encodeURIComponent(t.actionId)}`}
-                        >
-                          View transfer receipt
-                        </Link>
-                      )}
-                    </details>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {txs.length > visibleCount && (
-              <Button
-                className="mt-4 w-full"
-                onClick={() => setVisibleCount((c) => c + 12)}
-              >
-                Show more activity ({txs.length - visibleCount} remaining)
-              </Button>
-            )}
-          </Card>
+        <div id="account-detail" className="account-panel-column" tabIndex={-1} role="region" aria-label={preview ? "Account activity preview" : "Account details and activity"}>
+          {activeId && !account ? (
+            accounts.data ? <ErrorBox error={new Error("This account is not available. Choose another account.")} /> : <Loading label="Loading account…" />
+          ) : <AccountPanel
+            key={`${activeId ?? "all"}:${kind}:${activityRevision}`}
+            account={account}
+            preview={preview}
+            holding={holding}
+            rates={rates}
+            connection={connections.data?.connections.find((c) => c.id === account?.connectionId)}
+            query={activityScope.query}
+            allowedAccountIds={accounts.data ? activityScope.accountIds : undefined}
+            holdingsError={portfolio.error}
+            onOpen={choose}
+          />}
         </div>
       </div>
       <div className="mt-8">
