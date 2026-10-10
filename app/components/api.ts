@@ -1,5 +1,5 @@
 /**
- * Tiny typed fetch helper for the ClearFi HTTP API (see docs/API.md).
+ * Tiny typed fetch helper for the Onera HTTP API (see docs/API.md).
  *
  * The UI talks to the server ONLY through these calls. Failures throw an
  * ApiRequestError whose message mirrors the server's refusal exactly, e.g.

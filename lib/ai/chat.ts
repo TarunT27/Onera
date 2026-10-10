@@ -1,5 +1,5 @@
 /**
- * "Ask ClearFi" — manual tool loop against the Claude API.
+ * "Ask Onera" — manual tool loop against the Claude API.
  *
  * The loop is bounded, tools are scoped to the session user, and the trace of
  * every tool call is returned to the UI so the demo shows what the model did.

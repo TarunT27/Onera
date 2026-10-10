@@ -23,10 +23,10 @@ export interface AssistantAgent {
 export const ASSISTANT_AGENT_DEFINITIONS: Record<AssistantAgentId, AssistantAgent> = {
   general: {
     id: "general",
-    name: "ClearFi assistant",
+    name: "Onera assistant",
     // Everything except paper-order proposals, which belong to the Trade drafter.
     tools: ALL_TOOLS.filter((t) => t !== "propose_order"),
-    brief: "You are the general ClearFi assistant. If the user asks you to place a paper trade, tell them to pick the Trade drafter on the Trade page.",
+    brief: "You are the general Onera assistant. If the user asks you to place a paper trade, tell them to pick the Trade drafter on the Trade page.",
   },
   research: {
     id: "research",

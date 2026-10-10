@@ -18,6 +18,7 @@
 import type { BetaTool } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { z, ZodError } from "zod";
 import { createTransfer } from "@/lib/actions/service";
+import { findInjectionMarkers } from "@/lib/security/injection";
 import { listInsights } from "@/lib/agents";
 import { writeAudit } from "@/lib/audit";
 import type { DB } from "@/lib/db";
@@ -127,7 +128,7 @@ export const TOOL_DEFINITIONS: BetaTool[] = [
   {
     name: "get_agent_insights",
     description:
-      "Persisted findings from ClearFi's background monitors (deterministic rules over synthetic data, no model involved), newest first, each with evidence IDs (transactions, accounts, actions, symbols, connections). Advisory only. Omit status to get new and seen findings (dismissed ones are left out). Read-only: you cannot change a finding's status.",
+      "Persisted findings from Onera's background monitors (deterministic rules over synthetic data, no model involved), newest first, each with evidence IDs (transactions, accounts, actions, symbols, connections). Advisory only. Omit status to get new and seen findings (dismissed ones are left out). Read-only: you cannot change a finding's status.",
     input_schema: {
       type: "object",
       properties: {
@@ -159,7 +160,7 @@ export const TOOL_DEFINITIONS: BetaTool[] = [
   {
     name: "propose_transfer",
     description:
-      "Create a transfer PROPOSAL between the user's accounts or to a saved recipient. This does not move money. ClearFi's policy engine evaluates it, and the user must review and approve the exact transfer in the app. You cannot approve or execute. Only use when the user asked for this transfer.",
+      "Create a transfer PROPOSAL between the user's accounts or to a saved recipient. This does not move money. Onera's policy engine evaluates it, and the user must review and approve the exact transfer in the app. You cannot approve or execute. Only use when the user asked for this transfer.",
     input_schema: {
       type: "object",
       properties: {
@@ -175,7 +176,7 @@ export const TOOL_DEFINITIONS: BetaTool[] = [
   {
     name: "propose_order",
     description:
-      "Create a PAPER-trading order PROPOSAL (simulated money, simulated prices) in one of the user's paper accounts. This does not trade. ClearFi's policy engine checks it, and the user must review and approve the exact order version in the app. You cannot approve or execute. Buys use notional_cents OR quantity_micros; sells must use quantity_micros. Only use when the user asked for this order.",
+      "Create a PAPER-trading order PROPOSAL (simulated money, simulated prices) in one of the user's paper accounts. This does not trade. Onera's policy engine checks it, and the user must review and approve the exact order version in the app. You cannot approve or execute. Buys use notional_cents OR quantity_micros; sells must use quantity_micros. Only use when the user asked for this order.",
     input_schema: {
       type: "object",
       properties: {
@@ -308,6 +309,15 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
         }
         const doc = getResearchDocument(p.document_id);
         if (!doc) return finish(false, { error: "Document not found" }, "Document not found");
+        // Label embedded instructions for the threat monitor. Detection only: the content is returned unchanged
+        // and the markers never feed policy or tool permissions.
+        const markers = findInjectionMarkers(doc.content);
+        if (markers.length > 0) {
+          writeAudit(db, {
+            userId, actor: "assistant", eventType: "assistant.untrusted_instructions",
+            detail: { source: doc.id, markers },
+          });
+        }
         return finish(
           true,
           {

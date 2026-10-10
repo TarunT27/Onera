@@ -12,6 +12,7 @@ export const JOB_TYPES = [
   "subscription_review",
   "security_review",
   "portfolio_review",
+  "threat_sweep",
 ] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 
@@ -94,9 +95,10 @@ export interface ScheduleReport {
 // ---------------------------------------------------------------------------
 
 /** Private data an agent may read. Every read is scoped to the job's user. */
-export type DataScope = "accounts" | "transactions" | "recipients" | "actions" | "portfolio" | "connections";
+/** "audit" is the user's own append-only audit log (lib/audit), read-only. */
+export type DataScope = "accounts" | "transactions" | "recipients" | "actions" | "portfolio" | "connections" | "audit";
 export const DATA_SCOPES: readonly DataScope[] = [
-  "accounts", "transactions", "recipients", "actions", "portfolio", "connections",
+  "accounts", "transactions", "recipients", "actions", "portfolio", "connections", "audit",
 ];
 
 /**
@@ -113,7 +115,8 @@ export type AgentId =
   | "subscription_monitor"
   | "security_sentinel"
   | "portfolio_monitor"
-  | "connection_monitor";
+  | "connection_monitor"
+  | "threat_monitor";
 
 export interface AgentDefinition {
   id: AgentId;
@@ -163,6 +166,8 @@ export type InsightEvidence = {
   accountIds?: string[];
   symbols?: string[];
   connectionIds?: string[];
+  /** audit_events.id values (the user's own audit log). */
+  auditEventIds?: number[];
 } & Record<string, unknown>;
 
 export interface Insight {

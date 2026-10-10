@@ -139,7 +139,7 @@ export function createTransfer(
     });
     applyEvaluation(db, userId, loadActionRow(db, userId, id), "system");
     // Advisory security review by the background sentinel. It can raise findings, never approve.
-    enqueueJob(db, { userId, type: "security_review", dedupeKey: `security_review:${id}:v1`, payload: { actionId: id } });
+    enqueueSecurityReview(db, userId, id, 1);
   })();
   return getAction(db, userId, id);
 }
@@ -175,8 +175,16 @@ export function editTransfer(db: DB, userId: UserId, actionId: string, input: un
         approvalInvalidated: row.approval_hash !== null },
     });
     applyEvaluation(db, userId, loadActionRow(db, userId, actionId), "system");
+    // Each version gets its own advisory review; it updates the same sentinel insight.
+    enqueueSecurityReview(db, userId, actionId, row.version + 1);
   })();
   return getAction(db, userId, actionId);
+}
+
+function enqueueSecurityReview(db: DB, userId: UserId, actionId: string, version: number): void {
+  enqueueJob(db, {
+    userId, type: "security_review", dedupeKey: `security_review:${actionId}:v${version}`, payload: { actionId },
+  });
 }
 
 export function evaluateAction(db: DB, userId: UserId, actionId: string): TransferAction {

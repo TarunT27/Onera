@@ -16,7 +16,7 @@ export const subscriptionReview: AgentHandler = (ctx) => {
       body:
         `Your ${f.cadence} ${f.merchant} charge rose by ${usd(f.increaseCents)} on the latest charge after ` +
         `${f.evidenceTransactionIds.length - 1} steady charges. Review the subscription with the merchant if this ` +
-        `wasn't expected; ClearFi does not cancel subscriptions. Deterministic detection on synthetic data.`,
+        `wasn't expected; Onera does not cancel subscriptions. Deterministic detection on synthetic data.`,
       evidence: {
         transactionIds: f.evidenceTransactionIds,
         accountIds: [f.accountId],

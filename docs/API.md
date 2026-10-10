@@ -1,4 +1,4 @@
-# ClearFi API contract
+# Onera API contract
 
 All routes live under `app/api/` and return JSON. Types are defined in [`lib/types.ts`](../lib/types.ts) — import them instead of redefining shapes.
 
@@ -58,6 +58,12 @@ There is deliberately **no** route that lets a client set an action's state or s
 | POST | `/api/chat` | `ChatRequest` (`{ agent?, messages: { role, content }[] }`, full visible history). `agent` is `general` (default), `research`, `chart`, `risk` or `drafter`; each gets only its own tools (`lib/ai/agents.ts`) | `ChatResponse` — `mode` is `live` (real model call) or `fallback` (labeled deterministic summary). `trace` lists every tool call the model made. `proposedActionIds` are transfer proposals and `proposedOrderIds` paper-order proposals (Trade drafter only) it created; the user still approves on the transfer card or the Trade page. `agent` is the agent that answered |
 
 Assistant tools are read-only plus `propose_transfer`. There is no approve or execute tool.
+
+## Security monitoring
+
+Refused requests are audited at the HTTP boundary (`handler()` in `lib/http.ts`): any `404 NOT_FOUND` or `409 INVALID_STATE | STALE_VERSION | APPROVAL_INVALID | POLICY_HOLD` writes a `request.refused` audit event under the **caller's** session user with `{ code, status, method, path }` only — never whether the record exists or who owns it. When the assistant reads a research document containing embedded instructions, `assistant.untrusted_instructions` is written with `{ source, markers }` (detection only; the document is returned unchanged).
+
+The background **threat monitor** (`threat_sweep` job, agent `threat_monitor`) sweeps the user's own audit log shortly after new activity and raises `security_threat` insights for patterns such as repeated not-found probes, execution without approval, stale-approval replays, recipient swaps before a transfer, limit probing, controls loosened before an approval, prompt injection and refused assistant tools. Rules and thresholds: `lib/agents/monitors/threats.ts`. Findings use the existing insight routes (`GET /api/agents/insights?agentId=threat_monitor`, `PATCH /api/agents/insights/:id`) and appear on `/security`. The monitor is advisory: it cannot pause, hold, approve or execute. The page's "Pause transfers" button is the user's own `PATCH /api/controls`.
 
 ## Simulated bank connections (integrated October 10)
 

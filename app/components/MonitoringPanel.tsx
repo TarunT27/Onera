@@ -28,7 +28,7 @@ import { formatCents } from "@/lib/finance/money";
 
 export const MONITORING_ADVISORY = "Advisory — agents can't approve or move money";
 
-const SEVERITY: Record<AgentInsight["severity"], { tone: BadgeTone; label: string; Icon: typeof Info }> = {
+export const SEVERITY: Record<AgentInsight["severity"], { tone: BadgeTone; label: string; Icon: typeof Info }> = {
   critical: { tone: "red", label: "Critical", Icon: WarningOctagon },
   warning: { tone: "amber", label: "Warning", Icon: Warning },
   info: { tone: "blue", label: "Info", Icon: Info },

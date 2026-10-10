@@ -85,6 +85,21 @@ const DEFINITIONS: AgentDefinition[] = [
     enqueues: ["spending_review", "subscription_review"],
     ...NO_POWERS,
   },
+  {
+    id: "threat_monitor",
+    name: "Threat monitor",
+    purpose:
+      "Advisory, rule-based sweep of the user's own audit log for attack patterns over time: repeated not-found " +
+      "probes, execution without approval, stale-approval replays, recipient swaps before a transfer, limit probing, " +
+      "controls loosened right before an approval, prompt-injection attempts and refused assistant tools. " +
+      "It cannot hold, pause, approve or execute anything; it only writes insights.",
+    trigger: "Shortly after new user, assistant or system activity appears in the audit log",
+    jobTypes: ["threat_sweep"],
+    reads: ["audit", "actions"],
+    writes: ["insights"],
+    enqueues: [],
+    ...NO_POWERS,
+  },
 ];
 
 /** Frozen at load: nothing can widen an agent's permissions at runtime. */

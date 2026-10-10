@@ -77,12 +77,13 @@ const OWNED_ID_TABLES = [
   ["transactionIds", "transactions"],
   ["actionIds", "actions"],
   ["accountIds", "accounts"],
+  ["auditEventIds", "audit_events"],
 ] as const;
 
-/** Throws if any cited transaction, action or account is not owned by userId. */
+/** Throws if any cited transaction, action, account or audit event is not owned by userId. */
 function assertEvidenceOwned(db: DB, userId: UserId, evidence: InsightEvidence): void {
   for (const [field, table] of OWNED_ID_TABLES) {
-    const ids = [...new Set(evidence[field] ?? [])];
+    const ids = [...new Set<string | number>(evidence[field] ?? [])];
     if (ids.length === 0) continue;
     const { n } = db
       .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE user_id = ? AND id IN (${ids.map(() => "?").join(",")})`)

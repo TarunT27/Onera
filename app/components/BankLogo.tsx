@@ -10,8 +10,8 @@ const LOGOS: { match: RegExp; src: string; mark?: string }[] = [
   { match: /chase/i, src: "/images/banks/chase.svg" },
   { match: /barclays/i, src: "/images/banks/barclays.svg" },
   { match: /\brbc\b|royal bank/i, src: "/images/banks/rbc.svg" },
-  // The house brand: Onera Demo Bank, Onera Paper Trading (seeded as "ClearFi ..." in some builds).
-  { match: /\bonera\b|^clearfi\b/i, src: "/images/banks/onera.png" },
+  // The house brand: Onera Demo Bank, Onera Paper Trading.
+  { match: /\bonera\b/i, src: "/images/banks/onera.png" },
 ];
 
 /** Every tile is the same size (width = size * TILE_ASPECT) so rows line up; artwork is scaled to fit. */
@@ -37,7 +37,7 @@ function monogram(institution: string): string {
     .split(/\s+/)
     .filter(Boolean);
   if (words.length === 0) return "?";
-  if (/^clearfi/i.test(institution)) return "C";
+  if (/^onera/i.test(institution)) return "O";
   return words
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())
