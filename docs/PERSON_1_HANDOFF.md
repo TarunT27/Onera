@@ -29,6 +29,13 @@ Updated October 10, 2026. Work branch: `codex/person1-ui-ai`. This handoff cover
 - Dark dashboard/palette visual QA is complete; independent 200% zoom and full-page accessibility audit remain pending. Do not claim a complete accessibility audit.
 - No financial contracts, policy rules, database implementation, or action services were changed.
 
+## Landing preparation checkpoint
+
+- Prepared three synthetic app captures in `public/landing/`: `overview.jpg`, `controls.jpg`, and `assistant.jpg` (388 × 640 each).
+- Prepared `public/landing/glass-control.png`, a generated smoked-glass/silver editorial illustration with a restrained champagne accent (1086 × 1448). It is artwork, not a real financial instrument or product screenshot.
+- These assets are not wired into the app yet. Landing and login/register implementation remains paused until the team's incoming UI is available as the foundation; login/register will be UI-only, and circling text remains deferred.
+- Product Design's context workflow was loaded for the next design pass. Preserve the dark/silver/gold direction, existing financial safety labels, and current product patterns when refining the incoming UI.
+
 ## Team integration
 
-Review and stage only the Person 1 source changes, AI boundary/fallback tests, delegation guide, and this handoff. Do not include unrelated planning files automatically. Before a team-approved commit/push, fetch, inspect incoming changes, coordinate overlapping ownership, and run the required checks on the integrated state.
+Review and stage only the Person 1 source changes, prepared landing assets, AI boundary/fallback tests, delegation guide, and this handoff. Do not include unrelated planning files automatically. The user has authorized commit and push at every verified checkpoint. Before each checkpoint, fetch, inspect incoming changes, coordinate overlapping ownership, and run the required checks on the integrated state; after pushing, verify the remote commit.

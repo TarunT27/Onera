@@ -148,4 +148,5 @@ Before any commit or push, the primary agent must:
 3. Resolve ownership or contract conflicts with the responsible teammate rather than silently editing their files.
 4. Run the narrow checks for each change, then `npm run typecheck`, `npm test`, and `git diff --check` for the integrated result.
 5. Confirm synthetic/simulated/fallback labels and the AI no-approve/no-execute boundary remain intact.
-6. Commit a small cohesive unit and push only when explicitly requested or already agreed by the team.
+6. The user has authorized a commit and push at every verified checkpoint. Stage only the primary agent's reviewed, task-owned files; commit a small cohesive unit and push to the current work branch without another reminder. Never include teammates' untracked or unrelated edits, force-push, or rewrite shared history.
+7. Verify the remote branch points to the checkpoint commit after pushing. If verification fails or the remote has overlapping changes, report the exact blocker and coordinate integration rather than claiming the checkpoint is published.
