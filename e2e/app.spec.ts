@@ -86,6 +86,7 @@ test("all navigation, overview links, evidence and responsive layout", async ({
 
 test("accounts search, currency, holdings and preselected transfer source", async ({
   page,
+  request,
 }) => {
   await page.goto("/accounts");
   await expect(
@@ -94,9 +95,20 @@ test("accounts search, currency, holdings and preselected transfer source", asyn
   const activity = page.locator("section").filter({
     has: page.getByRole("heading", { name: "Recent activity", exact: true }),
   });
-  await expect(activity.getByRole("listitem")).toHaveCount(12);
-  await page.getByRole("button", { name: /Show more activity/ }).click();
-  await expect(activity.getByRole("listitem")).toHaveCount(24);
+  await expect(activity.getByRole("listitem")).toHaveCount(16);
+  const scrollArea = activity.getByRole("region", { name: "Scrollable transactions" });
+  const pageHeight = await page.locator("body").evaluate((el) => el.scrollHeight);
+  await scrollArea.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect(activity.getByRole("listitem")).toHaveCount(32);
+  expect(await page.locator("body").evaluate((el) => el.scrollHeight)).toBe(pageHeight);
+  await page.getByLabel("Account type").selectOption("checking");
+  const accountResponse = await request.get("/api/accounts");
+  const { accounts: accountRows } = await accountResponse.json();
+  const checkingIds = accountRows.filter((a: { type: string }) => a.type === "checking").map((a: { id: string }) => a.id);
+  await expect(activity.locator("li[data-account-id]").first()).toBeVisible();
+  const activityIds = await activity.locator("li[data-account-id]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-account-id")));
+  expect(activityIds.every((id) => checkingIds.includes(id))).toBe(true);
+  await page.getByLabel("Account type").selectOption("all");
   await page.getByLabel("Search accounts or activity").fill("no-such-account");
   await expect(page.getByText(/No matching accounts/)).toBeVisible();
   await page.getByLabel("Search accounts or activity").fill("");
@@ -108,6 +120,7 @@ test("accounts search, currency, holdings and preselected transfer source", asyn
   await expect(
     page.getByRole("listitem").filter({ hasText: "VTI" }).first(),
   ).toBeVisible();
+  await page.getByRole("button", { name: "All accounts", exact: true }).click();
   await page.getByLabel("Account type").selectOption("all");
   await page.getByRole("button", { name: /High-Yield Savings/ }).click();
   await page.getByRole("link", { name: "Transfer from this account" }).click();
@@ -117,6 +130,10 @@ test("accounts search, currency, holdings and preselected transfer source", asyn
   await page.goto("/accounts");
   await page.getByLabel("Search accounts or activity").fill("Barclays");
   await expect(page.getByRole("button", { name: /£/ }).first()).toBeVisible();
+  const barclaysIds = accountRows.filter((a: { institution: string }) => a.institution.includes("Barclays")).map((a: { id: string }) => a.id);
+  await expect(activity.locator("li[data-account-id]").first()).toBeVisible();
+  expect(await activity.locator("li[data-account-id]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-account-id")))).toEqual(expect.arrayContaining([barclaysIds[0]]));
+  expect((await activity.locator("li[data-account-id]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-account-id")))).every((id) => barclaysIds.includes(id))).toBe(true);
   await checkLayout(page);
 });
 
@@ -181,7 +198,7 @@ test("held transfer verification, exact approval, execution and duplicate receip
   await expect(why.getByText(changed.explanation)).toBeVisible();
   await expect(why.getByText(changed.recovery)).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /Approve exact transfer/ }),
+    page.getByRole("button", { name: "Approve transfer", exact: true }),
   ).toHaveCount(0);
   await page
     .getByRole("button", { name: "Try to execute anyway", exact: true })
@@ -195,21 +212,21 @@ test("held transfer verification, exact approval, execution and duplicate receip
       exact: true,
     })
     .click();
-  await page.getByRole("button", { name: "Re-evaluate", exact: true }).click();
-  await page.getByRole("button", { name: /Approve exact transfer/ }).click();
+  await page.getByRole("button", { name: "Check again", exact: true }).click();
+  await page.getByRole("button", { name: "Approve transfer", exact: true }).click();
   await page
-    .getByRole("button", { name: "Execute (simulated)", exact: true })
+    .getByRole("button", { name: "Send demo transfer", exact: true })
     .click();
-  await expect(page.getByText("Receipt ID", { exact: true })).toBeVisible();
+  await expect(page.getByText("✓ Transfer complete", { exact: true })).toBeVisible();
   await page
     .getByRole("button", {
-      name: "Execute again (duplicate check)",
+      name: "Check receipt",
       exact: true,
     })
     .click();
   await expect(
     page.getByText(
-      "Already executed — same receipt returned, no second transfer.",
+      "No second transfer was made.",
       { exact: true },
     ),
   ).toBeVisible();
@@ -230,15 +247,15 @@ test("edit invalidates approval; paused controls stop execution; limits save", a
   await page.getByLabel("Amount", { exact: false }).fill("25");
   await page.getByRole("button", { name: "Propose transfer" }).click();
   await expect(page).toHaveURL(/id=/);
-  await page.getByRole("button", { name: /Approve exact transfer/ }).click();
+  await page.getByRole("button", { name: "Approve transfer", exact: true }).click();
   await page.getByRole("button", { name: "Edit amount" }).click();
   await page.getByLabel("New amount in dollars").fill("30");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: /Approve exact transfer \(v2\)/ }),
+    page.getByRole("button", { name: "Approve transfer", exact: true }),
   ).toBeEnabled();
   const actionUrl = page.url();
-  await page.getByRole("button", { name: /Approve exact transfer/ }).click();
+  await page.getByRole("button", { name: "Approve transfer", exact: true }).click();
   await page.goto("/control");
   await page.getByRole("button", { name: /Pause all execution/ }).click();
   await expect(page.getByRole("button", { name: /Resume/ })).toBeVisible();
@@ -270,8 +287,9 @@ test("assistant fallback is labeled and demo-user switch clears history", async 
       exact: true,
     }),
   ).toBeVisible();
-  await page.getByLabel("Demo user").selectOption("bob");
-  await expect(page.getByLabel("Demo user")).toHaveValue("bob");
+  await page.getByRole("button", { name: /^Demo user:/ }).click();
+  await page.getByRole("menuitemradio", { name: "Bob Okafor" }).click();
+  await expect(page.getByRole("button", { name: "Demo user: Bob Okafor" })).toBeVisible();
   await expect(
     page.getByText("Fallback — model unavailable, deterministic summary", {
       exact: true,

@@ -241,20 +241,20 @@
   }
 }
 .rise {
-  animation: rise 0.9s var(--ease) both;
-  animation-delay: calc(var(--i, 0) * 70ms);
+  animation: rise 0.36s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 20ms);
 }
 .app-main > div:not(.overview) > * {
-  animation: rise 0.8s var(--ease) both;
+  animation: rise 0.28s var(--ease) both;
 }
 .app-main > div:not(.overview) > :nth-child(2) {
-  animation-delay: 70ms;
+  animation-delay: 20ms;
 }
 .app-main > div:not(.overview) > :nth-child(3) {
-  animation-delay: 140ms;
+  animation-delay: 40ms;
 }
 .app-main > div:not(.overview) > :nth-child(n + 4) {
-  animation-delay: 210ms;
+  animation-delay: 60ms;
 }
 
 /* ─── Top bar: wordmark · floating tab island · session ─── */
@@ -313,6 +313,14 @@
   color: var(--text-2);
   font-size: 13.5px;
   font-weight: 500;
+}
+.island,
+.session {
+  transition: background-color 0.3s var(--ease);
+}
+.topbar[data-scrolled] .island,
+.topbar[data-scrolled] .session {
+  background-color: rgb(22 24 28 / 0.94);
 }
 .island a:hover {
   color: var(--text);
@@ -405,6 +413,16 @@
   color: var(--text);
   max-width: 120px;
 }
+.demo-user-menu { position: relative; }
+.demo-user-trigger { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 6px 4px; border-radius: 999px; background: transparent; color: var(--text); }
+.demo-user-trigger > span { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.demo-user-trigger:focus-visible { outline: none; box-shadow: 0 1px 0 var(--azure-light); }
+.demo-user-trigger > svg { flex-shrink: 0; color: var(--text-2); }
+.demo-user-options { position: absolute; top: calc(100% + 14px); right: -6px; width: 210px; padding: 8px; border-radius: var(--r-md); background: rgb(22 24 28 / 0.98); box-shadow: 0 0 0 1px var(--hairline) inset, 0 18px 40px rgb(0 0 0 / 0.45); }
+.demo-user-options > p { padding: 6px 10px 8px; font-size: 11px; color: var(--text-2); }
+.demo-user-options > button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; padding: 10px; border-radius: 12px; text-align: left; color: var(--text); }
+.demo-user-options > button:hover, .demo-user-options > button:focus-visible { background: var(--fill-2); outline: none; box-shadow: 0 0 0 1px var(--azure-light) inset; }
+.demo-user-options > button[aria-checked="true"] { color: var(--azure-mist); }
 .icon-btn {
   display: grid;
   place-items: center;
@@ -1429,6 +1447,15 @@
 .app-main textarea {
   min-height: 44px;
 }
+.app-main select {
+  appearance: none;
+  padding-inline: 16px 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16' fill='none' stroke='%23bfd8e3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 6 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 14px;
+}
+.greeting-placeholder { display: inline-block; width: min(360px, 75vw); height: .75em; border-radius: 12px; background: var(--fill-2); }
 .app-main button {
   min-height: 36px;
 }
@@ -1506,6 +1533,8 @@
     max-width: 92px;
     font-size: 12px;
   }
+  .demo-user-trigger { font-size: 12px; }
+  .demo-user-trigger > span { max-width: 92px; }
   .app-main {
     width: auto;
     margin: 0 16px;
