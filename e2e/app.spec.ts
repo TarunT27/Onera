@@ -35,7 +35,9 @@ test("all navigation, overview links, evidence and responsive layout", async ({
   await page.goto("/");
   await expect(page).toHaveTitle("ClearFi");
   await expect(
-    page.getByRole("heading", { name: "Hello, Alice." }),
+    page.getByRole("heading", {
+      name: /^Good (morning|afternoon|evening), Alice\.$/,
+    }),
   ).toBeVisible();
   await expect(
     page.getByText("Individual Brokerage", { exact: true }),
@@ -50,12 +52,12 @@ test("all navigation, overview links, evidence and responsive layout", async ({
   await expect(
     page.getByRole("heading", { name: "Everyday Checking" }),
   ).toBeVisible();
-  for (const [label, heading] of [
+  for (const [label, heading] of <[string, string | RegExp][]>[
     ["Transfers", "Transfers"],
     ["Assistant", "Ask ClearFi"],
     ["Controls", "Control"],
     ["Accounts", "Your accounts"],
-    ["Overview", "Hello, Alice."],
+    ["Overview", /^Good (morning|afternoon|evening), Alice\.$/],
   ]) {
     await page
       .getByRole("navigation", { name: "Main" })
@@ -268,7 +270,9 @@ test("assistant fallback is labeled and demo-user switch clears history", async 
   ).toHaveCount(0);
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Hello, Bob." }),
+    page.getByRole("heading", {
+      name: /^Good (morning|afternoon|evening), Bob\.$/,
+    }),
   ).toBeVisible();
   await expect(
     page.getByText("Everyday Checking", { exact: true }),
