@@ -1,0 +1,51 @@
+/**
+ * Fallback when the model is unavailable. Clearly labeled, read-only, and
+ * built from the same deterministic calculations. It never creates proposals,
+ * approvals or executions.
+ */
+import type { DB } from "@/lib/db";
+import { formatCents } from "@/lib/finance/money";
+import { spendingSummary } from "@/lib/finance/spending";
+import { detectSubscriptionIncreases } from "@/lib/finance/subscriptions";
+import type { ChatRequest, ChatResponse, ToolTraceEntry, UserId } from "@/lib/types";
+
+export function fallbackReply(db: DB, userId: UserId, request: ChatRequest, reason: string): ChatResponse {
+  const question = (request.messages[request.messages.length - 1]?.content ?? "").toLowerCase();
+  const trace: ToolTraceEntry[] = [];
+  const lines: string[] = [];
+
+  const wantsTransfer = /\b(pay|send|transfer|move)\b/.test(question);
+  if (wantsTransfer) {
+    lines.push(
+      "The assistant model is unavailable, so I can't draft that transfer for you. You can create it yourself on the Transfers page; the same policy checks and approval apply.",
+    );
+  } else {
+    const spending = spendingSummary(db, userId);
+    trace.push({ tool: "get_spending_summary", input: {}, ok: true, summary: `Spending ${spending.month}` });
+    const subs = detectSubscriptionIncreases(db, userId);
+    trace.push({ tool: "get_subscription_insights", input: {}, ok: true, summary: `${subs.length} price increase(s)` });
+
+    lines.push(
+      `Spending in ${spending.month} so far: ${formatCents(spending.totalCents)} across ${spending.transactionCount} transactions (previous month: ${formatCents(spending.previousTotalCents)}).`,
+    );
+    const top = spending.byCategory.slice(0, 3).map((c) => `${c.category} ${formatCents(c.totalCents)}`);
+    if (top.length) lines.push(`Top categories: ${top.join(", ")}.`);
+    if (spending.excludedInternalTransferCents > 0) {
+      lines.push(`${formatCents(spending.excludedInternalTransferCents)} moved between your own accounts is excluded.`);
+    }
+    for (const s of subs) {
+      lines.push(
+        `${s.merchant} went from ${formatCents(s.previousAmountCents)} to ${formatCents(s.currentAmountCents)} (+${s.increasePct}%). Evidence: ${s.evidenceTransactionIds.join(", ")}.`,
+      );
+    }
+  }
+
+  return {
+    mode: "fallback",
+    model: null,
+    reply: lines.join("\n"),
+    trace,
+    proposedActionIds: [],
+    notice: `${reason} Showing a deterministic summary instead of a model answer.`,
+  };
+}
