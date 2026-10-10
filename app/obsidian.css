@@ -1,0 +1,223 @@
+/* Refinements to the selected Obsidian Flow system; no financial status tokens change. */
+.obsidian-app {
+  --glass-surface: #12171be8;
+  --glass-border: #cbd5df29;
+  --glass-edge: #e9edf33d;
+  --silver-text: #c6cdd6;
+  --glass-accent: #bfd8e3;
+  background: #080a0b;
+}
+
+.obsidian-app .sidebar {
+  top: 32px;
+  bottom: 24px;
+  border-color: var(--glass-border);
+  box-shadow: inset 0 1px var(--glass-edge), inset 0 0 100px 45px #030a10c9,
+    0 16px 40px #00000030;
+}
+.obsidian-app .wordmark { padding-bottom: 28px; }
+.obsidian-app .wordmark-period { color: var(--glass-accent); }
+.nav-eyebrow, .workspace-eyebrow {
+  color: var(--glass-accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.nav-eyebrow { padding: 0 18px 16px; }
+.obsidian-app .sidebar nav a {
+  min-height: 60px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  border-radius: 18px;
+}
+.obsidian-app .sidebar nav a[aria-current] {
+  background: #ccd7e014;
+  border-color: var(--glass-border);
+  box-shadow: inset 2px 0 var(--glass-accent), inset 0 1px #e9edf325;
+}
+.obsidian-app .sidebar nav a[aria-current] svg { filter: none; }
+.obsidian-app .session-bar {
+  top: 32px;
+  padding: 8px 14px 8px 20px;
+  background: var(--glass-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  box-shadow: inset 0 1px #e9edf318;
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+}
+.obsidian-app .session-bar select { min-height: 44px; }
+.obsidian-app .demo-label { margin-right: 8px; }
+.obsidian-app .avatar { border-color: var(--glass-edge); color: var(--silver-text); }
+.obsidian-app .overview-heading { margin-bottom: 22px; }
+.obsidian-app .overview-heading .workspace-eyebrow { font-size: 11px; margin-bottom: 9px; color: var(--glass-accent); }
+.obsidian-app .overview-heading h1 { font-size: clamp(30px, 2.7vw, 40px); letter-spacing: -1.25px; }
+.obsidian-app .overview-heading > p:last-child { font-size: 15px; }
+.obsidian-app .surface, .obsidian-app .glass-card {
+  background: var(--glass-surface);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px #e9edf318, 0 12px 28px #00000018;
+  border-radius: 24px;
+}
+.obsidian-app .surface-head { padding: 22px 26px 12px; }
+.obsidian-app .surface-head h2 { font-size: 20px; font-weight: 600; }
+.obsidian-app .quiet-link { min-height: 44px; }
+.obsidian-app .balance-hero {
+  position: relative;
+  min-height: 365px;
+  padding: 30px 34px 22px;
+  border-radius: 30px;
+  border-color: #a6ccdf55;
+  box-shadow: inset 0 1px #e9edf34d, inset 0 -1px #8cb9cc1f;
+}
+.obsidian-app .balance-label { font-size: 15px; }
+.obsidian-app .balance-amount {
+  margin: 14px 0 4px;
+  font-size: clamp(46px, 4.7vw, 70px);
+  letter-spacing: -2.5px;
+  font-weight: 400;
+}
+.obsidian-app .balance-note { font-size: 15px; }
+.obsidian-app .hero-actions { margin-top: 30px; gap: 12px; }
+.obsidian-app .pill { min-height: 48px; gap: 10px; font-size: 14px; }
+.obsidian-app .pill.secondary {
+  background: #d9e3ed0b;
+  border-color: #d9e3ed59;
+  box-shadow: inset 0 1px #e9edf321;
+}
+.balance-controls {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  min-height: 44px;
+  color: var(--silver-text);
+  font-size: 12px;
+}
+.balance-controls > svg:first-child { color: var(--glass-accent); }
+.balance-controls:hover { color: #fff; }
+.balance-info summary {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: var(--silver-text);
+}
+.balance-info[open] summary { background: #d9e3ed1f; color: #fff; }
+.balance-info p {
+  position: absolute;
+  z-index: 5;
+  left: 24px;
+  top: 80px;
+  width: min(340px, calc(100% - 48px));
+  padding: 18px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 16px;
+  background: #182128;
+  color: #edf0f4;
+  font-size: 14px;
+  line-height: 1.6;
+  box-shadow: 0 12px 30px #00000066;
+}
+.obsidian-app .account-row { padding: 18px 0; min-height: 89px; }
+.obsidian-app .row-title { font-size: 16px; }
+.obsidian-app .row-meta { font-size: 13px; }
+.obsidian-app .round-icon { width: 48px; height: 48px; background: #bfd8e30d; border: 1px solid #bfd8e321; color: #a6ccdf; }
+.obsidian-app .attention-strip {
+  padding: 18px 24px;
+  gap: 18px;
+  background: #10212b;
+  border-color: #bfd8e33d;
+  border-radius: 20px;
+  box-shadow: inset 0 1px #bfd8e31f;
+}
+.obsidian-app .attention-icon { color: var(--glass-accent); }
+.obsidian-app .attention-content strong { font-weight: 600; font-size: 15px; }
+.obsidian-app .attention-content p { color: var(--silver-text); }
+.obsidian-app .attention-details { font-size: 12px; padding-left: 20px; margin-right: 0; color: var(--silver-text); border-color: #bfd8e326; }
+.obsidian-app .attention-strip .pill { border-color: #bfd8e359; background: #bfd8e30b; color: #eef7fb; }
+.obsidian-app .attention-strip .pill:hover { background: #bfd8e31f; }
+.obsidian-app .subscription-row { border-color: var(--glass-border); background: #d9e3ed06; border-radius: 16px; }
+.obsidian-app .workspace-heading h1 { font-size: clamp(28px, 2.5vw, 36px); font-weight: 550; }
+.obsidian-app .workspace-heading p { max-width: 65ch; line-height: 1.65; }
+.obsidian-app .app-main button { min-height: 44px; }
+.obsidian-app .evidence summary { min-height: 44px; }
+.obsidian-app :focus-visible { outline-color: var(--glass-accent); }
+.obsidian-app .app-footer { color: #a8b1bc; }
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .obsidian-app .pill:hover { transform: translateY(-2px); }
+  .obsidian-app .sidebar nav a:not([aria-current]):hover { transform: translateX(2px); }
+}
+@media (max-width: 1250px) {
+  .obsidian-app .overview-heading { padding-top: 48px; }
+  .obsidian-app .balance-hero { padding: 26px; }
+  .obsidian-app .balance-amount { font-size: clamp(44px, 5vw, 64px); }
+  .obsidian-app .hero-actions { margin-top: 24px; }
+}
+@media (max-width: 1000px) {
+  .obsidian-app .attention-strip { flex-wrap: wrap; }
+  .obsidian-app .attention-content { min-width: 0; }
+  .obsidian-app .surface-head { padding: 18px 20px 12px; }
+}
+@media (max-width: 760px) {
+  .obsidian-app .sidebar {
+    top: auto;
+    bottom: 0;
+    height: auto;
+    background: #10191fef;
+    border-color: var(--glass-edge);
+    padding-bottom: max(5px, env(safe-area-inset-bottom));
+    box-shadow: inset 0 1px #e9edf31f, 0 -8px 30px #00000033;
+  }
+  .nav-eyebrow { display: none; }
+  .obsidian-app .sidebar nav a { padding: 6px 2px; min-height: 60px; border-radius: 14px; }
+  .obsidian-app .sidebar nav a[aria-current] { box-shadow: inset 0 1px #e9edf33d; color: var(--glass-accent); }
+  .obsidian-app .session-bar {
+    top: 0;
+    padding: 14px 18px;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .obsidian-app .demo-label { margin-right: auto; }
+  .obsidian-app .overview-heading { padding: 0; margin-bottom: 20px; }
+  .obsidian-app .overview-heading h1 { font-size: 32px; }
+  .obsidian-app .overview-heading > p:last-child { font-size: 13px; }
+  .obsidian-app .attention-strip { padding: 18px; gap: 12px; }
+  .obsidian-app .attention-strip .pill { margin: 0; width: 100%; }
+  .obsidian-app .attention-content { flex-basis: calc(100% - 42px); }
+  .obsidian-app .attention-content p { font-size: 13px; line-height: 1.55; }
+  .obsidian-app .balance-hero { min-height: 310px; padding: 20px; border-radius: 24px; }
+  .obsidian-app .balance-amount { font-size: clamp(38px, 10.5vw, 58px); letter-spacing: -1.75px; }
+  .obsidian-app .balance-note { font-size: 13px; }
+  .obsidian-app .hero-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 24px; }
+  .obsidian-app .hero-actions .pill { padding: 10px 8px; font-size: 12px; gap: 6px; }
+  .balance-controls { font-size: 12px; }
+  .obsidian-app .account-row { gap: 10px; padding: 16px 0; }
+  .obsidian-app .account-row .round-icon { width: 40px; height: 40px; }
+  .obsidian-app .row-title { font-size: 14px; }
+  .obsidian-app .row-meta { font-size: 12px; }
+  .obsidian-app .activity-row .round-icon { width: 32px; height: 32px; }
+}
+/* Data stays readable without blur; material fallbacks never change decisions. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .obsidian-app .session-bar, .obsidian-app .sidebar { background-color: #111a21; }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .obsidian-app .session-bar, .obsidian-app .sidebar, .obsidian-app .surface,
+  .obsidian-app .glass-card, .obsidian-app .balance-hero {
+    background: #111a21;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+    border-color: #a6b3c0;
+  }
+  .obsidian-app .sidebar nav a[aria-current] { background: #253443; }
+}

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Header } from "./components/Header";
 import "./globals.css";
+import "./obsidian.css";
 export const metadata: Metadata = {
   title: { default: "ClearFi", template: "%s · ClearFi" },
   description:
@@ -10,12 +11,12 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#000000",
+  themeColor: "#080a0b",
 };
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className="dark">
-      <body>
+      <body className="obsidian-app">
         <Header />
         <main id="main-content" className="app-main">
           {children}

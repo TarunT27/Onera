@@ -15,6 +15,7 @@ import {
   Coffee,
   ShoppingCart,
   PlayCircle,
+  SlidersHorizontal,
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useApiData } from "./components/useApiData";
@@ -94,6 +95,7 @@ export default function OverviewPage() {
   return (
     <div className="overview">
       <div className="overview-heading">
+        <p className="workspace-eyebrow">Your overview</p>
         <h1>Hello, {session.data?.user.name.split(" ")[0] ?? "there"}.</h1>
         <p>
           {date
@@ -112,18 +114,48 @@ export default function OverviewPage() {
         title="Couldn't load accounts"
         onRetry={() => void accounts.reload()}
       />
-      <ErrorBox error={actions.error} title="Couldn't load transfers" />
-      <ErrorBox error={recipients.error} title="Couldn't load recipients" />
+      <ErrorBox error={actions.error} title="Couldn't load transfers" onRetry={() => void actions.reload()} />
+      <ErrorBox error={recipients.error} title="Couldn't load recipients" onRetry={() => void recipients.reload()} />
       <div className="overview-grid">
+        {(pending || changed) && (
+          <section className="attention-strip" aria-label="Needs your review">
+            <WarningCircle className="attention-icon" size={30} weight="fill" aria-hidden />
+            <div className="attention-content">
+              <strong>
+                {pending
+                  ? `${formatCents(pending.amountCents)} transfer needs review`
+                  : "Bank details need your review"}
+              </strong>
+              <p>
+                {pending
+                  ? `${pending.destination.displayName} · ${pending.state === "HELD" ? "On hold" : "Awaiting your approval"}`
+                  : `${changed!.displayName} changed its bank details.`}
+              </p>
+            </div>
+            {changed?.previousDetails && (
+              <div className="attention-details">
+                <p>Previously verified · {changed.previousDetails.institution} ••{changed.previousDetails.accountMask}</p>
+                <p>Requested · {changed.details.institution} ••{changed.details.accountMask}</p>
+              </div>
+            )}
+            <button className="pill small" onClick={reviewChanged} disabled={busy}>
+              {busy ? "Opening…" : pending ? "Review transfer" : "Try rent review"}
+              <CaretRight size={18} aria-hidden />
+            </button>
+          </section>
+        )}
         <section className="balance-hero" aria-label="Total balance">
           <div className="balance-label">
             Total balance{" "}
-            <span title="USD equivalent of cash, debt and simulated investments. Paper accounts excluded.">
-              <Info
-                size={21}
-                aria-label="Balance includes currency conversion and simulated investments"
-              />
-            </span>
+            <details className="balance-info">
+              <summary aria-label="How total balance is calculated">
+                <Info size={20} aria-hidden />
+              </summary>
+              <p>
+                Cash, debt and simulated investments, converted to USD for this overview.
+                Paper accounts are excluded. All figures use synthetic demo data.
+              </p>
+            </details>
           </div>
           {accounts.data ? (
             <p className="balance-amount">
@@ -145,6 +177,11 @@ export default function OverviewPage() {
               Ask ClearFi
             </Link>
           </div>
+          <Link href="/control" className="balance-controls">
+            <SlidersHorizontal size={17} aria-hidden />
+            You approve every transfer
+            <CaretRight size={15} aria-hidden />
+          </Link>
         </section>
         <section className="surface">
           <header className="surface-head">
@@ -202,52 +239,6 @@ export default function OverviewPage() {
             {accounts.loading && !accounts.data && <Loading />}
           </div>
         </section>
-        {(pending || changed) && (
-          <section className="attention-strip">
-            <WarningCircle
-              className="attention-icon"
-              size={34}
-              weight="fill"
-              aria-hidden
-            />
-            <div className="attention-content">
-              <strong>
-                {pending
-                  ? `${formatCents(pending.amountCents)} transfer needs review`
-                  : "Bank details need your review"}
-              </strong>
-              <p>
-                {pending
-                  ? `${pending.destination.displayName} · ${pending.state === "HELD" ? "On hold" : "Awaiting your approval"}`
-                  : `${changed!.displayName} changed its bank details.`}
-              </p>
-            </div>
-            {changed?.previousDetails && (
-              <div className="attention-details">
-                <p>
-                  Previously verified · {changed.previousDetails.institution} ••
-                  {changed.previousDetails.accountMask}
-                </p>
-                <p>
-                  Requested · {changed.details.institution} ••
-                  {changed.details.accountMask}
-                </p>
-              </div>
-            )}
-            <button
-              className="pill small"
-              onClick={reviewChanged}
-              disabled={busy}
-            >
-              {busy
-                ? "Opening…"
-                : pending
-                  ? "Review transfer"
-                  : "Try rent review"}
-              <CaretRight size={18} aria-hidden />
-            </button>
-          </section>
-        )}
         <div className="overview-bottom">
           <section className="surface">
             <header className="surface-head">

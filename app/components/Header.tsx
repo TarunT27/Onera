@@ -68,6 +68,7 @@ export function Header() {
         <Link className="wordmark" href="/" aria-label="ClearFi home">
           ClearFi<span className="wordmark-period">.</span>
         </Link>
+        <p className="nav-eyebrow">Workspace</p>
         <nav aria-label="Main">
           {navigation.map(({ href, label, icon: Icon }) => (
             <Link
