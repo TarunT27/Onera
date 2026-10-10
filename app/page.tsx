@@ -2,21 +2,26 @@
 import type { Portfolio } from "@/lib/markets";
 import Link from "next/link";
 import {
-  Bank,
-  CreditCard,
-  ChartBar,
-  TrendUp,
   CaretRight,
+  ArrowRight,
+  ArrowUpRight,
   Sparkle,
   Info,
   WarningCircle,
   Receipt,
-  ArrowRight,
+  Lightbulb,
+  ForkKnife,
   Coffee,
-  ShoppingCart,
+  Basket,
   PlayCircle,
+  GasPump,
+  Lightning,
+  Car,
+  ShoppingBag,
+  ClockCounterClockwise,
+  TrendUp,
 } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { useApiData } from "./components/useApiData";
 import {
   paths,
@@ -34,19 +39,68 @@ import { MonitoringPanel } from "./components/MonitoringPanel";
 import { Loading } from "./components/Card";
 import { formatCents } from "@/lib/finance/money";
 import { useRouter } from "next/navigation";
+
+const KIND_LABEL = {
+  checking: "Checking",
+  savings: "Savings",
+  brokerage: "Brokerage",
+  credit: "Credit card",
+} as const;
+
+function categoryIcon(category: string, merchant: string | null) {
+  if (/coffee|cafe|bean/i.test(merchant ?? "")) return Coffee;
+  switch (category) {
+    case "dining":
+      return ForkKnife;
+    case "groceries":
+      return Basket;
+    case "subscriptions":
+      return PlayCircle;
+    case "gas":
+      return GasPump;
+    case "utilities":
+      return Lightning;
+    case "transportation":
+      return Car;
+    default:
+      return ShoppingBag;
+  }
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+}
+
+/** "$42,780.87" → dollars and a quieter ".87". */
+function SplitAmount({ cents }: { cents: number }) {
+  const text = formatCents(cents);
+  const dot = text.lastIndexOf(".");
+  if (dot < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, dot)}
+      <span className="cents">{text.slice(dot)}</span>
+    </>
+  );
+}
+
+const i = (n: number) => ({ "--i": n }) as CSSProperties;
+
 export default function OverviewPage() {
   const portfolio = useApiData<{ portfolio: Portfolio }>("/api/portfolio");
   const accounts = useApiData<AccountsResponse>(paths.accounts);
   const insights = useApiData<InsightsResponse>(paths.insights);
   const actions = useApiData<ActionsResponse>(paths.actions);
   const txns = useApiData<TransactionsResponse>(
-    paths.transactions({ limit: 3 }),
+    paths.transactions({ limit: 4 }),
   );
   const session = useApiData<SessionResponse>(paths.session);
   const recipients = useApiData<RecipientsResponse>(paths.recipients);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const router = useRouter();
+  const heroRef = useRef<HTMLElement>(null);
   const pending = actions.data?.actions.find(
     (a) => a.state === "HELD" || a.state === "AWAITING_APPROVAL",
   );
@@ -64,6 +118,7 @@ export default function OverviewPage() {
         { checking: 0, savings: 1, brokerage: 2, credit: 3 }[a.type] -
           { checking: 0, savings: 1, brokerage: 2, credit: 3 }[b.type],
     );
+  const wallet = accts.slice(0, 3);
   async function reviewChanged() {
     if (pending) {
       router.push(`/transfers?id=${encodeURIComponent(pending.id)}`);
@@ -93,21 +148,43 @@ export default function OverviewPage() {
     }
   }
   const paperAccounts = (accounts.data?.accounts ?? []).filter((a) => a.paper);
+  // Specular highlight follows the pointer across the glass.
+  function onHeroPointer(e: React.PointerEvent<HTMLElement>) {
+    const el = heroRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--mx", `${((e.clientX - r.left) / r.width) * 100}%`);
+    el.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`);
+  }
   const date = accounts.data ? new Date(accounts.data.asOf) : null;
+  const evidence = sub
+    ? sub.evidenceTransactionIds
+        .map((id) => insights.data?.evidence[id])
+        .filter((t) => t !== undefined)
+        .sort(
+          (a, b) =>
+            new Date(a.postedAt).getTime() - new Date(b.postedAt).getTime(),
+        )
+    : [];
+  const maxCharge = Math.max(
+    1,
+    ...evidence.map((t) => Math.abs(t.amountCents)),
+  );
   return (
     <div className="overview">
-      <div className="overview-heading">
-        <h1>Hello, {session.data?.user.name.split(" ")[0] ?? "there"}.</h1>
-        <p>
+      <div className="overview-heading rise" style={i(0)}>
+        <p className="eyebrow">
           {date
             ? date.toLocaleDateString("en-US", {
                 weekday: "long",
                 month: "long",
                 day: "numeric",
-                year: "numeric",
               })
             : "Your money, in one place."}
         </p>
+        <h1 suppressHydrationWarning>
+          {greeting()}, {session.data?.user.name.split(" ")[0] ?? "there"}.
+        </h1>
       </div>
       <ErrorBox error={error} />
       <ErrorBox
@@ -118,102 +195,122 @@ export default function OverviewPage() {
       <ErrorBox error={actions.error} title="Couldn't load transfers" />
       <ErrorBox error={recipients.error} title="Couldn't load recipients" />
       <div className="overview-grid">
-        <section className="balance-hero" aria-label="Total balance">
-          <div className="balance-label">
-            Total balance{" "}
-            <span title="USD equivalent of cash, debt and simulated investments. Paper accounts excluded.">
-              <Info
-                size={21}
-                aria-label="Balance includes currency conversion and simulated investments"
-              />
-            </span>
-          </div>
-          {accounts.data ? (
-            <p className="balance-amount">
-              {formatCents(accounts.data.netWorthCents)}
+        <div className="hero-shell rise" style={i(1)}>
+          <section
+            className="balance-hero"
+            aria-label="Total balance"
+            ref={heroRef}
+            onPointerMove={onHeroPointer}
+          >
+            <div className="balance-label">
+              Total balance
+              <span title="USD equivalent of cash, debt and simulated investments. Paper accounts excluded.">
+                <Info
+                  size={17}
+                  aria-label="Balance includes currency conversion and simulated investments"
+                />
+              </span>
+            </div>
+            {accounts.data ? (
+              <p className="balance-amount">
+                <SplitAmount cents={accounts.data.netWorthCents} />
+              </p>
+            ) : (
+              <div className="balance-amount">
+                <Loading label="Loading balance…" />
+              </div>
+            )}
+            <p className="balance-note">
+              Across your demo accounts · USD equivalent · paper trading excluded
             </p>
-          ) : (
-            <Loading label="Loading balance…" />
-          )}
-          <p className="balance-note">
-            Across your demo accounts · USD equivalent · paper trading
-            excluded
-          </p>
-          <div className="hero-actions">
-            <Link href="/transfers" className="pill">
-              New transfer
-              <CaretRight size={21} aria-hidden />
-            </Link>
-            <Link href="/chat" className="pill secondary">
-              <Sparkle size={23} color="#8cb9cc" aria-hidden />
-              Ask ClearFi
-            </Link>
-          </div>
-        </section>
-        <section className="surface">
-          <header className="surface-head">
+            <div className="hero-actions">
+              <Link href="/transfers" className="pill">
+                New transfer
+                <span className="knob" aria-hidden>
+                  <ArrowRight size={18} weight="bold" />
+                </span>
+              </Link>
+              <Link href="/chat" className="pill secondary">
+                <span className="knob" aria-hidden>
+                  <Sparkle size={18} weight="fill" />
+                </span>
+                Ask ClearFi
+              </Link>
+            </div>
+          </section>
+        </div>
+
+        <section className="wallet-panel rise" style={i(2)}>
+          <header className="panel-head">
             <h2>Your accounts</h2>
             <Link href="/accounts" className="quiet-link">
               View all
-              <CaretRight size={18} aria-hidden />
+              <CaretRight size={14} weight="bold" aria-hidden />
             </Link>
           </header>
-          <div className="account-list">
-            <ErrorBox
-              error={portfolio.error}
-              title="Couldn't load holdings"
-              onRetry={() => void portfolio.reload()}
-            />
-            {accts.slice(0, 3).map((a) => {
-              const Icon =
-                a.type === "checking"
-                  ? CreditCard
-                  : a.type === "savings"
-                    ? ChartBar
-                    : TrendUp;
-              return (
+          <ErrorBox
+            error={portfolio.error}
+            title="Couldn't load holdings"
+            onRetry={() => void portfolio.reload()}
+          />
+          {accounts.loading && !accounts.data ? (
+            <Loading />
+          ) : (
+            <div
+              className="wallet"
+              style={{ "--n": wallet.length } as CSSProperties}
+            >
+              {wallet.map((a, n) => (
                 <Link
                   href={`/accounts?id=${encodeURIComponent(a.id)}`}
                   key={a.id}
-                  className="account-row"
+                  className="wallet-card"
+                  style={i(n)}
                 >
-                  <span className="round-icon">
-                    <Icon size={26} weight="light" aria-hidden />
-                  </span>
-                  <div className="row-body">
-                    <p className="row-title">{a.name}</p>
-                    <p className="row-meta">•• {a.mask}</p>
-                    {a.capabilities.length === 1 && (
-                      <p className="row-meta">View-only demo import</p>
-                    )}
+                  <div className={`wallet-face ${a.type}`}>
+                    <div className="wallet-top">
+                      <div>
+                        <p className="wallet-name">{a.name}</p>
+                        <p className="wallet-kind">{KIND_LABEL[a.type]}</p>
+                      </div>
+                      <span className="wallet-balance">
+                        {a.type === "brokerage" && !portfolio.data
+                          ? portfolio.error
+                            ? "Unavailable"
+                            : "—"
+                          : formatCents(
+                              portfolio.data?.portfolio.accounts.find(
+                                (p) => p.accountId === a.id,
+                              )?.totalCents ?? a.balanceCents,
+                              a.currency,
+                            )}
+                      </span>
+                    </div>
+                    <div className="wallet-bottom">
+                      <span className="wallet-mask">•• {a.mask}</span>
+                      {a.capabilities.length === 1 ? (
+                        <span className="wallet-note">
+                          View-only demo import
+                        </span>
+                      ) : (
+                        <span className="wallet-chip" aria-hidden />
+                      )}
+                    </div>
                   </div>
-                  <span className="row-value">
-                    {a.type === "brokerage" && !portfolio.data
-                      ? portfolio.error
-                        ? "Unavailable"
-                        : "Loading…"
-                      : formatCents(
-                          portfolio.data?.portfolio.accounts.find(
-                            (p) => p.accountId === a.id,
-                          )?.totalCents ?? a.balanceCents,
-                          a.currency,
-                        )}
-                  </span>
-                  <CaretRight className="row-chevron" size={17} aria-hidden />
                 </Link>
-              );
-            })}
-            {accounts.loading && !accounts.data && <Loading />}
+              ))}
+            </div>
+          )}
             {paperAccounts.map((a) => (
               <Link
                 href={`/accounts?id=${encodeURIComponent(a.id)}`}
                 key={a.id}
-                className="account-row paper-row"
+                className="ios-row"
               >
-                <span className="round-icon muted">
+                <span className="squircle">
                   <TrendUp size={22} weight="light" aria-hidden />
                 </span>
-                <div className="row-body">
+                <div className="ios-row-body">
                   <p className="row-title">{a.name}</p>
                   <p className="row-meta">
                     <PaperLabel />
@@ -222,16 +319,17 @@ export default function OverviewPage() {
                 <CaretRight className="row-chevron" size={17} aria-hidden />
               </Link>
             ))}
-          </div>
         </section>
+
         {(pending || changed) && (
-          <section className="attention-strip">
-            <WarningCircle
-              className="attention-icon"
-              size={34}
-              weight="fill"
-              aria-hidden
-            />
+          <section
+            className="attention glass rise"
+            style={i(3)}
+            aria-label="Needs your review"
+          >
+            <span className="attention-icon">
+              <WarningCircle size={24} weight="fill" aria-hidden />
+            </span>
             <div className="attention-content">
               <strong>
                 {pending
@@ -245,15 +343,16 @@ export default function OverviewPage() {
               </p>
             </div>
             {changed?.previousDetails && (
-              <div className="attention-details">
-                <p>
-                  Previously verified · {changed.previousDetails.institution} ••
+              <div className="route">
+                <span className="was">
+                  {changed.previousDetails.institution} ••
                   {changed.previousDetails.accountMask}
-                </p>
-                <p>
-                  Requested · {changed.details.institution} ••
-                  {changed.details.accountMask}
-                </p>
+                </span>
+                <ArrowRight size={14} aria-label="changed to" />
+                <span className="now">
+                  {changed.details.institution} ••{changed.details.accountMask}
+                </span>
+                <small>Previously verified → requested</small>
               </div>
             )}
             <button
@@ -266,16 +365,22 @@ export default function OverviewPage() {
                 : pending
                   ? "Review transfer"
                   : "Try rent review"}
-              <CaretRight size={18} aria-hidden />
+              <span className="knob" aria-hidden>
+                <ArrowRight size={16} weight="bold" />
+              </span>
             </button>
           </section>
         )}
+
         <div className="overview-bottom">
-          <section className="surface">
-            <header className="surface-head">
+          <section className="tile glass rise" style={i(4)}>
+            <header className="tile-head">
+              <span className="squircle light">
+                <Lightbulb size={17} weight="fill" aria-hidden />
+              </span>
               <h2>{sub ? "One thing changed" : "All caught up"}</h2>
               {sub && (
-                <span className="quiet-link">
+                <span className="quiet-link muted">
                   Latest{" "}
                   {new Date(sub.latestChargeAt).toLocaleDateString("en-US", {
                     month: "short",
@@ -284,127 +389,131 @@ export default function OverviewPage() {
                 </span>
               )}
             </header>
-            <div className="insight-body">
-              <ErrorBox
-                error={insights.error}
-                onRetry={() => void insights.reload()}
-              />
-              {insights.loading && !insights.data ? (
-                <Loading />
-              ) : sub ? (
-                <>
-                  <p className="insight-subtitle">
-                    A subscription increased in price.
-                  </p>
-                  <div className="subscription-row">
-                    <span className="round-icon muted">
-                      <PlayCircle
-                        size={32}
-                        color="#f36c81"
-                        weight="fill"
-                        aria-hidden
-                      />
-                    </span>
-                    <strong>{sub.merchant}</strong>
-                    <div className="subscription-price">
-                      <p>
-                        <span style={{ color: "#a5aeb7" }}>
-                          {formatCents(sub.previousAmountCents)}
-                        </span>
-                        <ArrowRight size={20} aria-label="increased to" />
-                        {formatCents(sub.currentAmountCents)}
-                      </p>
-                      <small>
-                        Up {formatCents(sub.increaseCents)} this month
-                      </small>
-                    </div>
-                  </div>
-                  <details className="evidence">
-                    <summary>
-                      <Receipt size={21} aria-hidden />
-                      View details
-                      <CaretRight size={18} aria-hidden />
-                    </summary>
-                    <p className="row-meta">
-                      Based on your synthetic transaction history.
+            <ErrorBox
+              error={insights.error}
+              onRetry={() => void insights.reload()}
+            />
+            {insights.loading && !insights.data ? (
+              <Loading />
+            ) : sub ? (
+              <>
+                <div className="insight">
+                  <div>
+                    <p className="insight-figure">
+                      +{formatCents(sub.increaseCents)}
+                      <ArrowUpRight size={26} weight="bold" aria-hidden />
                     </p>
-                    <ul>
-                      {sub.evidenceTransactionIds.map((id) => {
-                        const t = insights.data?.evidence[id];
-                        return t ? (
-                          <li key={id}>
-                            <span>
-                              {new Date(t.postedAt).toLocaleDateString()} ·{" "}
-                              {t.description}
-                            </span>
-                            <span>
-                              {formatCents(t.amountCents, t.currency)}
-                            </span>
-                          </li>
-                        ) : null;
-                      })}
-                    </ul>
-                  </details>
-                </>
-              ) : (
-                <p className="row-meta">
-                  No subscription increases found in your current activity.
-                </p>
-              )}
-            </div>
+                    <p className="insight-copy">
+                      {sub.merchant} went up this month{" "}
+                      <span>
+                        — from {formatCents(sub.previousAmountCents)} to{" "}
+                        {formatCents(sub.currentAmountCents)}.
+                      </span>
+                    </p>
+                  </div>
+                  {evidence.length > 1 && (
+                    <div className="bars" aria-hidden>
+                      {evidence.map((t, n) => (
+                        <div
+                          key={t.id}
+                          className={`bar ${n === evidence.length - 1 ? "latest" : ""}`}
+                          style={
+                            {
+                              "--i": n,
+                              "--h": `${Math.max(12, (Math.abs(t.amountCents) / maxCharge) * 110)}px`,
+                            } as CSSProperties
+                          }
+                        >
+                          <i />
+                          {new Date(t.postedAt).toLocaleDateString("en-US", {
+                            month: "short",
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <details className="evidence">
+                  <summary>
+                    <Receipt size={18} aria-hidden />
+                    View details
+                    <CaretRight size={14} weight="bold" aria-hidden />
+                  </summary>
+                  <p className="row-meta">
+                    Based on your synthetic transaction history.
+                  </p>
+                  <ul>
+                    {evidence.map((t) => (
+                      <li key={t.id}>
+                        <span>
+                          {new Date(t.postedAt).toLocaleDateString()} ·{" "}
+                          {t.description}
+                        </span>
+                        <span>{formatCents(t.amountCents, t.currency)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </>
+            ) : (
+              <p className="row-meta">
+                No subscription increases found in your current activity.
+              </p>
+            )}
           </section>
-          <section className="surface">
-            <header className="surface-head">
+
+          <section className="tile glass rise" style={i(5)}>
+            <header className="tile-head">
+              <span className="squircle">
+                <ClockCounterClockwise size={17} aria-hidden />
+              </span>
               <h2>Recent activity</h2>
               <Link href="/accounts?view=activity" className="quiet-link">
                 View all
-                <CaretRight size={18} aria-hidden />
+                <CaretRight size={14} weight="bold" aria-hidden />
               </Link>
             </header>
-            <div className="activity-list">
-              <ErrorBox error={txns.error} onRetry={() => void txns.reload()} />
-              {txns.loading && !txns.data ? (
-                <Loading />
-              ) : (
-                txns.data?.transactions.map((t) => {
-                  const Icon =
-                    t.category === "food_drink"
-                      ? Coffee
-                      : t.merchant === "StreamFlix"
-                        ? PlayCircle
-                        : ShoppingCart;
+            <ErrorBox error={txns.error} onRetry={() => void txns.reload()} />
+            {txns.loading && !txns.data ? (
+              <Loading />
+            ) : (
+              <div className="ios-list">
+                {txns.data?.transactions.map((t) => {
+                  const Icon = categoryIcon(t.category, t.merchant);
                   return (
                     <Link
-                      className="activity-row"
+                      className="ios-row"
                       href={`/accounts?id=${encodeURIComponent(t.accountId)}&view=activity`}
                       key={t.id}
                     >
-                      <span className="round-icon muted">
-                        <Icon size={24} weight="light" aria-hidden />
+                      <span className="squircle">
+                        <Icon size={19} aria-hidden />
                       </span>
-                      <time dateTime={t.postedAt}>
-                        {new Date(t.postedAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </time>
-                      <span className="activity-name">
-                        {t.merchant ?? t.description}
+                      <span className="ios-row-body">
+                        <span className="row-title block">
+                          {t.merchant ?? t.description}
+                        </span>
+                        <time className="row-meta block" dateTime={t.postedAt}>
+                          {new Date(t.postedAt).toLocaleDateString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </time>
                       </span>
                       <span className="row-value">
                         {formatCents(t.amountCents, t.currency)}
                       </span>
                     </Link>
                   );
-                })
-              )}
-              {txns.data?.transactions.length === 0 && (
-                <p className="row-meta">
-                  No activity yet.{" "}
-                  <Link href="/accounts">Explore accounts</Link>
-                </p>
-              )}
-            </div>
+                })}
+              </div>
+            )}
+            {txns.data?.transactions.length === 0 && (
+              <p className="row-meta">
+                No activity yet. <Link href="/accounts">Explore accounts</Link>
+              </p>
+            )}
           </section>
         </div>
         <MonitoringPanel
