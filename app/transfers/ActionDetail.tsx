@@ -19,7 +19,9 @@ import {
   HoldReasonChip,
   RecipientStatusBadge,
   SyntheticLabel,
+  holdReasonLabel,
 } from "../components/Badge";
+import { HOLD_MESSAGES } from "@/lib/policy/messages";
 import { Button, inputClass } from "../components/Button";
 import { Card, EmptyState, Loading } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
@@ -156,7 +158,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
         tone: a.state === "HELD" ? "warning" : "success",
         text:
           a.state === "HELD"
-            ? `Re-evaluated: still held (${a.holdReasons.join(", ") || "see checks"}).`
+            ? `Re-evaluated: still held (${a.holdReasons.map(holdReasonLabel).join(", ") || "see checks"}).`
             : a.state === "AWAITING_APPROVAL"
               ? "Re-evaluated: all checks pass. Ready for your approval."
               : `Re-evaluated: ${a.state}.`,
@@ -336,14 +338,36 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
         </dl>
 
         {action.holdReasons.length > 0 && (
-          <div className="mt-5">
-            <p className="mb-1.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">Hold reasons</p>
-            <div className="flex flex-wrap gap-1.5">
-              {action.holdReasons.map((r) => (
-                <HoldReasonChip key={r} reason={r} />
-              ))}
-            </div>
-          </div>
+          <section className="mt-5" aria-labelledby="hold-reasons-heading">
+            <p
+              id="hold-reasons-heading"
+              className="mb-1.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400"
+            >
+              {state === "HELD" ? "Why ClearFi held this transfer" : "Hold reasons"}
+            </p>
+            <ul className="space-y-2">
+              {action.holdReasons.map((r) => {
+                const m = HOLD_MESSAGES[r];
+                return (
+                  <li
+                    key={r}
+                    className="rounded-xl border border-amber-300/70 bg-amber-50/60 px-3 py-2.5 text-sm dark:border-amber-900 dark:bg-amber-950/30"
+                  >
+                    <HoldReasonChip reason={r} />
+                    {m && (
+                      <>
+                        <p className="mt-1.5 text-zinc-800 dark:text-zinc-200">{m.explanation}</p>
+                        <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
+                          <span className="font-semibold text-amber-800 dark:text-amber-300">What you can do: </span>
+                          {m.recovery}
+                        </p>
+                      </>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         )}
 
         {state === "FAILED" && action.failureReason && (

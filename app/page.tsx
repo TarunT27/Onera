@@ -19,6 +19,7 @@ import {
   Car,
   ShoppingBag,
   ClockCounterClockwise,
+  TrendUp,
 } from "@phosphor-icons/react";
 import { useRef, useState, type CSSProperties } from "react";
 import { useApiData } from "./components/useApiData";
@@ -33,6 +34,8 @@ import {
   type RecipientsResponse,
 } from "./components/api";
 import { ErrorBox } from "./components/ErrorBox";
+import { PaperLabel } from "./components/Badge";
+import { MonitoringPanel } from "./components/MonitoringPanel";
 import { Loading } from "./components/Card";
 import { formatCents } from "@/lib/finance/money";
 import { useRouter } from "next/navigation";
@@ -152,6 +155,7 @@ export default function OverviewPage() {
     el.style.setProperty("--mx", `${((e.clientX - r.left) / r.width) * 100}%`);
     el.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`);
   }
+  const paperAccounts = (accounts.data?.accounts ?? []).filter((a) => a.paper);
   const date = accounts.data ? new Date(accounts.data.asOf) : null;
   const evidence = sub
     ? sub.evidenceTransactionIds
@@ -217,7 +221,8 @@ export default function OverviewPage() {
               </div>
             )}
             <p className="balance-note">
-              Across your demo accounts · USD equivalent
+              Across your demo accounts · USD equivalent · paper trading
+              excluded
             </p>
             <div className="hero-actions">
               <Link href="/transfers" className="pill">
@@ -293,6 +298,28 @@ export default function OverviewPage() {
                       )}
                     </div>
                   </div>
+                </Link>
+              ))}
+            </div>
+          )}
+          {paperAccounts.length > 0 && (
+            <div className="ios-list paper-list">
+              {paperAccounts.map((a) => (
+                <Link
+                  href={`/accounts?id=${encodeURIComponent(a.id)}`}
+                  key={a.id}
+                  className="ios-row paper-row"
+                >
+                  <span className="squircle">
+                    <TrendUp size={19} aria-hidden />
+                  </span>
+                  <span className="ios-row-body">
+                    <span className="row-title block">{a.name}</span>
+                    <span className="row-meta block">
+                      <PaperLabel />
+                    </span>
+                  </span>
+                  <CaretRight size={14} weight="bold" aria-hidden />
                 </Link>
               ))}
             </div>
@@ -494,6 +521,10 @@ export default function OverviewPage() {
             )}
           </section>
         </div>
+        <MonitoringPanel
+          accounts={accounts.data?.accounts}
+          actions={actions.data?.actions}
+        />
       </div>
     </div>
   );

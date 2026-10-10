@@ -100,12 +100,12 @@ interface SeedHolding {
   costBasisPct: number;
 }
 
-/** Alice's Northwind import (~$8,000, view-only) and a small paper position. */
+/** Alice's Northwind import (~$355,000, view-only) and a small paper position. */
 const SEED_HOLDINGS: SeedHolding[] = [
-  { accountId: "acct_alice_brokerage", symbol: "VTI", targetValueCents: 320_000, costBasisPct: 82 },
-  { accountId: "acct_alice_brokerage", symbol: "AAPL", targetValueCents: 190_000, costBasisPct: 64 },
-  { accountId: "acct_alice_brokerage", symbol: "MSFT", targetValueCents: 170_000, costBasisPct: 71 },
-  { accountId: "acct_alice_brokerage", symbol: "BND", targetValueCents: 120_000, costBasisPct: 104 },
+  { accountId: "acct_alice_brokerage", symbol: "VTI", targetValueCents: 15_000_000, costBasisPct: 82 },
+  { accountId: "acct_alice_brokerage", symbol: "AAPL", targetValueCents: 7_800_000, costBasisPct: 64 },
+  { accountId: "acct_alice_brokerage", symbol: "MSFT", targetValueCents: 7_000_000, costBasisPct: 71 },
+  { accountId: "acct_alice_brokerage", symbol: "BND", targetValueCents: 5_700_000, costBasisPct: 104 },
   { accountId: "acct_alice_paper", symbol: "VOO", targetValueCents: 60_000, costBasisPct: 97 },
 ];
 

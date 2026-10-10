@@ -6,6 +6,12 @@
  * or, for an agent's order that carries a mandate, automatic authorization at
  * creation when the mandate is valid and covers the order. Every function
  * takes the session user ID from the server.
+ *
+ * Writes read the real clock (`new Date()`); callers cannot pass a time, so a
+ * stale timestamp can never price, approve or authorize an order. Tests move
+ * time with Vitest fake timers. Every load-then-write runs in one IMMEDIATE
+ * transaction and every UPDATE is guarded by the expected state (and version),
+ * so a concurrent change is a 409 INVALID_STATE, never a lost update or a 500.
  */
 import { randomBytes } from "node:crypto";
 import { writeAudit } from "@/lib/audit";
@@ -33,6 +39,11 @@ import type { OrderCreator, OrderPolicyResult, OrderState, PaperOrder, Quote } f
 
 const EVALUABLE: OrderState[] = ["PROPOSED", "HELD", "AWAITING_APPROVAL"];
 const EDITABLE: OrderState[] = ["PROPOSED", "HELD", "AWAITING_APPROVAL", "APPROVED"];
+
+/** 409 for an order whose state (or version) changed under us. */
+export function stateConflict(message = "The order changed while it was being updated. Reload it and try again.") {
+  return conflict("INVALID_STATE", message);
+}
 
 export function orderActor(createdBy: OrderCreator, userId: UserId): string {
   return createdBy === "user" ? `user:${userId}` : createdBy;
@@ -144,7 +155,9 @@ export function runOrderPolicy(db: DB, userId: UserId, row: OrderRow, now: Date)
  * Re-prices at the current simulated quote, evaluates and stores the outcome.
  * Must run inside a transaction. Always clears any approval. When `bumpOnReprice`
  * is set and the price bound changes, the order gets a new version (the bound is
- * part of what the user approves).
+ * part of what the user approves). The UPDATE only applies if the order is still
+ * in `row.state` at `row.version`; otherwise it throws 409 INVALID_STATE (and the
+ * caller's transaction rolls back).
  */
 export function applyOrderEvaluation(
   db: DB,
@@ -161,13 +174,14 @@ export function applyOrderEvaluation(
   const { policy } = policyFor(db, userId, termsOf(row, bound), quote, now);
   const state: OrderState = policy.decision === "ALLOW" ? "AWAITING_APPROVAL" : "HELD";
 
-  db.prepare(
+  const updated = db.prepare(
     `UPDATE orders SET state = ?, version = ?, hold_reasons = ?, policy = ?, quote_price_cents = ?,
        price_bound_cents = ?, approval_hash = NULL, approved_version = NULL, approved_at = NULL,
        approved_by = NULL, updated_at = ?
-     WHERE id = ? AND user_id = ?`,
+     WHERE id = ? AND user_id = ? AND state = ? AND version = ?`,
   ).run(state, version, JSON.stringify(policy.reasons), JSON.stringify(policy), quote?.priceCents ?? null,
-    bound, now.toISOString(), row.id, userId);
+    bound, now.toISOString(), row.id, userId, row.state, row.version);
+  if (updated.changes !== 1) throw stateConflict();
 
   if (repriced) {
     writeAudit(db, { userId, actor: "system", eventType: "order.repriced", actionId: row.id,
@@ -192,7 +206,7 @@ function authorizeByMandate(db: DB, userId: UserId, row: OrderRow, now: Date): v
        approved_by = ?, updated_at = ?
      WHERE id = ? AND user_id = ? AND state = 'AWAITING_APPROVAL' AND version = ? AND mandate_id IS NOT NULL`,
   ).run(hash, row.version, ts, approvedBy, ts, row.id, userId, row.version);
-  if (claimed.changes !== 1) throw new Error("Order changed during mandate authorization");
+  if (claimed.changes !== 1) throw stateConflict("The order changed during mandate authorization");
   writeAudit(db, { userId, actor: "system", eventType: "order.mandate_authorized", actionId: row.id,
     detail: { version: row.version, mandateId: row.mandate_id, proposedBy: row.created_by, approvedBy,
       approvalHashPrefix: hash.slice(0, 12), paper: true } });
@@ -200,15 +214,19 @@ function authorizeByMandate(db: DB, userId: UserId, row: OrderRow, now: Date): v
 
 // --- Writes -----------------------------------------------------------------
 
-/** Creates and evaluates an order. Internal: only the mandate helper passes a mandate. */
+/**
+ * Creates and evaluates an order. Internal (not exported from index.ts): only
+ * the mandate helper passes a mandate, and authorization happens here, at the
+ * real current time.
+ */
 export function createOrderInternal(
   db: DB,
   userId: UserId,
   input: unknown,
   createdBy: OrderCreator,
   mandateId: string | null,
-  now: Date,
 ): PaperOrder {
+  const now = new Date();
   assertCreator(createdBy);
   if (mandateId !== null && !createdBy.startsWith("agent:")) throw badRequest("Only agent orders can carry a mandate");
   const data = CreateOrderSchema.parse(input);
@@ -232,7 +250,7 @@ export function createOrderInternal(
     if (mandateId !== null && policy.decision === "ALLOW") {
       authorizeByMandate(db, userId, loadOrderRow(db, userId, id), now);
     }
-  })();
+  }).immediate();
   return getOrder(db, userId, id);
 }
 
@@ -240,56 +258,57 @@ export function createOrderInternal(
  * Proposes a paper order. Never auto-approves: user, assistant and agent
  * orders without a mandate wait for the user's exact-version approval.
  */
-export function createOrder(
-  db: DB,
-  userId: UserId,
-  input: unknown,
-  createdBy: OrderCreator,
-  now: Date = new Date(),
-): PaperOrder {
-  return createOrderInternal(db, userId, input, createdBy, null, now);
+export function createOrder(db: DB, userId: UserId, input: unknown, createdBy: OrderCreator): PaperOrder {
+  return createOrderInternal(db, userId, input, createdBy, null);
 }
 
 /** Material edit by the user: bumps the version, drops approval and any mandate, re-prices and re-evaluates. */
-export function editOrder(db: DB, userId: UserId, orderId: string, input: unknown, now: Date = new Date()): PaperOrder {
+export function editOrder(db: DB, userId: UserId, orderId: string, input: unknown): PaperOrder {
   const patch = EditOrderSchema.parse(input);
-  const row = loadOrderRow(db, userId, orderId);
-  if (!EDITABLE.includes(row.state)) throw conflict("INVALID_STATE", `Order is ${row.state} and cannot be edited`);
-
-  const accountId = patch.accountId ?? row.account_id;
-  assertTradable(loadOwnedAccount(db, userId, accountId));
-  const side = patch.side ?? row.side;
-  let quantityMicros = row.quantity_micros;
-  let notionalCents = row.notional_cents;
-  if (patch.quantityMicros !== undefined) { quantityMicros = patch.quantityMicros; notionalCents = null; }
-  if (patch.notionalCents !== undefined) { notionalCents = patch.notionalCents; quantityMicros = null; }
-  if (side === "sell" && quantityMicros === null) throw badRequest("Sell orders are sized by quantityMicros");
-
+  const now = new Date();
   db.transaction(() => {
-    db.prepare(
+    const row = loadOrderRow(db, userId, orderId);
+    if (!EDITABLE.includes(row.state)) throw stateConflict(`Order is ${row.state} and cannot be edited`);
+
+    const accountId = patch.accountId ?? row.account_id;
+    assertTradable(loadOwnedAccount(db, userId, accountId));
+    const side = patch.side ?? row.side;
+    let quantityMicros = row.quantity_micros;
+    let notionalCents = row.notional_cents;
+    if (patch.quantityMicros !== undefined) { quantityMicros = patch.quantityMicros; notionalCents = null; }
+    if (patch.notionalCents !== undefined) { notionalCents = patch.notionalCents; quantityMicros = null; }
+    if (side === "sell" && quantityMicros === null) throw badRequest("Sell orders are sized by quantityMicros");
+
+    const edited = db.prepare(
       `UPDATE orders SET state = 'PROPOSED', version = version + 1, account_id = ?, symbol = ?, side = ?,
          quantity_micros = ?, notional_cents = ?, quote_price_cents = NULL, price_bound_cents = NULL,
          mandate_id = NULL, approval_hash = NULL, approved_version = NULL, approved_at = NULL, approved_by = NULL,
          updated_at = ?
-       WHERE id = ? AND user_id = ?`,
-    ).run(accountId, patch.symbol ?? row.symbol, side, quantityMicros, notionalCents, now.toISOString(), orderId, userId);
+       WHERE id = ? AND user_id = ? AND version = ? AND state IN (${EDITABLE.map(() => "?").join(", ")})`,
+    ).run(accountId, patch.symbol ?? row.symbol, side, quantityMicros, notionalCents, now.toISOString(), orderId, userId,
+      row.version, ...EDITABLE);
+    if (edited.changes !== 1) throw stateConflict();
     writeAudit(db, {
       userId, actor: `user:${userId}`, eventType: "order.edited", actionId: orderId,
       detail: { fromVersion: row.version, toVersion: row.version + 1, changes: patch,
         approvalInvalidated: row.approval_hash !== null, mandateDetached: row.mandate_id },
     });
     applyOrderEvaluation(db, userId, loadOrderRow(db, userId, orderId), "system", now, { bumpOnReprice: false });
-  })();
+  }).immediate();
   return getOrder(db, userId, orderId);
 }
 
 /** Re-prices and re-runs policy (e.g. after resolving a hold). A new price bound means a new version. */
-export function evaluateOrder(db: DB, userId: UserId, orderId: string, now: Date = new Date()): PaperOrder {
-  const row = loadOrderRow(db, userId, orderId);
-  if (!EVALUABLE.includes(row.state)) {
-    throw conflict("INVALID_STATE", `Order is ${row.state}; only proposed, held or awaiting orders are re-evaluated`);
-  }
-  db.transaction(() => applyOrderEvaluation(db, userId, row, `user:${userId}`, now, { bumpOnReprice: true }))();
+export function evaluateOrder(db: DB, userId: UserId, orderId: string): PaperOrder {
+  const now = new Date();
+  db.transaction(() => {
+    const row = loadOrderRow(db, userId, orderId);
+    if (!EVALUABLE.includes(row.state)) {
+      throw stateConflict(`Order is ${row.state}; only proposed, held or awaiting orders are re-evaluated`);
+    }
+    // Guarded on row.state/row.version, so a concurrent approve or execute is a 409.
+    applyOrderEvaluation(db, userId, row, `user:${userId}`, now, { bumpOnReprice: true });
+  }).immediate();
   return getOrder(db, userId, orderId);
 }
 
@@ -297,14 +316,9 @@ export function evaluateOrder(db: DB, userId: UserId, orderId: string, now: Date
  * Exact-version approval by the signed-in user. Only reachable from the user
  * route — no assistant or agent tool. Policy is rechecked at approval time.
  */
-export function approveOrder(
-  db: DB,
-  userId: UserId,
-  orderId: string,
-  input: unknown,
-  now: Date = new Date(),
-): PaperOrder {
+export function approveOrder(db: DB, userId: UserId, orderId: string, input: unknown): PaperOrder {
   const { version } = ApproveSchema.parse(input);
+  const now = new Date();
   const outcome = db.transaction(() => {
     const row = loadOrderRow(db, userId, orderId);
     if (row.state !== "AWAITING_APPROVAL") {
@@ -322,17 +336,18 @@ export function approveOrder(
     }
     const hash = orderApprovalHash(approvableOrder(row));
     const ts = now.toISOString();
-    db.prepare(
+    const approved = db.prepare(
       `UPDATE orders SET state = 'APPROVED', approval_hash = ?, approved_version = ?, approved_at = ?,
          approved_by = ?, policy = ?, updated_at = ?
        WHERE id = ? AND user_id = ? AND state = 'AWAITING_APPROVAL' AND version = ?`,
     ).run(hash, row.version, ts, `user:${userId}`, JSON.stringify(policy), ts, orderId, userId, version);
+    if (approved.changes !== 1) throw stateConflict();
     writeAudit(db, {
       userId, actor: `user:${userId}`, eventType: "order.approved", actionId: orderId,
       detail: { version: row.version, priceBoundCents: row.price_bound_cents, approvalHashPrefix: hash.slice(0, 12) },
     });
     return { error: null };
-  })();
+  }).immediate();
   if (outcome.error) throw outcome.error;
   return getOrder(db, userId, orderId);
 }

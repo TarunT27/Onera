@@ -7,7 +7,7 @@ import { getPriceHistory, getQuote, MAX_HISTORY_DAYS } from "@/lib/markets";
 export const GET = handler(async (req: Request, ctx: { params: Promise<{ symbol: string }> }) => {
   const { symbol } = await ctx.params;
   const days = Number(new URL(req.url).searchParams.get("days")) || 30;
-  const history = getPriceHistory(decodeURIComponent(symbol), Math.min(Math.max(days, 1), MAX_HISTORY_DAYS));
+  const history = getPriceHistory(symbol, Math.min(Math.max(days, 1), MAX_HISTORY_DAYS));
   if (!history) throw notFound("Instrument");
   return NextResponse.json({ history, quote: getQuote(history.symbol) });
 });

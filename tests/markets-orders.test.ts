@@ -1,6 +1,6 @@
 // Paper orders: same governance as transfers — policy, exact-version approval,
 // price bound, pause, single execution, ownership.
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { listAudit } from "@/lib/audit";
 import { updateControls } from "@/lib/controls";
 import type { DB } from "@/lib/db";
@@ -22,11 +22,21 @@ import { balance, errorCode, freshDb } from "./helpers";
 const PAPER = "acct_alice_paper";
 const DAY_MS = 86_400_000;
 
-const buy = (db: DB, input: { symbol?: string; notionalCents?: number; quantityMicros?: number } = {}, now?: Date) =>
+// Write paths read the real clock; freeze it so quotes (per-minute) and day windows are deterministic.
+const T0 = new Date("2026-10-07T15:30:20.000Z");
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(T0);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+const buy = (db: DB, input: { symbol?: string; notionalCents?: number; quantityMicros?: number } = {}) =>
   createOrder(db, "alice", {
     accountId: PAPER, side: "buy", symbol: input.symbol ?? "VTI",
     ...(input.quantityMicros ? { quantityMicros: input.quantityMicros } : { notionalCents: input.notionalCents ?? 20_000 }),
-  }, "user", now);
+  }, "user");
 
 const position = (db: DB, accountId: string, symbol: string) =>
   db.prepare("SELECT quantity_micros AS q, cost_basis_cents AS c FROM positions WHERE account_id = ? AND symbol = ?")
@@ -35,9 +45,9 @@ const position = (db: DB, accountId: string, symbol: string) =>
 const stateOf = (db: DB, id: string) =>
   (db.prepare("SELECT state FROM orders WHERE id = ?").get(id) as { state: string }).state;
 
-const approveAndExecute = (db: DB, userId: UserId, id: string, version: number, now?: Date) => {
-  approveOrder(db, userId, id, { version }, now);
-  return executeOrder(db, userId, id, { now });
+const approveAndExecute = (db: DB, userId: UserId, id: string, version: number) => {
+  approveOrder(db, userId, id, { version });
+  return executeOrder(db, userId, id);
 };
 
 describe("paper buy lifecycle", () => {
@@ -47,7 +57,7 @@ describe("paper buy lifecycle", () => {
     const cashBefore = balance(db, PAPER);
     const investedBefore = getPortfolio(db, "alice", now).investedValueCents;
 
-    const proposed = buy(db, { notionalCents: 20_000 }, now);
+    const proposed = buy(db, { notionalCents: 20_000 });
     expect(proposed.state).toBe("AWAITING_APPROVAL");
     expect(proposed.paper).toBe(true);
     expect(proposed.hasApproval).toBe(false);
@@ -55,12 +65,12 @@ describe("paper buy lifecycle", () => {
     expect(proposed.quotePriceCents).toBe(quote.priceCents);
     expect(proposed.priceBoundCents).toBe(Math.ceil((quote.priceCents * 101) / 100));
 
-    const approved = approveOrder(db, "alice", proposed.id, { version: proposed.version }, now);
+    const approved = approveOrder(db, "alice", proposed.id, { version: proposed.version });
     expect(approved.state).toBe("APPROVED");
     expect(approved.approvedBy).toBe("user:alice");
     expect(approved.hasApproval).toBe(true);
 
-    const result = executeOrder(db, "alice", proposed.id, { now });
+    const result = executeOrder(db, "alice", proposed.id);
     expect(result.duplicate).toBe(false);
     expect(result.order.state).toBe("EXECUTED");
     const fill = result.fill;
@@ -83,15 +93,15 @@ describe("paper buy lifecycle", () => {
   it("buys an exact quantity and never exposes the approval hash", () => {
     const db = freshDb();
     const now = new Date();
-    const o = buy(db, { symbol: "KO", quantityMicros: 2_000_000 }, now);
-    const approved = approveOrder(db, "alice", o.id, { version: o.version }, now);
+    const o = buy(db, { symbol: "KO", quantityMicros: 2_000_000 });
+    const approved = approveOrder(db, "alice", o.id, { version: o.version });
     const json = JSON.stringify([approved, getOrder(db, "alice", o.id), listOrders(db, "alice")]);
     const { approval_hash } = db.prepare("SELECT approval_hash FROM orders WHERE id = ?").get(o.id) as { approval_hash: string };
     expect(approval_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(json).not.toContain(approval_hash);
     expect(json).not.toMatch(/approval_?hash/i);
 
-    const { fill } = executeOrder(db, "alice", o.id, { now });
+    const { fill } = executeOrder(db, "alice", o.id);
     expect(fill.quantityMicros).toBe(2_000_000);
     expect(fill.grossCents).toBe(fill.priceCents * 2);
   });
@@ -116,10 +126,10 @@ describe("paper sell lifecycle", () => {
     const cashBefore = balance(db, PAPER);
 
     const half = Math.floor(before.q / 2 / 1_000) * 1_000;
-    const sell = createOrder(db, "alice", { accountId: PAPER, symbol: "VOO", side: "sell", quantityMicros: half }, "user", now);
+    const sell = createOrder(db, "alice", { accountId: PAPER, symbol: "VOO", side: "sell", quantityMicros: half }, "user");
     expect(sell.state).toBe("AWAITING_APPROVAL");
     expect(sell.priceBoundCents).toBe(Math.floor((getQuote("VOO", now)!.priceCents * 99) / 100));
-    const { fill } = approveAndExecute(db, "alice", sell.id, sell.version, now);
+    const { fill } = approveAndExecute(db, "alice", sell.id, sell.version);
 
     const costPortion = Math.round((before.c * half) / before.q);
     expect(fill.realizedPnlCents).toBe(fill.grossCents - costPortion);
@@ -127,8 +137,8 @@ describe("paper sell lifecycle", () => {
     expect(position(db, PAPER, "VOO")).toEqual({ q: before.q - half, c: before.c - costPortion });
 
     const rest = createOrder(db, "alice",
-      { accountId: PAPER, symbol: "VOO", side: "sell", quantityMicros: before.q - half }, "user", now);
-    approveAndExecute(db, "alice", rest.id, rest.version, now);
+      { accountId: PAPER, symbol: "VOO", side: "sell", quantityMicros: before.q - half }, "user");
+    approveAndExecute(db, "alice", rest.id, rest.version);
     expect(position(db, PAPER, "VOO")).toBeUndefined();
   });
 
@@ -169,14 +179,14 @@ describe("policy holds", () => {
     expect(big.holdReasons).toEqual(["ORDER_LIMIT_EXCEEDED"]);
 
     const now = new Date();
-    const a = buy(db, { notionalCents: 45_000 }, now);
-    const b = buy(db, { notionalCents: 45_000 }, now);
-    const c = buy(db, { notionalCents: 45_000 }, now); // together over the $1,000 daily limit
-    for (const o of [a, b, c]) approveOrder(db, "alice", o.id, { version: o.version }, now);
-    executeOrder(db, "alice", a.id, { now });
-    executeOrder(db, "alice", b.id, { now });
+    const a = buy(db, { notionalCents: 45_000 });
+    const b = buy(db, { notionalCents: 45_000 });
+    const c = buy(db, { notionalCents: 45_000 }); // together over the $1,000 daily limit
+    for (const o of [a, b, c]) approveOrder(db, "alice", o.id, { version: o.version });
+    executeOrder(db, "alice", a.id);
+    executeOrder(db, "alice", b.id);
     const cash = balance(db, PAPER);
-    expect(errorCode(() => executeOrder(db, "alice", c.id, { now }))).toBe("POLICY_HOLD");
+    expect(errorCode(() => executeOrder(db, "alice", c.id))).toBe("POLICY_HOLD");
     expect(stateOf(db, c.id)).toBe("HELD");
     expect(getOrder(db, "alice", c.id).holdReasons).toContain("DAILY_ORDER_LIMIT_EXCEEDED");
     expect(balance(db, PAPER)).toBe(cash);
@@ -227,8 +237,8 @@ describe("bound approvals", () => {
   it("refuses execution when the simulated price moved beyond the approved bound", () => {
     const db = freshDb();
     const t0 = new Date();
-    const o = buy(db, { notionalCents: 20_000 }, t0);
-    approveOrder(db, "alice", o.id, { version: o.version }, t0);
+    const o = buy(db, { notionalCents: 20_000 });
+    approveOrder(db, "alice", o.id, { version: o.version });
     const bound = o.priceBoundCents!;
 
     let later: Date | null = null;
@@ -239,7 +249,8 @@ describe("bound approvals", () => {
     expect(later).not.toBeNull();
 
     const cash = balance(db, PAPER);
-    expect(errorCode(() => executeOrder(db, "alice", o.id, { now: later! }))).toBe("POLICY_HOLD");
+    vi.setSystemTime(later!);
+    expect(errorCode(() => executeOrder(db, "alice", o.id))).toBe("POLICY_HOLD");
     const after = getOrder(db, "alice", o.id);
     expect(after.hasApproval).toBe(false);
     expect(after.version).toBe(o.version + 1); // re-priced: a new bound is a new version

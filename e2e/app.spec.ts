@@ -1,4 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
+// Pure data module (governance copy); shared with the UI so wording can't drift.
+import { HOLD_MESSAGES } from "../lib/policy/messages";
 
 // Every run owns a separate synthetic DB and port. Never reset a developer's DB.
 test.beforeEach(async ({ request }) => {
@@ -171,6 +173,13 @@ test("held transfer verification, exact approval, execution and duplicate receip
   page,
 }) => {
   await createRent(page);
+  const changed = HOLD_MESSAGES.RECIPIENT_CHANGED;
+  const why = page.getByRole("region", {
+    name: "Why ClearFi held this transfer",
+  });
+  await expect(why.getByText(changed.label, { exact: true })).toBeVisible();
+  await expect(why.getByText(changed.explanation)).toBeVisible();
+  await expect(why.getByText(changed.recovery)).toBeVisible();
   await expect(
     page.getByRole("button", { name: /Approve exact transfer/ }),
   ).toHaveCount(0);
@@ -345,4 +354,113 @@ test("overview rent scenario opens a real proposal and close returns to the list
   await expect(
     page.getByRole("button", { name: "Review transfer", exact: true }),
   ).toBeVisible();
+});
+
+test("AI monitoring panel runs advisory agents and manages the StreamFlix insight", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const panel = page.getByRole("region", { name: "AI monitoring" });
+  await expect(
+    panel.getByText("Advisory — agents can't approve or move money"),
+  ).toBeVisible();
+  await expect(panel.getByText(/No open findings/)).toBeVisible();
+  await panel
+    .getByRole("button", { name: "Run monitoring agents", exact: true })
+    .click();
+  await expect(
+    panel
+      .getByRole("status")
+      .filter({ hasText: /Processed \d+ jobs? · \d+ succeeded/ }),
+  ).toBeVisible();
+  const insight = panel.getByRole("article").filter({
+    has: page.getByRole("heading", { name: /StreamFlix went up/ }),
+  });
+  await expect(insight).toBeVisible();
+  await expect(insight.getByText("Subscription monitor")).toBeVisible();
+  await insight.getByText(/^Evidence \(\d+\)$/).click();
+  await expect(
+    insight.getByRole("link", { name: /StreamFlix/ }).first(),
+  ).toBeVisible();
+  // Advisory only: no approve/execute/verify controls anywhere in the panel.
+  await expect(
+    panel.getByRole("button", { name: /approve|execute|verify/i }),
+  ).toHaveCount(0);
+  await insight.getByRole("button", { name: "Mark seen", exact: true }).click();
+  await expect(
+    insight.getByRole("button", { name: "Mark seen", exact: true }),
+  ).toHaveCount(0);
+  await expect(insight.getByText("Seen", { exact: true })).toBeVisible();
+  await insight.getByRole("button", { name: /^Dismiss/ }).click();
+  await expect(
+    panel.getByRole("heading", { name: /StreamFlix went up/ }),
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(
+    page
+      .getByRole("region", { name: "AI monitoring" })
+      .getByRole("button", { name: "Run monitoring agents" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /StreamFlix went up/ }),
+  ).toHaveCount(0);
+  await checkLayout(page);
+
+  await page.goto("/control");
+  const matrix = page.getByRole("table", { name: "Agent permission matrix" });
+  await expect(matrix).toBeVisible();
+  const row = matrix.getByRole("row", { name: /Subscription monitor/ });
+  await expect(
+    row.getByRole("cell", { name: "Transactions", exact: true }),
+  ).toBeVisible();
+  await expect(row.getByText("No", { exact: true })).toHaveCount(3);
+  await expect(matrix.getByText("Yes", { exact: true })).toHaveCount(0);
+  await checkLayout(page);
+});
+
+test("paper account is labeled, excluded from net worth and read-only", async ({
+  page,
+  request,
+}) => {
+  const res = await request.get("/api/accounts");
+  const { netWorthCents } = (await res.json()) as { netWorthCents: number };
+  const expected = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(netWorthCents / 100);
+  await page.goto("/");
+  await expect(page.locator(".balance-amount")).toHaveText(expected);
+  const paperLink = page.getByRole("link", { name: /Paper Portfolio/ });
+  await expect(
+    paperLink.getByText("Paper · simulated money, not in net worth"),
+  ).toBeVisible();
+  await paperLink.click();
+  await expect(page).toHaveURL(/accounts\?id=acct_alice_paper/);
+  await expect(
+    page.getByRole("heading", { name: "Paper Portfolio" }),
+  ).toBeVisible();
+  const detail = page.locator("#account-detail");
+  await expect(
+    detail.getByText("Paper · simulated money, not in net worth"),
+  ).toBeVisible();
+  await expect(
+    detail.getByText(
+      /Paper trading available via API — no trading UI in this demo/,
+    ),
+  ).toBeVisible();
+  await expect(
+    detail.getByRole("heading", { name: "Holdings", exact: true }),
+  ).toBeVisible();
+  await expect(
+    detail.getByRole("listitem").filter({ hasText: "VOO" }).first(),
+  ).toBeVisible();
+  await expect(
+    detail.getByRole("button", { name: /buy|sell|trade|order/i }),
+  ).toHaveCount(0);
+  await expect(
+    page
+      .getByRole("button", { name: /Paper Portfolio/ })
+      .getByText("Paper · simulated money, not in net worth"),
+  ).toBeVisible();
+  await checkLayout(page);
 });

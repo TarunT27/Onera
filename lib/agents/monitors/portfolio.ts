@@ -35,7 +35,8 @@ export const portfolioReview: AgentHandler = (ctx) => {
         const band = Math.floor(p.weightPct / R.concentrationBandPct) * R.concentrationBandPct;
         ctx.insights.upsert({
           type: "portfolio_concentration",
-          severity: p.weightPct > R.concentrationCriticalPct ? "critical" : "warning",
+          // Paper money is practice: concentration there is informational, never critical.
+          severity: account.paper ? "info" : p.weightPct > R.concentrationCriticalPct ? "critical" : "warning",
           title: `${p.symbol} is ${p.weightPct.toFixed(1)}% of ${label}`,
           body:
             `${p.symbol} (${usd(p.marketValueCents)}) is more than ${R.concentrationPct}% of the positions in ${label}. ` +

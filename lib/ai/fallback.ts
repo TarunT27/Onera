@@ -3,6 +3,7 @@
  * built from the same deterministic calculations. It never creates proposals,
  * approvals or executions.
  */
+import { listInsights } from "@/lib/agents";
 import type { DB } from "@/lib/db";
 import { formatCents } from "@/lib/finance/money";
 import { spendingSummary } from "@/lib/finance/spending";
@@ -37,6 +38,11 @@ export function fallbackReply(db: DB, userId: UserId, request: ChatRequest, reas
       lines.push(
         `${s.merchant} went from ${formatCents(s.previousAmountCents)} to ${formatCents(s.currentAmountCents)} (+${s.increasePct}%). Evidence: ${s.evidenceTransactionIds.join(", ")}.`,
       );
+    }
+    const newInsights = listInsights(db, userId, { status: "new" });
+    trace.push({ tool: "get_agent_insights", input: { status: "new" }, ok: true, summary: `${newInsights.length} insight(s) (new)` });
+    if (newInsights.length > 0) {
+      lines.push(`${newInsights.length} new monitoring finding(s) from background monitors to review in the app (advisory).`);
     }
   }
 

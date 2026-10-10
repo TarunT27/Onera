@@ -1242,6 +1242,174 @@
   font-size: 13px;
   margin: 8px 0 16px;
 }
+/* Generic glass section (agent monitoring panel and friends) */
+.surface {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--r-xl);
+  background: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.055),
+    rgb(255 255 255 / 0.025)
+  );
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+.surface-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 24px 26px 18px;
+}
+.surface-head h2 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.insight-body {
+  padding: 0 26px 24px;
+}
+.pill:not(:has(.knob)) {
+  padding: 6px 20px;
+}
+.paper-list {
+  margin-top: 4px;
+}
+.paper-row > svg:last-child {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.monitoring-panel {
+  grid-column: 1 / -1;
+}
+.monitoring-head {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.monitoring-advisory {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  color: var(--azure-mist);
+  font-size: 14px;
+}
+.monitoring-status {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgb(0 99 142 / 0.18);
+  box-shadow: inset 0 0 0 1px rgb(140 185 204 / 0.18);
+  color: var(--azure-mist);
+  font-size: 14px;
+}
+.monitoring-empty {
+  padding: 22px;
+  border-radius: var(--r-md);
+  background: var(--fill-1);
+  color: var(--text-2);
+  font-size: 14px;
+  text-align: center;
+}
+.monitoring-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+/* Severity reads from a lit dot, not a left-border stripe. */
+.monitoring-item {
+  position: relative;
+  min-width: 0;
+  padding: 16px 18px 16px 34px;
+  border-radius: 20px;
+  background: var(--fill-1);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.monitoring-item::before {
+  content: "";
+  position: absolute;
+  top: 22px;
+  left: 16px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--azure-light);
+  box-shadow: 0 0 10px currentColor;
+}
+.monitoring-item.sev-critical::before {
+  background: var(--negative);
+  color: var(--negative);
+}
+.monitoring-item.sev-warning::before {
+  background: var(--amber);
+  color: var(--amber);
+}
+.monitoring-item.sev-info::before {
+  color: var(--azure-light);
+}
+.monitoring-title {
+  margin-top: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.monitoring-body {
+  margin-top: 6px;
+  color: var(--text-2);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.monitoring-evidence {
+  margin-top: 10px;
+  font-size: 13px;
+}
+.monitoring-evidence summary {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  color: var(--text-2);
+}
+.monitoring-evidence li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--hairline);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.monitoring-evidence a {
+  color: var(--azure-mist);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.agent-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.agent-matrix th,
+.agent-matrix td {
+  padding: 10px 12px;
+  border-top: 1px solid var(--hairline);
+  text-align: left;
+  vertical-align: top;
+}
+.agent-matrix thead th {
+  border-top: 0;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+@media (max-width: 1000px) {
+  .monitoring-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 /* Soften legacy utility borders on inner pages: neutral outlines become
    hairlines, dashed placeholders become quiet fills. Semantic tints stay. */
 .app-main [class*="dark:border-zinc"],
@@ -1421,4 +1589,8 @@
     background: #16181b;
     backdrop-filter: none;
   }
+}
+.account-row.paper-row {
+  min-height: 0;
+  padding: 16px 0;
 }

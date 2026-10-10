@@ -102,7 +102,7 @@ export function buildSeedData(asOf: Date): SeedData {
       name: "High-Yield Savings",
       type: "savings",
       mask: "7702",
-      balanceCents: 1_280_000,
+      balanceCents: 5_560_000,
       capabilities: ["view", "transfer_source", "transfer_destination"],
     },
     {
