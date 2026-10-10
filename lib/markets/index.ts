@@ -60,7 +60,11 @@ export function getPriceHistory(symbol: string, days = 30, now: Date = new Date(
 // --- Paper trading -----------------------------------------------------------------
 
 export { approveOrder, createOrder, editOrder, evaluateOrder, getOrder, listOrders } from "./orders";
-export { executeOrder, type ExecuteOrderOptions } from "./broker";
+// executeOrder runs as the signed-in user only. The mandate execution path
+// (broker.executeMandateOrder) and createOrderInternal are deliberately NOT
+// exported: proposeMandateOrder is the only way an agent's order executes.
+// Write functions take no `now`: they read the real clock.
+export { executeOrder } from "./broker";
 export { evaluateOrderPolicy, estimatedOrderValueCents, isTradableAccount } from "./policy";
 export type { MandateTerms, OrderPolicyInput, OrderTerms } from "./policy";
 export { orderApprovalHash } from "./approval";

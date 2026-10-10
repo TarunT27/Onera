@@ -1,6 +1,6 @@
 // Mandates: bounded autonomous paper trading. Only a valid, unexpired, unrevoked
 // mandate for the same agent lets an agent's order execute without user approval.
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { listAudit } from "@/lib/audit";
 import { updateControls } from "@/lib/controls";
 import type { DB } from "@/lib/db";
@@ -16,6 +16,7 @@ import {
   proposeMandateOrder,
   revokeMandate,
 } from "@/lib/markets";
+import { executeMandateOrder } from "@/lib/markets/broker";
 import { createOrderInternal } from "@/lib/markets/orders";
 import { balance, errorCode, freshDb } from "./helpers";
 
@@ -23,13 +24,23 @@ const PAPER = "acct_alice_paper";
 const AGENT = "dca-bot";
 const HOUR_MS = 3_600_000;
 
+// Write paths read the real clock; freeze it so quotes (per-minute) and day windows are deterministic.
+const T0 = new Date("2026-10-07T15:30:20.000Z");
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(T0);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 function grant(db: DB, now: Date, overrides: Record<string, unknown> = {}) {
   return createMandate(db, "alice", {
     agentId: AGENT, accountId: PAPER, symbols: ["VTI", "VOO"],
     maxOrderCents: 10_000, maxDailyCents: 25_000,
     expiresAt: new Date(now.getTime() + 7 * 24 * HOUR_MS).toISOString(),
     ...overrides,
-  }, now);
+  });
 }
 
 describe("mandate happy path", () => {
@@ -41,7 +52,7 @@ describe("mandate happy path", () => {
     expect(m.status).toBe("active");
     expect(m.paper).toBe(true);
 
-    const r = proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 5_000 }, now);
+    const r = proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 5_000 });
     expect(r.executed).toBe(true);
     expect(r.refusal).toBeNull();
     expect(r.order.state).toBe("EXECUTED");
@@ -79,7 +90,8 @@ describe("mandate limits hold the order", () => {
     const later = new Date(now.getTime() + 2 * HOUR_MS);
     expect(getMandate(db, "alice", m.id, later).status).toBe("expired");
     const cash = balance(db, PAPER);
-    expect(heldFor(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 5_000 }, later)))
+    vi.setSystemTime(later);
+    expect(heldFor(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 5_000 })))
       .toContain("MANDATE_INVALID");
     expect(balance(db, PAPER)).toBe(cash);
   });
@@ -88,10 +100,10 @@ describe("mandate limits hold the order", () => {
     const db = freshDb();
     const now = new Date();
     const m = grant(db, now);
-    const revoked = revokeMandate(db, "alice", m.id, now);
+    const revoked = revokeMandate(db, "alice", m.id);
     expect(revoked.status).toBe("revoked");
-    expect(revokeMandate(db, "alice", m.id, now).revokedAt).toBe(revoked.revokedAt); // idempotent
-    expect(heldFor(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 5_000 }, now)))
+    expect(revokeMandate(db, "alice", m.id).revokedAt).toBe(revoked.revokedAt); // idempotent
+    expect(heldFor(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 5_000 })))
       .toContain("MANDATE_INVALID");
   });
 
@@ -99,7 +111,7 @@ describe("mandate limits hold the order", () => {
     const db = freshDb();
     const now = new Date();
     const m = grant(db, now);
-    expect(heldFor(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "AAPL", notionalCents: 5_000 }, now)))
+    expect(heldFor(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "AAPL", notionalCents: 5_000 })))
       .toEqual(["MANDATE_INVALID"]);
   });
 
@@ -107,7 +119,7 @@ describe("mandate limits hold the order", () => {
     const db = freshDb();
     const now = new Date();
     const m = grant(db, now);
-    expect(heldFor(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 15_000 }, now)))
+    expect(heldFor(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 15_000 })))
       .toEqual(["MANDATE_INVALID"]);
   });
 
@@ -115,9 +127,9 @@ describe("mandate limits hold the order", () => {
     const db = freshDb();
     const now = new Date();
     const m = grant(db, now);
-    expect(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 10_000 }, now).executed).toBe(true);
-    expect(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VOO", notionalCents: 10_000 }, now).executed).toBe(true);
-    const third = proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 10_000 }, now);
+    expect(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 10_000 }).executed).toBe(true);
+    expect(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VOO", notionalCents: 10_000 }).executed).toBe(true);
+    const third = proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 10_000 });
     expect(heldFor(third)).toEqual(["MANDATE_INVALID"]);
     const check = third.order.policy!.checks.find((c) => c.id === "mandate_valid")!;
     expect(check.detail).toMatch(/daily budget/);
@@ -127,7 +139,7 @@ describe("mandate limits hold the order", () => {
     const db = freshDb();
     const now = new Date();
     const m = grant(db, now);
-    expect(heldFor(proposeMandateOrder(db, "alice", m.id, "other-bot", { symbol: "VTI", notionalCents: 5_000 }, now)))
+    expect(heldFor(proposeMandateOrder(db, "alice", m.id, "other-bot", { symbol: "VTI", notionalCents: 5_000 })))
       .toEqual(["MANDATE_INVALID"]);
   });
 
@@ -136,7 +148,7 @@ describe("mandate limits hold the order", () => {
     const now = new Date();
     const m = grant(db, now);
     updateControls(db, "alice", { paused: true });
-    expect(heldFor(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 5_000 }, now)))
+    expect(heldFor(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 5_000 })))
       .toEqual(["PAUSED"]);
   });
 
@@ -144,7 +156,7 @@ describe("mandate limits hold the order", () => {
     const db = freshDb();
     const now = new Date();
     const m = grant(db, now, { maxOrderCents: 90_000, maxDailyCents: 90_000 });
-    expect(heldFor(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 60_000 }, now)))
+    expect(heldFor(proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "VTI", notionalCents: 60_000 })))
       .toEqual(["ORDER_LIMIT_EXCEEDED"]);
   });
 
@@ -153,11 +165,11 @@ describe("mandate limits hold the order", () => {
     const now = new Date();
     const m = grant(db, now);
     const order = createOrderInternal(db, "alice",
-      { accountId: PAPER, symbol: "VTI", side: "buy", notionalCents: 5_000 }, `agent:${AGENT}`, m.id, now);
+      { accountId: PAPER, symbol: "VTI", side: "buy", notionalCents: 5_000 }, `agent:${AGENT}`, m.id);
     expect(order.state).toBe("APPROVED");
-    revokeMandate(db, "alice", m.id, now);
+    revokeMandate(db, "alice", m.id);
     const cash = balance(db, PAPER);
-    expect(errorCode(() => executeOrder(db, "alice", order.id, { actor: `agent:${AGENT}`, now }))).toBe("POLICY_HOLD");
+    expect(errorCode(() => executeMandateOrder(db, "alice", order.id, m.id, AGENT))).toBe("POLICY_HOLD");
     expect(getOrder(db, "alice", order.id).holdReasons).toContain("MANDATE_INVALID");
     expect(balance(db, PAPER)).toBe(cash);
   });
@@ -166,23 +178,25 @@ describe("mandate limits hold the order", () => {
 describe("agents without a mandate", () => {
   it("never auto-execute: the order waits for the user's exact approval", () => {
     const db = freshDb();
+    const m = grant(db, new Date());
     const cash = balance(db, PAPER);
     const o = createOrder(db, "alice",
       { accountId: PAPER, symbol: "VTI", side: "buy", notionalCents: 5_000 }, `agent:${AGENT}`);
     expect(o.state).toBe("AWAITING_APPROVAL");
     expect(o.hasApproval).toBe(false);
     expect(o.mandateId).toBeNull();
-    expect(errorCode(() => executeOrder(db, "alice", o.id, { actor: `agent:${AGENT}` }))).toBe("INVALID_STATE");
+    expect(errorCode(() => executeMandateOrder(db, "alice", o.id, m.id, AGENT))).toBe("INVALID_STATE");
     expect(errorCode(() => executeOrder(db, "alice", o.id))).toBe("INVALID_STATE");
     expect(balance(db, PAPER)).toBe(cash);
   });
 
   it("cannot execute an order the user approved", () => {
     const db = freshDb();
+    const m = grant(db, new Date());
     const o = createOrder(db, "alice",
       { accountId: PAPER, symbol: "VTI", side: "buy", notionalCents: 5_000 }, `agent:${AGENT}`);
     approveOrder(db, "alice", o.id, { version: o.version });
-    expect(errorCode(() => executeOrder(db, "alice", o.id, { actor: `agent:${AGENT}` }))).toBe("INVALID_STATE");
+    expect(errorCode(() => executeMandateOrder(db, "alice", o.id, m.id, AGENT))).toBe("INVALID_STATE");
     expect(executeOrder(db, "alice", o.id).order.state).toBe("EXECUTED"); // the user can
   });
 
@@ -191,18 +205,18 @@ describe("agents without a mandate", () => {
     const now = new Date();
     const m = grant(db, now);
     expect(errorCode(() => createOrderInternal(db, "alice",
-      { accountId: PAPER, symbol: "VTI", side: "buy", notionalCents: 5_000 }, "user", m.id, now))).toBe("BAD_REQUEST");
+      { accountId: PAPER, symbol: "VTI", side: "buy", notionalCents: 5_000 }, "user", m.id))).toBe("BAD_REQUEST");
     expect(errorCode(() => createOrderInternal(db, "alice",
-      { accountId: PAPER, symbol: "VTI", side: "buy", notionalCents: 5_000 }, "assistant", m.id, now))).toBe("BAD_REQUEST");
+      { accountId: PAPER, symbol: "VTI", side: "buy", notionalCents: 5_000 }, "assistant", m.id))).toBe("BAD_REQUEST");
   });
 
   it("a user edit detaches the mandate so it needs explicit approval", () => {
     const db = freshDb();
     const now = new Date();
     const m = grant(db, now);
-    const held = proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "AAPL", notionalCents: 5_000 }, now).order;
+    const held = proposeMandateOrder(db, "alice", m.id, AGENT, { symbol: "AAPL", notionalCents: 5_000 }).order;
     expect(held.holdReasons).toEqual(["MANDATE_INVALID"]);
-    const edited = editOrder(db, "alice", held.id, { notionalCents: 4_000 }, now);
+    const edited = editOrder(db, "alice", held.id, { notionalCents: 4_000 });
     expect(edited.mandateId).toBeNull();
     expect(edited.state).toBe("AWAITING_APPROVAL");
     expect(edited.hasApproval).toBe(false);
@@ -229,8 +243,8 @@ describe("mandate creation and ownership", () => {
     const m = grant(db, now);
     expect(listMandates(db, "bob", now)).toHaveLength(0);
     expect(errorCode(() => getMandate(db, "bob", m.id, now))).toBe("NOT_FOUND");
-    expect(errorCode(() => revokeMandate(db, "bob", m.id, now))).toBe("NOT_FOUND");
-    expect(errorCode(() => proposeMandateOrder(db, "bob", m.id, AGENT, { symbol: "VTI", notionalCents: 5_000 }, now)))
+    expect(errorCode(() => revokeMandate(db, "bob", m.id))).toBe("NOT_FOUND");
+    expect(errorCode(() => proposeMandateOrder(db, "bob", m.id, AGENT, { symbol: "VTI", notionalCents: 5_000 })))
       .toBe("NOT_FOUND");
     expect(getMandate(db, "alice", m.id, now).status).toBe("active");
   });

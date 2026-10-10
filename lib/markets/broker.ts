@@ -7,6 +7,14 @@
  * (APPROVED → EXECUTED), moves paper cash, updates the position and writes the
  * fill and audit event. Either everything commits or nothing does. A repeated
  * request returns the original fill instead of filling again.
+ *
+ * Two entry points share one implementation:
+ *  - executeOrder (public, user route): always runs as `user:<userId>`.
+ *  - executeMandateOrder (internal, NOT exported from index.ts): called only by
+ *    proposeMandateOrder; runs as `agent:<agentId>` and only for that agent's
+ *    own order authorized as `mandate:<mandateId>`.
+ * Neither accepts a time: execution prices and checks limits/expiry at the real
+ * clock, read once per attempt and reused for the FAILED record.
  */
 import { randomBytes } from "node:crypto";
 import { writeAudit } from "@/lib/audit";
@@ -24,20 +32,44 @@ type Outcome =
   | { kind: "duplicate" }
   | { kind: "rejected"; error: ServiceError };
 
-export interface ExecuteOrderOptions {
-  /** Defaults to the signed-in user. The mandate helper passes "agent:<id>". */
-  actor?: string;
-  now?: Date;
+type Executor =
+  | { kind: "user" }
+  | { kind: "mandate"; mandateId: string; agentId: string };
+
+/** SQLITE_BUSY / SQLITE_LOCKED (and extended codes): another writer holds the lock. Transient. */
+function isTransientLockError(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  return typeof code === "string" && (code.startsWith("SQLITE_BUSY") || code.startsWith("SQLITE_LOCKED"));
 }
 
-export function executeOrder(
+// TODO(wire): ApiErrorCode has no retryable code yet (lib/types.ts); "INTERNAL" + 503 + details.retryable for now.
+const brokerBusy = () => new ServiceError("INTERNAL",
+  "The paper broker is busy. Nothing was executed and the order is unchanged; try again.", 503, { retryable: true });
+
+/** User route: executes the signed-in user's APPROVED order as `user:<userId>`. */
+export function executeOrder(db: DB, userId: UserId, orderId: string): ExecuteOrderResult {
+  return runExecution(db, userId, orderId, { kind: "user" });
+}
+
+/**
+ * Internal — only proposeMandateOrder calls this, and index.ts must not export
+ * it. Executes as `agent:<agentId>` only an order that agent proposed under
+ * `mandateId` and that was authorized as `mandate:<mandateId>`. A user-approved
+ * order (or another agent's) is refused with 409 INVALID_STATE.
+ */
+export function executeMandateOrder(
   db: DB,
   userId: UserId,
   orderId: string,
-  opts: ExecuteOrderOptions = {},
+  mandateId: string,
+  agentId: string,
 ): ExecuteOrderResult {
-  const now = opts.now ?? new Date();
-  const actor = opts.actor ?? `user:${userId}`;
+  return runExecution(db, userId, orderId, { kind: "mandate", mandateId, agentId });
+}
+
+function runExecution(db: DB, userId: UserId, orderId: string, executor: Executor): ExecuteOrderResult {
+  const now = new Date();
+  const actor = executor.kind === "user" ? `user:${userId}` : `agent:${executor.agentId}`;
   let outcome: Outcome;
   try {
     outcome = db.transaction((): Outcome => {
@@ -53,10 +85,11 @@ export function executeOrder(
         return { kind: "rejected", error: conflict("INVALID_STATE",
           `Order is ${row.state}; only an APPROVED order can execute`, { state: row.state }) };
       }
-      // An agent may only execute its own order, authorized by its mandate.
-      if (actor.startsWith("agent:") && (row.created_by !== actor || row.approved_by !== `mandate:${row.mandate_id}`)) {
+      // An agent may only execute its own order, authorized by the mandate it used.
+      if (executor.kind === "mandate" && (row.mandate_id !== executor.mandateId || row.created_by !== actor
+        || row.approved_by !== `mandate:${executor.mandateId}`)) {
         writeAudit(db, { userId, actor, eventType: "order.execute_refused", actionId: orderId,
-          detail: { reason: "AGENT_NOT_AUTHORIZED", approvedBy: row.approved_by } });
+          detail: { reason: "AGENT_NOT_AUTHORIZED", approvedBy: row.approved_by, mandateId: executor.mandateId } });
         return { kind: "rejected", error: conflict("INVALID_STATE",
           "Agents can only execute their own mandate-authorized orders") };
       }
@@ -172,19 +205,28 @@ export function executeOrder(
 
       writeAudit(db, { userId, actor, eventType: "order.executed", actionId: orderId,
         detail: { fillId: fill.fillId, version: row.version, symbol: row.symbol, side: row.side, quantityMicros,
-          priceCents, grossCents, priceBoundCents: bound, approvedBy: row.approved_by, paper: true, simulated: true } });
+          priceCents, grossCents, priceBoundCents: bound, approvedBy: row.approved_by, mandateId: row.mandate_id,
+          paper: true, simulated: true } });
       return { kind: "executed" };
     }).immediate();
   } catch (err) {
     if (err instanceof ServiceError) throw err;
-    // The fill rolled back; record the failure separately.
+    // Lock contention is transient: nothing committed, the order stays APPROVED and can be retried.
+    if (isTransientLockError(err)) throw brokerBusy();
+    // The fill rolled back; record the failure separately, stamped with this attempt's time.
     const message = err instanceof Error ? err.message : "Unknown paper broker error";
-    db.transaction(() => {
-      db.prepare(`UPDATE orders SET state = 'FAILED', failure_reason = ?, updated_at = ?
-                  WHERE id = ? AND user_id = ? AND state = 'APPROVED'`)
-        .run(message, new Date().toISOString(), orderId, userId);
-      writeAudit(db, { userId, actor: "system", eventType: "order.failed", actionId: orderId, detail: { message } });
-    })();
+    try {
+      db.transaction(() => {
+        db.prepare(`UPDATE orders SET state = 'FAILED', failure_reason = ?, updated_at = ?
+                    WHERE id = ? AND user_id = ? AND state = 'APPROVED'`)
+          .run(message, now.toISOString(), orderId, userId);
+        writeAudit(db, { userId, actor: "system", eventType: "order.failed", actionId: orderId, detail: { message } });
+      }).immediate();
+    } catch (recordErr) {
+      // Could not record the failure (lock held): the order is still APPROVED, so report it as retryable.
+      if (isTransientLockError(recordErr)) throw brokerBusy();
+      throw recordErr;
+    }
     throw new ServiceError("INTERNAL", `Paper order failed: ${message}`, 500);
   }
 
