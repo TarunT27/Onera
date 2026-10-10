@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import type { UserControls } from "@/lib/types";
-import { clearfi, paths, type AuditResponse, type ControlsResponse } from "../components/api";
+import { clearfi, paths, type AgentsResponse, type AuditResponse, type ControlsResponse } from "../components/api";
 import { AuditList } from "../components/AuditList";
 import { Badge } from "../components/Badge";
 import { Button, inputClass, labelClass } from "../components/Button";
@@ -47,6 +47,8 @@ export function ControlClient() {
       ) : null}
 
       <PermissionsCard />
+
+      <AgentPermissionsCard />
 
       <Card
         id="audit"
@@ -346,6 +348,90 @@ function PermissionsCard() {
           </ul>
         </div>
       </div>
+    </Card>
+  );
+}
+
+const SCOPE_LABELS: Record<string, string> = {
+  accounts: "Accounts",
+  transactions: "Transactions",
+  recipients: "Recipients",
+  actions: "Transfer proposals",
+  portfolio: "Portfolio",
+  connections: "Bank connections",
+  insights: "Insights",
+  jobs: "Follow-up jobs",
+  connection_sync: "Connection sync",
+};
+
+function YesNo({ value }: { value: boolean }) {
+  return value ? <Badge tone="red">Yes</Badge> : <Badge tone="green">No</Badge>;
+}
+
+function AgentPermissionsCard() {
+  const agents = useApiData<AgentsResponse>(paths.agents);
+  const rows = agents.data?.permissions ?? [];
+  return (
+    <Card
+      id="agents"
+      className="scroll-mt-28"
+      title="Monitoring agent permissions"
+      subtitle="Advisory — agents can't approve or move money. Each reads only its listed data and writes insights."
+    >
+      <ErrorBox error={agents.error} title="Couldn't load agent permissions" className="mb-3" onRetry={() => void agents.reload()} />
+      {agents.loading && !agents.data ? (
+        <Loading label="Loading agent permissions…" />
+      ) : rows.length === 0 ? (
+        <EmptyState>No monitoring agents registered.</EmptyState>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="agent-matrix" aria-label="Agent permission matrix">
+              <thead>
+                <tr>
+                  <th scope="col">Agent</th>
+                  <th scope="col">Reads</th>
+                  <th scope="col">Writes</th>
+                  <th scope="col">Can approve</th>
+                  <th scope="col">Can execute</th>
+                  <th scope="col">Verify / controls</th>
+                  <th scope="col">Last run</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((p) => {
+                  const def = agents.data?.agents.find((a) => a.id === p.agentId);
+                  const reads = Object.entries(p.reads).filter(([, v]) => v).map(([k]) => SCOPE_LABELS[k] ?? k);
+                  const writes = Object.entries(p.writes).filter(([, v]) => v).map(([k]) => SCOPE_LABELS[k] ?? k);
+                  return (
+                    <tr key={p.agentId}>
+                      <th scope="row" className="min-w-44 font-medium">
+                        {p.name}
+                        {def && <span className="mt-0.5 block text-xs font-normal text-zinc-400">{def.trigger}</span>}
+                      </th>
+                      <td className="min-w-32">{reads.join(", ") || "—"}</td>
+                      <td className="min-w-32">{writes.join(", ") || "—"}</td>
+                      <td>
+                        <YesNo value={p.canApprove} />
+                      </td>
+                      <td>
+                        <YesNo value={p.canExecute} />
+                      </td>
+                      <td>
+                        <YesNo value={p.canVerifyRecipients || p.canChangeControls || p.canCreateMandates} />
+                      </td>
+                      <td className="text-xs whitespace-nowrap text-zinc-400">
+                        {def?.lastRun ? `${def.lastRun.status} · ${formatDateTime(def.lastRun.startedAt)}` : "Never"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {agents.data?.notice && <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">{agents.data.notice}</p>}
+        </>
+      )}
     </Card>
   );
 }

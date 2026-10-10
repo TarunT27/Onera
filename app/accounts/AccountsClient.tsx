@@ -24,6 +24,7 @@ import { useApiData } from "../components/useApiData";
 import { Button, inputClass, labelClass } from "../components/Button";
 import { Card, Loading, EmptyState } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
+import { PaperLabel } from "../components/Badge";
 import { formatCents } from "@/lib/finance/money";
 
 export function AccountsClient() {
@@ -254,8 +255,12 @@ export function AccountsClient() {
                   <span className="row-title block">{a.name}</span>
                   <span className="row-meta block">
                     {a.institution} · ••{a.mask}
-                    {a.paper ? " · Paper" : ""}
                   </span>
+                  {a.paper && (
+                    <span className="mt-1.5 block">
+                      <PaperLabel />
+                    </span>
+                  )}
                 </span>
                 <span className="row-value">
                   {a.type === "brokerage" && !portfolio.data
@@ -315,8 +320,17 @@ export function AccountsClient() {
                   {account.capabilities.includes("transfer_source")
                     ? "Eligible for simulated transfers"
                     : "View only · cannot send transfers"}
-                  {account.paper ? " · Excluded from total balance" : ""}
                 </p>
+                {account.paper && (
+                  <div className="mt-3 space-y-2">
+                    <PaperLabel />
+                    <p className="text-xs text-zinc-400">
+                      Paper trading available via API — no trading UI in this
+                      demo. Orders here use simulated prices and never touch
+                      your bank balances.
+                    </p>
+                  </div>
+                )}
                 {account.capabilities.includes("transfer_source") && (
                   <Link
                     href={`/transfers?source=${encodeURIComponent(account.id)}`}
@@ -333,9 +347,12 @@ export function AccountsClient() {
               <section className="mb-6">
                 <h3 className="mb-2 text-base font-semibold">Holdings</h3>
                 <p className="mb-3 text-xs text-zinc-400">
-                  {holding.label} · Prices are simulated.{" "}
-                  {holding.paper ? "Excluded from total balance." : ""}
+                  {holding.label} · Prices are simulated · Read-only view
+                  {holding.paper ? " · Not counted in net worth" : ""}
                 </p>
+                {holding.positions.length === 0 && (
+                  <EmptyState>No positions in this account.</EmptyState>
+                )}
                 <ul className="divide-y divide-zinc-800">
                   {holding.positions.map((p) => (
                     <li

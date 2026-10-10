@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import type { AccountCapability, ActionCreator, ActionState, HoldReason, RecipientStatus } from "@/lib/types";
+// Pure data module: the single source of governance wording for hold reasons.
+import { HOLD_MESSAGES } from "@/lib/policy/messages";
 
 export type BadgeTone = "gray" | "red" | "amber" | "blue" | "indigo" | "green" | "brand" | "violet";
 
@@ -81,20 +83,30 @@ export function CreatorBadge({ createdBy }: { createdBy: ActionCreator }) {
   );
 }
 
-export const HOLD_REASON_LABELS: Record<HoldReason, string> = {
-  RECIPIENT_CHANGED: "Recipient details changed",
-  RECIPIENT_UNVERIFIED: "Recipient not verified",
-  LIMIT_EXCEEDED: "Over per-transfer limit",
-  DAILY_LIMIT_EXCEEDED: "Over daily limit",
-  INSUFFICIENT_FUNDS: "Insufficient funds",
-  PAUSED: "Execution paused",
-};
+/** Short chip label for a hold reason (wording lives in lib/policy/messages). */
+export function holdReasonLabel(reason: HoldReason): string {
+  return HOLD_MESSAGES[reason]?.label ?? reason;
+}
 
 export function HoldReasonChip({ reason }: { reason: HoldReason }) {
   return (
-    <Badge tone="amber" title={reason}>
-      {HOLD_REASON_LABELS[reason] ?? reason}
+    <Badge tone="amber" title={HOLD_MESSAGES[reason]?.explanation ?? reason}>
+      {holdReasonLabel(reason)}
     </Badge>
+  );
+}
+
+/** Paper-trading accounts hold simulated money and never count toward net worth. */
+export const PAPER_LABEL = "Paper · simulated money, not in net worth";
+
+export function PaperLabel({ className = "" }: { className?: string }) {
+  return (
+    <span
+      title="Paper trading account: simulated money, excluded from net worth"
+      className={`inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${TONES.violet} ${className}`}
+    >
+      {PAPER_LABEL}
+    </span>
   );
 }
 
