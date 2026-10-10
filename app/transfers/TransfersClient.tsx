@@ -50,6 +50,11 @@ export function TransfersClient() {
     select(action.id);
   }
 
+  function closeDetail() {
+    if (selectedId) document.getElementById(`transfer-list-${selectedId}`)?.focus({ preventScroll: true });
+    select(null);
+  }
+
   const paused = controls.data?.controls.paused === true;
 
   return (
@@ -74,7 +79,7 @@ export function TransfersClient() {
         {/* Detail first in the DOM so it leads on phones; placed in the right column on desktop. */}
         <div className={`min-w-0 lg:col-span-7 lg:col-start-6 lg:row-start-1 ${selectedId ? "" : "hidden lg:block"}`}>
           {selectedId ? (
-            <ActionDetail key={selectedId} id={selectedId} onChanged={reloadAll} onClose={() => select(null)} />
+            <ActionDetail key={selectedId} id={selectedId} onChanged={reloadAll} onClose={closeDetail} />
           ) : (
             <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
               <div>
@@ -90,8 +95,12 @@ export function TransfersClient() {
             initialSourceId={searchParams.get("source") ?? undefined}
             accounts={accounts.data?.accounts ?? null}
             accountsError={accounts.error}
+            accountsLoading={accounts.loading}
             recipients={recipients.data?.recipients ?? null}
             recipientsError={recipients.error}
+            recipientsLoading={recipients.loading}
+            onRetryAccounts={() => void accounts.reload()}
+            onRetryRecipients={() => void recipients.reload()}
             onCreated={onCreated}
           />
           <ActionList

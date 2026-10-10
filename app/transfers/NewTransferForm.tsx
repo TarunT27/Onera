@@ -12,16 +12,24 @@ import { formatCents, mask, parseDollarsToCents } from "../components/format";
 export function NewTransferForm({
   accounts,
   accountsError,
+  accountsLoading,
   recipients,
   recipientsError,
+  recipientsLoading,
+  onRetryAccounts,
+  onRetryRecipients,
   onCreated,
   initialSourceId,
 }: {
   initialSourceId?: string;
   accounts: Account[] | null;
   accountsError: unknown;
+  accountsLoading: boolean;
   recipients: RecipientWithStatus[] | null;
   recipientsError: unknown;
+  recipientsLoading: boolean;
+  onRetryAccounts: () => void;
+  onRetryRecipients: () => void;
   onCreated: (action: TransferAction) => void;
 }) {
   const sources = useMemo(() => (accounts ?? []).filter((a) => a.capabilities.includes("transfer_source")), [accounts]);
@@ -42,6 +50,20 @@ export function NewTransferForm({
 
   const recipient = recipients?.find((r) => r.id === recipientId) ?? null;
   const source = sources.find((a) => a.id === sourceId) ?? null;
+  const validDestination =
+    recipient !== null && !(recipient.kind === "own_account" && recipient.accountId !== null && recipient.accountId === sourceId);
+
+  function changeSource(nextSourceId: string) {
+    setSourceId(nextSourceId);
+    setRecipientId((currentRecipientId) => {
+      const currentRecipient = recipients?.find((r) => r.id === currentRecipientId);
+      const pointsToSource =
+        currentRecipient?.kind === "own_account" &&
+        currentRecipient.accountId !== null &&
+        currentRecipient.accountId === nextSourceId;
+      return pointsToSource ? "" : currentRecipientId;
+    });
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -53,7 +75,7 @@ export function NewTransferForm({
       return;
     }
     setAmountError(null);
-    if (!sourceId || !recipientId) {
+    if (!sourceId || !recipientId || !validDestination) {
       setError(new Error("Choose a source account and a recipient."));
       return;
     }
@@ -77,21 +99,32 @@ export function NewTransferForm({
     }
   }
 
-  const loading = accounts === null && !accountsError;
+  const loading = (accounts === null && accountsLoading) || (recipients === null && recipientsLoading);
+  const unavailable = (accounts === null && !!accountsError) || (recipients === null && !!recipientsError);
+  const proposalDisabledReason =
+    sources.length === 0
+      ? "No linked account can send transfers."
+      : (recipients?.length ?? 0) === 0
+        ? "No saved recipient is available for this demo user."
+        : !recipientId
+          ? "Choose a recipient to create a proposal."
+          : !validDestination
+            ? "The source and destination accounts must be different."
+            : null;
 
   return (
     <Card title="New transfer" subtitle="Create a request to review. Nothing moves until you approve it. Demo money only.">
-      <ErrorBox error={accountsError} title="Couldn't load accounts" className="mb-3" />
-      <ErrorBox error={recipientsError} title="Couldn't load recipients" className="mb-3" />
+      <ErrorBox error={accountsError} title="Couldn't load accounts" className="mb-3" onRetry={onRetryAccounts} />
+      <ErrorBox error={recipientsError} title="Couldn't load recipients" className="mb-3" onRetry={onRetryRecipients} />
       {loading ? (
-        <Loading />
-      ) : (
+        <Loading label="Loading transfer options…" />
+      ) : unavailable ? null : (
         <form onSubmit={submit} className="space-y-4" noValidate>
           <div>
             <label htmlFor="tf-source" className={labelClass}>
               From
             </label>
-            <select id="tf-source" className={inputClass} value={sourceId} onChange={(e) => setSourceId(e.target.value)} required>
+            <select id="tf-source" name="sourceAccountId" className={inputClass} value={sourceId} onChange={(e) => changeSource(e.target.value)} required>
               {sources.length === 0 && <option value="">No accounts can send transfers</option>}
               {sources.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -110,12 +143,13 @@ export function NewTransferForm({
             </label>
             <select
               id="tf-recipient"
+              name="recipientId"
               className={inputClass}
               value={recipientId}
               onChange={(e) => setRecipientId(e.target.value)}
               required
             >
-              <option value="">Choose a recipient…</option>
+              <option value="">{recipients?.length === 0 ? "No recipients available" : "Choose a recipient…"}</option>
               {(recipients ?? []).map((r) => {
                 const sameAsSource = r.kind === "own_account" && r.accountId !== null && r.accountId === sourceId;
                 return (
@@ -125,6 +159,11 @@ export function NewTransferForm({
                 );
               })}
             </select>
+            {recipients?.length === 0 && (
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                No saved recipients are available for this demo user.
+              </p>
+            )}
             {recipient && (
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
                 <RecipientStatusBadge status={recipient.status} />
@@ -153,10 +192,11 @@ export function NewTransferForm({
                 <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-zinc-500">$</span>
                 <input
                   id="tf-amount"
+                  name="amount"
                   className={`${inputClass} pl-7 tabular-nums`}
                   inputMode="decimal"
                   autoComplete="off"
-                  placeholder="0.00"
+                  placeholder="1,250.00…"
                   value={amount}
                   onChange={(e) => {
                     setAmount(e.target.value);
@@ -167,7 +207,7 @@ export function NewTransferForm({
                 />
               </div>
               {amountError && (
-                <p id="tf-amount-error" className="mt-1 text-xs text-red-700 dark:text-red-400">
+                <p id="tf-amount-error" role="alert" className="mt-1 text-xs text-red-700 dark:text-red-400">
                   {amountError}
                 </p>
               )}
@@ -183,9 +223,11 @@ export function NewTransferForm({
               </label>
               <input
                 id="tf-memo"
+                name="memo"
                 className={inputClass}
                 maxLength={140}
-                placeholder="e.g. October rent"
+                autoComplete="off"
+                placeholder="October rent…"
                 value={memo}
                 onChange={(e) => setMemo(e.target.value)}
               />
@@ -210,9 +252,21 @@ export function NewTransferForm({
             </div>
           )}
 
-          <Button type="submit" variant="primary" busy={submitting} disabled={sources.length === 0} className="w-full sm:w-auto">
-            Propose transfer
+          <Button
+            type="submit"
+            variant="primary"
+            busy={submitting}
+            disabled={sources.length === 0 || !sourceId || !recipientId || !validDestination}
+            aria-describedby={proposalDisabledReason ? "tf-submit-help" : undefined}
+            className="w-full sm:w-auto"
+          >
+            Create transfer proposal
           </Button>
+          {proposalDisabledReason && (
+            <p id="tf-submit-help" className="text-xs text-zinc-500 dark:text-zinc-400">
+              {proposalDisabledReason}
+            </p>
+          )}
         </form>
       )}
     </Card>

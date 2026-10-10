@@ -42,6 +42,17 @@ describe("assistant boundary", () => {
     }
   });
 
+  it("treats inherited object property names as unknown tools", () => {
+    const db = freshDb();
+    const ctx = { db, userId: "alice" as const, proposedActionIds: [] };
+    for (const name of ["toString", "constructor", "__proto__"]) {
+      const out = runTool(ctx, name, {});
+      expect(out.isError).toBe(true);
+      expect(JSON.parse(out.content)).toEqual({ error: `Unknown tool ${name}` });
+      expect(out.trace).toMatchObject({ tool: name, ok: false, summary: "Unknown tool" });
+    }
+  });
+
   it("returns research text wrapped and labeled as untrusted", () => {
     const db = freshDb();
     const out = runTool({ db, userId: "alice", proposedActionIds: [] }, "get_research_document",

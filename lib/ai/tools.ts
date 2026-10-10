@@ -193,7 +193,7 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
     return { content: JSON.stringify(result), isError: !ok, trace: { tool: name, input, ok, summary } };
   };
 
-  if (!(name in Inputs)) return finish(false, { error: `Unknown tool ${name}` }, "Unknown tool");
+  if (!Object.hasOwn(Inputs, name)) return finish(false, { error: `Unknown tool ${name}` }, "Unknown tool");
   const parsed = Inputs[name as ToolName].safeParse(input);
   if (!parsed.success) {
     return finish(false, { error: "Invalid input", issues: parsed.error.issues }, "Rejected: invalid input");

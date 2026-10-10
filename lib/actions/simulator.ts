@@ -95,13 +95,18 @@ export function executeTransfer(db: DB, userId: UserId, actionId: string): Execu
       if (debited.changes !== 1) throw new Error("Insufficient available balance at execution");
 
       const groupId = ownDestination ? `tg_${actionId}` : null;
+      // Reporting only: internal moves stay transfers; rent goes to housing.
+      // Unrecognized external payments count as other spending, not transfers.
+      const debitCategory = ownDestination ? "transfer"
+        : /\b(landlord|rent)\b/i.test(`${recipient.displayName} ${row.memo}`) ? "housing"
+        : "other";
       const insertTx = db.prepare(
         `INSERT INTO transactions (id, account_id, user_id, posted_at, description, merchant, category,
            amount_cents, transfer_group_id, action_id)
-         VALUES (?, ?, ?, ?, ?, ?, 'transfer', ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       insertTx.run(`tx_${actionId}_out`, source.id, userId, now, `Transfer to ${receipt.destination}`,
-        ownDestination ? null : recipient.displayName, -amount, groupId, actionId);
+        ownDestination ? null : recipient.displayName, debitCategory, -amount, groupId, actionId);
 
       if (ownDestination) {
         db.prepare(
@@ -109,7 +114,7 @@ export function executeTransfer(db: DB, userId: UserId, actionId: string): Execu
            WHERE id = ? AND user_id = ?`,
         ).run(amount, amount, now, ownDestination.id, userId);
         insertTx.run(`tx_${actionId}_in`, ownDestination.id, userId, now,
-          `Transfer from ${source.name} ••${source.mask}`, null, amount, groupId, actionId);
+          `Transfer from ${source.name} ••${source.mask}`, null, "transfer", amount, groupId, actionId);
       }
 
       writeAudit(db, { userId, actor, eventType: "action.executed", actionId,
