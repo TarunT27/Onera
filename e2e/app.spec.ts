@@ -24,7 +24,7 @@ async function createRent(page: Page) {
     .selectOption("rcp_alice_landlord");
   await page.getByLabel("Amount", { exact: false }).fill("1850");
   await page
-    .getByRole("button", { name: "Propose transfer", exact: true })
+    .getByRole("button", { name: "Create transfer proposal", exact: true })
     .click();
   await expect(page).toHaveURL(/id=/);
 }
@@ -57,6 +57,7 @@ test("all navigation, overview links, evidence and responsive layout", async ({
   for (const [label, heading] of <[string, string | RegExp][]>[
     ["Transfers", "Transfers"],
     ["Assistant", "Ask ClearFi"],
+    ["Trade", "Trade"],
     ["Controls", "Control"],
     ["Accounts", "Your accounts"],
     ["Overview", /^Good (morning|afternoon|evening), Alice\.$/],
@@ -79,7 +80,7 @@ test("all navigation, overview links, evidence and responsive layout", async ({
   }
   await page.getByRole("link", { name: "New transfer", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Propose transfer" }),
+    page.getByRole("button", { name: "Create transfer proposal" }),
   ).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -245,12 +246,12 @@ test("edit invalidates approval; paused controls stop execution; limits save", a
     .getByLabel("To", { exact: true })
     .selectOption("rcp_alice_savings");
   await page.getByLabel("Amount", { exact: false }).fill("25");
-  await page.getByRole("button", { name: "Propose transfer" }).click();
+  await page.getByRole("button", { name: "Create transfer proposal" }).click();
   await expect(page).toHaveURL(/id=/);
   await page.getByRole("button", { name: "Approve transfer", exact: true }).click();
   await page.getByRole("button", { name: "Edit amount" }).click();
   await page.getByLabel("New amount in dollars").fill("30");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save new amount", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Approve transfer", exact: true }),
   ).toBeEnabled();
@@ -457,13 +458,14 @@ test("paper account is labeled, excluded from net worth and read-only", async ({
   await expect(
     page.getByRole("heading", { name: "Paper Portfolio" }),
   ).toBeVisible();
-  const detail = page.locator("#account-detail");
+  // Opening an account shows its full detail page (no list preview region).
+  const detail = page.locator("main");
   await expect(
     detail.getByText("Paper · simulated money, not in net worth"),
   ).toBeVisible();
   await expect(
     detail.getByText(
-      /Paper trading available via API — no trading UI in this demo/,
+      /Trade it on the Trade page/,
     ),
   ).toBeVisible();
   await expect(
@@ -475,10 +477,43 @@ test("paper account is labeled, excluded from net worth and read-only", async ({
   await expect(
     detail.getByRole("button", { name: /buy|sell|trade|order/i }),
   ).toHaveCount(0);
+  // Back on the accounts list, the paper row keeps its label too.
+  await page.getByRole("button", { name: "All accounts" }).click();
   await expect(
     page
       .getByRole("button", { name: /Paper Portfolio/ })
       .getByText("Paper · simulated money, not in net worth"),
   ).toBeVisible();
   await checkLayout(page);
+});
+
+test("trade page: propose, hold to approve and execute a paper order", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/trade");
+  await expect(page.getByRole("heading", { name: "Trade", exact: true })).toBeVisible();
+  await expect(page.getByText("Paper · simulated money, not in net worth").first()).toBeVisible();
+  await expect(page.getByText("Simulated prices — not real market data")).toBeVisible();
+  await page.getByRole("button", { name: /^VTI/ }).click();
+  await page.getByLabel("Amount (USD)").fill("50");
+  await page.getByRole("button", { name: "Propose buy" }).click();
+
+  const review = page.getByRole("region", { name: "Order review" });
+  await expect(review.getByText("Buy $50.00 of VTI")).toBeVisible();
+  await expect(review.getByText("Awaiting your approval")).toBeVisible();
+  // A tap is not an approval: it needs a deliberate press and hold.
+  const hold = review.getByRole("button", { name: /Hold to approve version 1/ });
+  await hold.click();
+  await expect(review.getByText("Awaiting your approval")).toBeVisible();
+  await hold.scrollIntoViewIfNeeded();
+  const box = (await hold.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(1500);
+  await page.mouse.up();
+  await review.getByRole("button", { name: "Execute paper order" }).click();
+  await expect(review.getByText("Executed · simulated fill")).toBeVisible();
+  await expect(review.getByText(/Paper money only, not counted in net worth/)).toBeVisible();
+  await checkLayout(page);
+  expect(errors).toEqual([]);
 });

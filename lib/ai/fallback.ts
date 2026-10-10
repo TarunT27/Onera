@@ -26,13 +26,22 @@ export function fallbackReply(
     /\b(?:please|can|could|would|will)\s+(?:you\s+)?(?:pay|send|transfer|move)\b/.test(question) ||
     /\b(?:i want|i'd like|i would like|help me)\s+(?:to\s+)?(?:pay|send|transfer|move)\b/.test(question);
 
+  const wantsTrade =
+    /^(?:please\s+)?(?:buy|sell)\b/.test(question.trim()) ||
+    /\b(?:please|can|could|would|will)\s+(?:you\s+)?(?:buy|sell)\b/.test(question) ||
+    /\b(?:i want|i'd like|i would like|help me)\s+(?:to\s+)?(?:buy|sell)\b/.test(question);
+
   if (existingProposalIds.length > 0) {
     lines.push(
       `${existingProposalIds.length === 1 ? "A transfer proposal was" : `${existingProposalIds.length} transfer proposals were`} created before the model became unavailable. Review ${existingProposalIds.length === 1 ? "it" : "them"} on the Transfers page before trying again.`,
     );
   }
 
-  if (wantsTransfer) {
+  if (wantsTrade) {
+    lines.push(
+      "The assistant model is unavailable, so I can't draft that paper order. You can place it yourself with the order ticket on the Trade page; the same policy checks and approval apply.",
+    );
+  } else if (wantsTransfer) {
     if (existingProposalIds.length === 0) {
       lines.push(
         "The assistant model is unavailable, so I can't draft that transfer for you. You can create it yourself on the Transfers page; the same policy checks and approval apply.",
@@ -70,6 +79,8 @@ export function fallbackReply(
     reply: lines.join("\n"),
     trace,
     proposedActionIds: existingProposalIds,
+    proposedOrderIds: [],
+    agent: request.agent ?? "general",
     notice: `${reason} Showing a deterministic summary instead of a model answer.`,
   };
 }

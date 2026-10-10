@@ -72,7 +72,7 @@ export function AccountPanel({ account, preview, holding, rates, connection, que
             <p className="account-capability">
               {account.capabilities.includes("transfer_source") ? "Eligible for simulated transfers" : "View only · cannot send transfers"}
             </p>
-            {account.paper && <div className="mt-3 space-y-2"><PaperLabel /><p className="account-capability">Paper trading available via API — no trading UI in this demo. Orders here use simulated prices and never touch your bank balances.</p></div>}
+            {account.paper && <div className="mt-3 space-y-2"><PaperLabel /><p className="account-capability">Trade it on the <Link href="/trade" className="quiet-link">Trade page</Link>. Orders use simulated prices, wait for your approval and never touch your bank balances.</p></div>}
             {account.capabilities.includes("transfer_source") && (
               <Link href={`/transfers?source=${encodeURIComponent(account.id)}`} className="quiet-link mt-3">Transfer from this account<ArrowUpRight size={16} aria-hidden /></Link>
             )}
