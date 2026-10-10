@@ -16,7 +16,12 @@ export function fallbackReply(db: DB, userId: UserId, request: ChatRequest, reas
   const lines: string[] = [];
 
   const wantsTransfer = /\b(pay|send|transfer|move)\b/.test(question);
-  if (wantsTransfer) {
+  const wantsTrade = /\b(buy|sell|order|trade)\b/.test(question);
+  if (wantsTrade) {
+    lines.push(
+      "The assistant model is unavailable, so I can't draft that order. You can place a paper order yourself with the order ticket on the Trade page; the same policy checks and approval apply.",
+    );
+  } else if (wantsTransfer) {
     lines.push(
       "The assistant model is unavailable, so I can't draft that transfer for you. You can create it yourself on the Transfers page; the same policy checks and approval apply.",
     );
@@ -52,6 +57,8 @@ export function fallbackReply(db: DB, userId: UserId, request: ChatRequest, reas
     reply: lines.join("\n"),
     trace,
     proposedActionIds: [],
+    proposedOrderIds: [],
+    agent: request.agent ?? "general",
     notice: `${reason} Showing a deterministic summary instead of a model answer.`,
   };
 }
