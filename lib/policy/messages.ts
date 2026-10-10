@@ -17,7 +17,7 @@ export const HOLD_MESSAGES: Record<HoldReason, HoldMessage> = {
   RECIPIENT_CHANGED: {
     label: "Recipient details changed",
     explanation: "The destination's bank details differ from the version you last verified.",
-    recovery: "Confirm the new details through a channel you already trust, verify the recipient, then re-evaluate.",
+    recovery: "Confirm the new details through a channel you already trust and verify the recipient. Then re-evaluate — or, if the details changed after you created this transfer, edit it to re-select the recipient.",
   },
   RECIPIENT_UNVERIFIED: {
     label: "Recipient not verified",
