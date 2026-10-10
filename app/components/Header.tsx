@@ -10,8 +10,10 @@ import {
   Bank,
   ArrowCounterClockwise,
 } from "@phosphor-icons/react";
-import { clearfi, errorMessage, type SessionResponse } from "./api";
+import { clearfi, errorMessage } from "./api";
+import { useSession } from "./SessionContext";
 import { LogoMark } from "./Logo";
+import { DemoUserMenu } from "./DemoUserMenu";
 import type { UserId } from "@/lib/types";
 
 const navigation = [
@@ -68,7 +70,7 @@ function useLiquidLens(activeHref: string | null) {
           },
           { transform: `translateX(${x}px) scale(1, 1)` },
         ],
-        { duration: 560 + hops * 40, easing: "cubic-bezier(0.32, 0.72, 0, 1)" },
+        { duration: 340 + hops * 20, easing: "cubic-bezier(0.32, 0.72, 0, 1)" },
       );
     };
     place(true);
@@ -84,9 +86,16 @@ function useLiquidLens(activeHref: string | null) {
 
 export function Header() {
   const pathname = usePathname();
-  const [session, setSession] = useState<SessionResponse | null>(null);
+  const { data: session, error: sessionError } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const update = () => setScrolled(window.scrollY > 24);
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, [pathname]);
   // Move the lens on tap, before the next route finishes loading.
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   useEffect(() => setPendingHref(null), [pathname]);
@@ -97,11 +106,8 @@ export function Header() {
   const { navRef, lensRef } = useLiquidLens(activeHref);
 
   useEffect(() => {
-    clearfi
-      .getSession()
-      .then(setSession)
-      .catch((e) => setError(errorMessage(e)));
-  }, []);
+    if (sessionError) setError(errorMessage(sessionError));
+  }, [sessionError]);
   async function changeUser(id: UserId) {
     setBusy(true);
     try {
@@ -135,7 +141,7 @@ export function Header() {
       <a href="#main-content" className="skip-link">
         Skip to content
       </a>
-      <header className="topbar">
+      <header className="topbar" data-scrolled={scrolled ? "true" : undefined}>
         <Link className="wordmark" href="/" aria-label="ClearFi home">
           <LogoMark />
           <span>ClearFi</span>
@@ -174,22 +180,7 @@ export function Header() {
                 .map((n) => n[0])
                 .join("") ?? "…"}
             </span>
-            <label className="sr-only" htmlFor="demo-user">
-              Demo user
-            </label>
-            <select
-              id="demo-user"
-              value={session?.user.id ?? ""}
-              disabled={!session || busy}
-              onChange={(e) => changeUser(e.target.value as UserId)}
-            >
-              {!session && <option value="">Loading…</option>}
-              {session?.users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-            </select>
+            <DemoUserMenu session={session} busy={busy} onChange={changeUser} />
             <button
               className="icon-btn"
               onClick={reset}

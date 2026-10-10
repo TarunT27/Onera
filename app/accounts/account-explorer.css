@@ -1,0 +1,59 @@
+/* Additive account interactions; reuse the team's glass, type and azure tokens. */
+.account-list-hint { color: var(--text-2); font-size: 12px; line-height: 1.6; margin-bottom: 14px; }
+.account-hint-mobile { display: none; }
+.currency-value { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.currency-equivalent { color: var(--text-2); font-size: 11px; font-weight: 400; line-height: 1.5; }
+.account-panel-column { position: sticky; top: 94px; min-width: 0; height: min(720px, calc(100dvh - 118px)); scroll-margin-top: 94px; }
+.account-panel-column > .account-panel { height: 100%; max-height: 100%; }
+.account-panel { max-height: calc(100dvh - 118px); overflow-y: auto; scrollbar-width: thin; }
+.account-detail-page { min-width: 0; }
+.account-back { margin-bottom: 14px; }
+.account-detail-intro h1 { scroll-margin-top: 100px; white-space: normal; overflow-wrap: anywhere; }
+#account-heading:focus { outline: none; }
+.account-disclaimer { color: var(--text-2); font-size: 12px; line-height: 1.7; margin-bottom: 20px; }
+.account-activity-search { margin-bottom: 24px; max-width: 480px; }
+.account-full-view { max-height: none; overflow: visible; background: none; box-shadow: none; }
+.account-full-view::before { display: none; }
+.account-full-view > .account-full-layout { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.25fr); align-items: start; gap: 36px; padding: 0; }
+.account-full-layout .account-activity-content { min-width: 0; padding-left: 28px; border-left: 1px solid var(--hairline); }
+.account-pane-kicker { color: var(--azure-mist); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.account-history-note { color: var(--text-2); font-size: 12px; line-height: 1.6; margin-bottom: 12px; }
+.account-preview-note { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--hairline); }
+.account-preview-note > div > p:last-child { margin-top: 6px; color: var(--text-2); font-size: 12px; }
+.account-balance-card { padding: 20px; border-radius: var(--r-md); background: var(--fill-1); box-shadow: 0 0 0 1px var(--hairline) inset; }
+.account-detail-balance { margin: 12px 0; font-size: 32px; letter-spacing: -.03em; }
+.account-detail-balance .currency-value { align-items: flex-start; }
+.account-detail-balance .currency-equivalent { font-size: 12px; letter-spacing: normal; }
+.account-capability { color: var(--text-2); font-size: 12px; line-height: 1.7; }
+.account-facts { margin: 16px 0; font-size: 12px; }
+.account-facts dl > div { display: flex; justify-content: space-between; align-items: start; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+.account-facts dt { color: var(--text-2); flex-shrink: 0; }
+.account-facts dd { text-align: right; overflow-wrap: anywhere; }
+.account-facts > p { margin-top: 12px; color: var(--text-2); line-height: 1.7; }
+.account-holdings { margin: 24px 0; }
+.account-holdings h3, .account-activity-heading { font-size: 15px; font-weight: 600; }
+.account-holdings > p { margin: 8px 0 12px; color: var(--text-2); font-size: 12px; line-height: 1.6; }
+.account-holdings li, .account-holdings-total { display: flex; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--hairline); font-size: 13px; }
+.account-holdings li small { display: block; margin-top: 4px; color: var(--text-2); font-size: 11px; }
+.account-holdings-total { border: 0; margin-top: 6px; }
+.account-activity-heading { margin-bottom: 8px; }
+.account-transactions > li { padding: 12px 0; border-bottom: 1px solid var(--hairline); font-size: 13px; }
+.transaction-line { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
+.transaction-meta { color: var(--text-2); font-size: 11px; line-height: 1.7; margin-top: 5px; }
+.transaction-details summary { min-height: 44px; padding: 2px 0; }
+.transaction-details[open] summary { color: var(--azure-mist); }
+.transaction-entry-value { display: flex; align-items: center; gap: 10px; }
+.transaction-entry-value > svg { flex-shrink: 0; color: var(--azure-light); }
+.transaction-details[open] .transaction-entry-value > svg { transform: rotate(180deg); }
+.transaction-details[open] > p { padding: 12px 0 4px; color: var(--text-2); font-size: 12px; line-height: 1.7; }
+.transaction-details a { display: inline-flex; align-items: center; min-height: 44px; color: var(--azure-mist); text-decoration: underline; }
+@media (max-width: 1000px) {
+  .account-directory .account-workspace { grid-template-columns: minmax(0, 1fr); }
+  .account-panel-column { position: static; height: auto; }
+  .account-panel-column > .account-panel { height: auto; max-height: none; }
+  .account-panel { max-height: none; overflow: visible; }
+  .account-full-view > .account-full-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .account-full-layout .account-activity-content { border-left: 0; border-top: 1px solid var(--hairline); padding: 24px 0 0; }
+  .account-hint-desktop { display: none; }
+  .account-hint-mobile { display: inline; }
+}

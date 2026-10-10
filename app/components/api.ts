@@ -14,6 +14,7 @@ import type {
   CreateTransferInput,
   EditTransferInput,
   ExecutionReceipt,
+  NetWorth,
   Recipient,
   RecipientStatus,
   SpendingSummary,
@@ -136,6 +137,8 @@ export interface SessionResponse {
 export interface AccountsResponse {
   accounts: Account[];
   netWorthCents: number;
+  /** Dated demo FX metadata already returned by the server. */
+  netWorth?: NetWorth;
   asOf: string;
 }
 export interface TransactionsResponse {

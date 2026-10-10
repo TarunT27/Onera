@@ -30,12 +30,12 @@ import {
   type ActionsResponse,
   type InsightsResponse,
   type TransactionsResponse,
-  type SessionResponse,
   type RecipientsResponse,
 } from "./components/api";
 import { ErrorBox } from "./components/ErrorBox";
 import { PaperLabel } from "./components/Badge";
 import { MonitoringPanel } from "./components/MonitoringPanel";
+import { useSession } from "./components/SessionContext";
 import { Loading } from "./components/Card";
 import { formatCents } from "@/lib/finance/money";
 import { useRouter } from "next/navigation";
@@ -95,7 +95,7 @@ export default function OverviewPage() {
   const txns = useApiData<TransactionsResponse>(
     paths.transactions({ limit: 4 }),
   );
-  const session = useApiData<SessionResponse>(paths.session);
+  const session = useSession();
   const recipients = useApiData<RecipientsResponse>(paths.recipients);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -183,7 +183,9 @@ export default function OverviewPage() {
             : "Your money, in one place."}
         </p>
         <h1 suppressHydrationWarning>
-          {greeting()}, {session.data?.user.name.split(" ")[0] ?? "there"}.
+          {session.data ? `${greeting()}, ${session.data.user.name.split(" ")[0]}.`
+            : session.error ? "Your overview."
+            : <><span className="greeting-placeholder" aria-hidden /><span className="sr-only">Loading your overview</span></>}
         </h1>
       </div>
       <ErrorBox error={error} />

@@ -108,6 +108,7 @@ test("accounts search, currency, holdings and preselected transfer source", asyn
   await expect(
     page.getByRole("listitem").filter({ hasText: "VTI" }).first(),
   ).toBeVisible();
+  await page.getByRole("button", { name: "All accounts", exact: true }).click();
   await page.getByLabel("Account type").selectOption("all");
   await page.getByRole("button", { name: /High-Yield Savings/ }).click();
   await page.getByRole("link", { name: "Transfer from this account" }).click();
@@ -270,8 +271,9 @@ test("assistant fallback is labeled and demo-user switch clears history", async 
       exact: true,
     }),
   ).toBeVisible();
-  await page.getByLabel("Demo user").selectOption("bob");
-  await expect(page.getByLabel("Demo user")).toHaveValue("bob");
+  await page.getByRole("button", { name: /^Demo user:/ }).click();
+  await page.getByRole("menuitemradio", { name: "Bob Okafor" }).click();
+  await expect(page.getByRole("button", { name: "Demo user: Bob Okafor" })).toBeVisible();
   await expect(
     page.getByText("Fallback — model unavailable, deterministic summary", {
       exact: true,
