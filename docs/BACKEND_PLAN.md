@@ -1,4 +1,4 @@
-# ClearFi backend plan
+# Onera backend plan
 
 How the backend grows from the transfer-governance MVP to the full idea (multi-bank hub, investments, AI research, async monitoring agents, AI governance) without destabilizing the demo.
 

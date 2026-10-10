@@ -1,4 +1,4 @@
-# ClearFi API contract
+# Onera API contract
 
 All routes live under `app/api/` and return JSON. Types are defined in [`lib/types.ts`](../lib/types.ts) — import them instead of redefining shapes.
 

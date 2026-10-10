@@ -243,7 +243,7 @@ describe("internal transfers between the user's own accounts", () => {
     expect(cardpay.size).toBeGreaterThan(0);
     for (const legs of cardpay.values()) expectPairedLegs(legs, [tdChecking, "acct_alice_td_card"]);
 
-    // Cross-institution: TD checking debit + Chase card credit (2-day lag), matched by ClearFi.
+    // Cross-institution: TD checking debit + Chase card credit (2-day lag), matched by Onera.
     const xpay = groups(
       db,
       "alice",

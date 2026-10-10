@@ -73,7 +73,7 @@ export interface SeedData {
   controls: SeedControls[];
 }
 
-const DEMO_BANK = "ClearFi Demo Bank";
+const DEMO_BANK = "Onera Demo Bank";
 
 export function buildSeedData(asOf: Date): SeedData {
   // Keep the latest subscription charge inside the current calendar month.
@@ -120,7 +120,7 @@ export function buildSeedData(asOf: Date): SeedData {
       // Paper trading account: the only place orders can execute. Excluded from net worth.
       id: "acct_alice_paper",
       userId: "alice",
-      institution: "ClearFi Paper Trading (simulated)",
+      institution: "Onera Paper Trading (simulated)",
       name: "Paper Portfolio",
       type: "brokerage",
       mask: "0001",
@@ -151,7 +151,7 @@ export function buildSeedData(asOf: Date): SeedData {
     {
       id: "acct_bob_paper",
       userId: "bob",
-      institution: "ClearFi Paper Trading (simulated)",
+      institution: "Onera Paper Trading (simulated)",
       name: "Paper Portfolio",
       type: "brokerage",
       mask: "0002",

@@ -1,4 +1,4 @@
-# ClearFi implementation QA
+# Onera implementation QA
 
 October 10, 2026
 
@@ -9,7 +9,7 @@ final result: passed
 No actionable P0/P1/P2 findings remain in the reviewed implementation. This is acceptance of the implemented demo scope, not production banking certification.
 
 - **P3 — Decorative texture variation.** The generated azure wave is more luminous and textured than the reference. It preserves the selected art direction, crop and readable dark text area. Optional future refinement: soften the highlight in the source asset, retaining the existing card dimensions.
-- **P3 — Final identity pending.** The user requested a later logo revision. The implementation deliberately uses a simple ClearFi wordmark pending that decision.
+- **P3 — Final identity (resolved).** The project is now Onera. The header, favicon and Apple touch icon use the supplied Onera logo (`public/brand/`, `app/icon.png`, `app/apple-icon.png`).
 
 ## Comparison evidence
 

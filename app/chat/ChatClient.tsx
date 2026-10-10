@@ -140,7 +140,7 @@ export function ChatClient() {
   return (
     <div>
       <PageHeader
-        title="Ask ClearFi"
+        title="Ask Onera"
         description="Ask about your synthetic accounts in plain English. The assistant can read your data and propose transfers — it cannot approve, execute, change limits or verify recipients."
         action={
           messages.length > 0 ? (
@@ -182,7 +182,7 @@ export function ChatClient() {
                   <li className="flex items-center gap-3 rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300">
                     <Spinner className="text-brand-600" />
                     <span>
-                      ClearFi is thinking and calling tools…{" "}
+                      Onera is thinking and calling tools…{" "}
                       <span aria-hidden className="tabular-nums text-zinc-400">
                         {elapsed}s
                       </span>
@@ -338,7 +338,7 @@ function AssistantMessage({ response }: { response: ChatResponse }) {
   return (
     <li className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">ClearFi</span>
+        <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Onera</span>
         {live ? (
           <Badge tone="green" title="Real model call">
             Live · {response.model ?? "model"}

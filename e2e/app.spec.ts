@@ -35,7 +35,7 @@ test("all navigation, overview links, evidence and responsive layout", async ({
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
-  await expect(page).toHaveTitle("ClearFi");
+  await expect(page).toHaveTitle("Onera");
   await expect(
     page.getByRole("heading", {
       name: /^Good (morning|afternoon|evening), Alice\.$/,
@@ -56,7 +56,7 @@ test("all navigation, overview links, evidence and responsive layout", async ({
   ).toBeVisible();
   for (const [label, heading] of <[string, string | RegExp][]>[
     ["Transfers", "Transfers"],
-    ["Assistant", "Ask ClearFi"],
+    ["Assistant", "Ask Onera"],
     ["Trade", "Trade"],
     ["Controls", "Control"],
     ["Accounts", "Your accounts"],
@@ -193,7 +193,7 @@ test("held transfer verification, exact approval, execution and duplicate receip
   await createRent(page);
   const changed = HOLD_MESSAGES.RECIPIENT_CHANGED;
   const why = page.getByRole("region", {
-    name: "Why ClearFi held this transfer",
+    name: "Why Onera held this transfer",
   });
   await expect(why.getByText(changed.label, { exact: true })).toBeVisible();
   await expect(why.getByText(changed.explanation)).toBeVisible();
