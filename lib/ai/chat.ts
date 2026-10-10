@@ -25,9 +25,9 @@ const MAX_TURNS = 8;
 let client: Anthropic | null = null;
 const getClient = () => (client ??= new Anthropic());
 
-// Server-side refusal fallback is a beta. If an account rejects it, retry once
-// without it and remember that for the rest of the process.
-let serverFallbackEnabled = true;
+// Optional beta: ordinary requests must work without account-specific access.
+// If an opted-in account rejects it, retry once without it for this process.
+let serverFallbackEnabled = process.env.CLEARFI_SERVER_FALLBACK === "true";
 
 async function createMessage(messages: BetaMessageParam[], agent: AssistantAgent): Promise<BetaMessage> {
   const params = {
@@ -40,7 +40,6 @@ async function createMessage(messages: BetaMessageParam[], agent: AssistantAgent
     ],
     tools: TOOL_DEFINITIONS.filter((t) => agent.tools.includes(t.name)),
     messages,
-    output_config: { effort: "medium" as const },
   };
   if (!serverFallbackEnabled) return getClient().beta.messages.create(params);
   try {
@@ -61,18 +60,29 @@ async function createMessage(messages: BetaMessageParam[], agent: AssistantAgent
 }
 
 export async function runChat(db: DB, userId: UserId, request: ChatRequest): Promise<ChatResponse> {
+  const agent = assistantAgent(request.agent);
+  const lastUser = request.messages[request.messages.length - 1]?.content ?? "";
+  writeAudit(db, {
+    userId, actor: `user:${userId}`, eventType: "assistant.prompt",
+    detail: { text: lastUser.slice(0, 500), agent: agent.id },
+  });
+
   if (process.env.CLEARFI_AI_MODE === "fallback") {
-    return fallbackReply(db, userId, request, "Fallback mode is forced by CLEARFI_AI_MODE.");
+    const fallback = fallbackReply(db, userId, request, "Fallback mode is forced by CLEARFI_AI_MODE.");
+    writeAudit(db, {
+      userId,
+      actor: "assistant",
+      eventType: "assistant.reply",
+      detail: { mode: "fallback", reason: "forced", agent: agent.id, toolCalls: fallback.trace.length, proposedActionIds: [] },
+    });
+    return fallback;
   }
 
-  const agent = assistantAgent(request.agent);
   const ctx: ToolContext = {
     db, userId, proposedActionIds: [], proposedOrderIds: [], allowedTools: new Set(agent.tools),
   };
   const trace: ToolTraceEntry[] = [];
   const messages: BetaMessageParam[] = request.messages.map((m) => ({ role: m.role, content: m.content }));
-  const lastUser = request.messages[request.messages.length - 1]?.content ?? "";
-  writeAudit(db, { userId, actor: `user:${userId}`, eventType: "assistant.prompt", detail: { text: lastUser.slice(0, 500), agent: agent.id } });
 
   let response: BetaMessage | null = null;
   try {
@@ -107,12 +117,21 @@ export async function runChat(db: DB, userId: UserId, request: ChatRequest): Pro
       : null;
     if (!reason) throw err;
     console.warn("[clearfi] chat falling back:", err instanceof Error ? err.message : err);
-    const fallback = fallbackReply(db, userId, request, reason);
+    const fallback = fallbackReply(db, userId, request, reason, ctx.proposedActionIds);
     // Keep any real tool activity (e.g. a proposal) that happened before the failure.
-    return {
-      ...fallback, trace: [...trace, ...fallback.trace],
-      proposedActionIds: ctx.proposedActionIds, proposedOrderIds: ctx.proposedOrderIds ?? [],
+    const result = {
+      ...fallback, trace: [...trace, ...fallback.trace], proposedOrderIds: ctx.proposedOrderIds ?? [],
     };
+    writeAudit(db, {
+      userId,
+      actor: "assistant",
+      eventType: "assistant.reply",
+      detail: {
+        mode: "fallback", reason, agent: agent.id, toolCalls: result.trace.length,
+        proposedActionIds: result.proposedActionIds, proposedOrderIds: result.proposedOrderIds,
+      },
+    });
+    return result;
   }
 
   const text = (response?.content ?? [])

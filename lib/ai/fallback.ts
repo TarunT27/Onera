@@ -10,21 +10,43 @@ import { spendingSummary } from "@/lib/finance/spending";
 import { detectSubscriptionIncreases } from "@/lib/finance/subscriptions";
 import type { ChatRequest, ChatResponse, ToolTraceEntry, UserId } from "@/lib/types";
 
-export function fallbackReply(db: DB, userId: UserId, request: ChatRequest, reason: string): ChatResponse {
+export function fallbackReply(
+  db: DB,
+  userId: UserId,
+  request: ChatRequest,
+  reason: string,
+  existingProposalIds: string[] = [],
+): ChatResponse {
   const question = (request.messages[request.messages.length - 1]?.content ?? "").toLowerCase();
   const trace: ToolTraceEntry[] = [];
   const lines: string[] = [];
 
-  const wantsTransfer = /\b(pay|send|transfer|move)\b/.test(question);
-  const wantsTrade = /\b(buy|sell|order|trade)\b/.test(question);
+  const wantsTransfer =
+    /^(?:please\s+)?(?:pay|send|transfer|move)\b/.test(question.trim()) ||
+    /\b(?:please|can|could|would|will)\s+(?:you\s+)?(?:pay|send|transfer|move)\b/.test(question) ||
+    /\b(?:i want|i'd like|i would like|help me)\s+(?:to\s+)?(?:pay|send|transfer|move)\b/.test(question);
+
+  const wantsTrade =
+    /^(?:please\s+)?(?:buy|sell)\b/.test(question.trim()) ||
+    /\b(?:please|can|could|would|will)\s+(?:you\s+)?(?:buy|sell)\b/.test(question) ||
+    /\b(?:i want|i'd like|i would like|help me)\s+(?:to\s+)?(?:buy|sell)\b/.test(question);
+
+  if (existingProposalIds.length > 0) {
+    lines.push(
+      `${existingProposalIds.length === 1 ? "A transfer proposal was" : `${existingProposalIds.length} transfer proposals were`} created before the model became unavailable. Review ${existingProposalIds.length === 1 ? "it" : "them"} on the Transfers page before trying again.`,
+    );
+  }
+
   if (wantsTrade) {
     lines.push(
-      "The assistant model is unavailable, so I can't draft that order. You can place a paper order yourself with the order ticket on the Trade page; the same policy checks and approval apply.",
+      "The assistant model is unavailable, so I can't draft that paper order. You can place it yourself with the order ticket on the Trade page; the same policy checks and approval apply.",
     );
   } else if (wantsTransfer) {
-    lines.push(
-      "The assistant model is unavailable, so I can't draft that transfer for you. You can create it yourself on the Transfers page; the same policy checks and approval apply.",
-    );
+    if (existingProposalIds.length === 0) {
+      lines.push(
+        "The assistant model is unavailable, so I can't draft that transfer for you. You can create it yourself on the Transfers page; the same policy checks and approval apply.",
+      );
+    }
   } else {
     const spending = spendingSummary(db, userId);
     trace.push({ tool: "get_spending_summary", input: {}, ok: true, summary: `Spending ${spending.month}` });
@@ -56,7 +78,7 @@ export function fallbackReply(db: DB, userId: UserId, request: ChatRequest, reas
     model: null,
     reply: lines.join("\n"),
     trace,
-    proposedActionIds: [],
+    proposedActionIds: existingProposalIds,
     proposedOrderIds: [],
     agent: request.agent ?? "general",
     notice: `${reason} Showing a deterministic summary instead of a model answer.`,

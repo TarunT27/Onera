@@ -50,20 +50,24 @@ export function TransfersClient() {
     select(action.id);
   }
 
+  function closeDetail() {
+    if (selectedId) document.getElementById(`transfer-list-${selectedId}`)?.focus({ preventScroll: true });
+    select(null);
+  }
+
   const paused = controls.data?.controls.paused === true;
 
   return (
     <div>
       <PageHeader
         title="Transfers"
-        description="Every transfer is a proposal first. ClearFi checks it against your controls, you approve the exact version, and only then can it execute — as a simulation."
+        description="Review and approve every transfer. ClearFi checks your limits before sending. All transfers here are simulated."
       />
 
       {paused && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200">
           <span>
-            <strong>Execution is paused.</strong> No transfer can execute — including ones you already approved — until you
-            resume.
+            <strong>Transfers are paused.</strong> Even approved transfers can’t be sent until you resume.
           </span>
           <Link href="/control" className="font-medium underline underline-offset-2">
             Open Control
@@ -75,12 +79,12 @@ export function TransfersClient() {
         {/* Detail first in the DOM so it leads on phones; placed in the right column on desktop. */}
         <div className={`min-w-0 lg:col-span-7 lg:col-start-6 lg:row-start-1 ${selectedId ? "" : "hidden lg:block"}`}>
           {selectedId ? (
-            <ActionDetail key={selectedId} id={selectedId} onChanged={reloadAll} onClose={() => select(null)} />
+            <ActionDetail key={selectedId} id={selectedId} onChanged={reloadAll} onClose={closeDetail} />
           ) : (
             <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
               <div>
                 <p className="font-medium text-zinc-700 dark:text-zinc-300">Select a transfer to review</p>
-                <p className="mt-1">Policy checks, recipient changes, approval and the simulated receipt appear here.</p>
+                <p className="mt-1">Review the recipient, safety checks and demo receipt here.</p>
               </div>
             </div>
           )}
@@ -91,8 +95,12 @@ export function TransfersClient() {
             initialSourceId={searchParams.get("source") ?? undefined}
             accounts={accounts.data?.accounts ?? null}
             accountsError={accounts.error}
+            accountsLoading={accounts.loading}
             recipients={recipients.data?.recipients ?? null}
             recipientsError={recipients.error}
+            recipientsLoading={recipients.loading}
+            onRetryAccounts={() => void accounts.reload()}
+            onRetryRecipients={() => void recipients.reload()}
             onCreated={onCreated}
           />
           <ActionList

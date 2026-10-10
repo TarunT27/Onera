@@ -264,7 +264,7 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
     return { content: JSON.stringify(result), isError: !ok, trace: { tool: name, input, ok, summary } };
   };
 
-  if (!(name in Inputs)) return finish(false, { error: `Unknown tool ${name}` }, "Unknown tool");
+  if (!Object.hasOwn(Inputs, name)) return finish(false, { error: `Unknown tool ${name}` }, "Unknown tool");
   if (ctx.allowedTools && !ctx.allowedTools.has(name)) {
     return finish(false, { error: `Tool ${name} is not available to this agent` }, "Refused: not available to this agent");
   }

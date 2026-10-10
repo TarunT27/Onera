@@ -53,13 +53,18 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
   const [editValue, setEditValue] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const detailReady = detail.data !== null;
 
   useEffect(() => {
+    if (!detailReady) return;
+    headingRef.current?.focus({ preventScroll: true });
     // On phones the panel sits above the list; bring it into view when a transfer is selected.
     if (window.matchMedia("(max-width: 1023px)").matches) {
-      rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      rootRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
     }
-  }, []);
+  }, [detailReady]);
 
   async function run(op: string, fn: () => Promise<Notice | null>) {
     setBusy(op);
@@ -107,25 +112,26 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
   const state = action.state;
   const receipt: ExecutionReceipt | null = action.receipt ?? lastExecute?.receipt ?? null;
   const recipientNeedsVerify = recipient.status !== "verified" && state !== "EXECUTED";
-  const anyBusy = busy !== null;
+  const anyBusy = busy !== null || detail.error !== null;
 
   const approve = () =>
     run("approve", async () => {
       const { action: a } = await clearfi.approveAction(action.id, action.version);
-      return { tone: "success", text: `Approved v${a.approvedVersion ?? action.version}. The approval is bound to this exact transfer.` };
+      if (detail.data) detail.setData({ ...detail.data, action: a });
+      return { tone: "success", text: "Transfer approved. Any changes will need your approval again." };
     });
 
   const execute = (op: "execute" | "forceExecute") =>
     run(op, async () => {
       const res = await clearfi.executeAction(action.id);
       setLastExecute(res);
+      if (detail.data) detail.setData({ ...detail.data, action: res.action });
       if (res.duplicate) {
         return {
           tone: "info",
           text: (
             <>
-              <strong>Already executed — same receipt returned, no second transfer.</strong> Receipt{" "}
-              <code className="font-mono text-xs break-all">{res.receipt.receiptId}</code>
+              <strong>No second transfer was made.</strong> This transfer is already complete.
             </>
           ),
         };
@@ -134,7 +140,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
         tone: op === "forceExecute" ? "warning" : "success",
         text: (
           <>
-            Executed (simulated). Receipt <code className="font-mono text-xs break-all">{res.receipt.receiptId}</code>
+            Transfer complete. This was a simulation; no real money moved.
           </>
         ),
       };
@@ -142,25 +148,27 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
 
   const verify = () =>
     run("verify", async () => {
-      await clearfi.verifyRecipient(recipient.id);
+      const { recipient: nextRecipient } = await clearfi.verifyRecipient(recipient.id);
+      if (detail.data) detail.setData({ ...detail.data, recipient: nextRecipient });
       setJustVerified(true);
       return {
         tone: "info",
-        text: "Recipient verified (simulated out-of-band check). Now re-evaluate so policy runs again on this transfer.",
+        text: "Recipient verified for this demo. Check the transfer again to continue.",
       };
     });
 
   const evaluate = () =>
     run("evaluate", async () => {
       const { action: a } = await clearfi.evaluateAction(action.id);
+      if (detail.data) detail.setData({ ...detail.data, action: a });
       setJustVerified(false);
       return {
         tone: a.state === "HELD" ? "warning" : "success",
         text:
           a.state === "HELD"
-            ? `Re-evaluated: still held (${a.holdReasons.map(holdReasonLabel).join(", ") || "see checks"}).`
+            ? `Transfer still on hold: ${a.holdReasons.map(holdReasonLabel).join(", ") || "see the checks below"}.`
             : a.state === "AWAITING_APPROVAL"
-              ? "Re-evaluated: all checks pass. Ready for your approval."
+              ? "All checks passed. Ready for your approval."
               : `Re-evaluated: ${a.state}.`,
       };
     });
@@ -181,44 +189,57 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
     setEditError(null);
     void run("edit", async () => {
       const { action: a } = await clearfi.editAction(action.id, { amountCents: parsed.cents });
+      if (detail.data) detail.setData({ ...detail.data, action: a });
       setEditing(false);
       return {
         tone: "warning",
-        text: `Amount changed — now v${a.version}. Any previous approval was discarded and policy re-ran (${a.state}).`,
+        text: `Amount updated. Previous approval was cleared and safety checks ran again.${a.state === "HELD" ? " Review the hold reasons below." : ""}`,
       };
     });
   }
 
   return (
     <div ref={rootRef} className="min-w-0 scroll-mt-24 space-y-4">
+      {detail.error !== null && (
+        <ErrorBox
+          error={detail.error}
+          title="Couldn't refresh this transfer. Actions are disabled until its current state reloads."
+          onRetry={() => void detail.reload()}
+        />
+      )}
       <Card>
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-              Transfer proposal · <span className="tabular-nums">v{action.version}</span>
-            </p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight">
-              <Money cents={action.amountCents} />
-            </p>
-            <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
-              to <span className="font-medium text-zinc-900 dark:text-zinc-100">{recipient.displayName}</span> from{" "}
-              {sourceAccount.name} {mask(sourceAccount.mask)}
-            </p>
-            <code className="mt-1 block font-mono text-[11px] break-all text-zinc-400 dark:text-zinc-500">{action.id}</code>
-          </div>
-          <div className="flex shrink-0 flex-col items-end gap-2">
-            <ActionStateBadge state={state} />
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md px-1.5 text-lg leading-none text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-              aria-label="Close transfer details"
-            >
-              ×
-            </button>
-          </div>
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="text-xs font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400"
+          >
+            Transfer proposal
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid size-11 shrink-0 place-items-center rounded-lg text-xl leading-none text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 sm:size-8 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            aria-label="Close transfer details"
+          >
+            ×
+          </button>
         </div>
+
+        <div className={`mt-3 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-sm ${stateCalloutTone(state)}`}>
+          <ActionStateBadge state={state} />
+          <p className="min-w-0 text-pretty">{stateSummary(action, recipient)}</p>
+        </div>
+
+        <p className="mt-4 text-3xl font-semibold tracking-tight tabular-nums">
+          <Money cents={action.amountCents} /> <span className="text-sm font-medium tracking-normal text-zinc-500 dark:text-zinc-400">USD</span>
+        </p>
+        <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+          to <span className="font-medium text-zinc-900 dark:text-zinc-100">{recipient.displayName}</span> from {sourceAccount.name}{" "}
+          {mask(sourceAccount.mask)}
+        </p>
+        <code className="mt-1 block font-mono text-[11px] break-all text-zinc-400 dark:text-zinc-500">{action.id}</code>
 
         <Stepper state={state} />
 
@@ -281,15 +302,16 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
                     <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-sm text-zinc-500">$</span>
                     <input
                       aria-label="New amount in dollars"
+                      name="amount"
                       className={`${inputClass} py-1.5 pl-6 tabular-nums`}
                       inputMode="decimal"
-                      autoFocus
+                      autoComplete="off"
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                     />
                   </div>
                   <Button size="sm" type="submit" variant="primary" busy={busy === "edit"} disabled={anyBusy}>
-                    Save
+                    Save new amount
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={anyBusy}>
                     Cancel
@@ -297,7 +319,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
                 </div>
                 {editError && <p className="text-xs text-red-700 dark:text-red-400">{editError}</p>}
                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                  Saving creates v{action.version + 1}. Edits invalidate any approval and policy re-runs.
+                  Changing the amount clears your approval and runs the safety checks again.
                 </p>
               </form>
             ) : (
@@ -328,7 +350,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
           <Field label="Approval">
             {action.hasApproval ? (
               <p>
-                Approved <span className="tabular-nums">v{action.approvedVersion}</span>{" "}
+                Approved{" "}
                 <span className="text-zinc-500 dark:text-zinc-400">· {formatDateTime(action.approvedAt)}</span>
               </p>
             ) : (
@@ -381,17 +403,17 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
           <div className="flex flex-wrap gap-2">
             {state === "AWAITING_APPROVAL" && (
               <Button variant="primary" busy={busy === "approve"} disabled={anyBusy} onClick={() => void approve()}>
-                Approve exact transfer (v{action.version})
+                Approve transfer
               </Button>
             )}
             {state === "APPROVED" && (
               <Button variant="primary" busy={busy === "execute"} disabled={anyBusy} onClick={() => void execute("execute")}>
-                Execute (simulated)
+                Send demo transfer
               </Button>
             )}
             {state === "EXECUTED" && (
               <Button variant="secondary" busy={busy === "execute"} disabled={anyBusy} onClick={() => void execute("execute")}>
-                Execute again (duplicate check)
+                Check receipt
               </Button>
             )}
             {(state === "HELD" || state === "PROPOSED" || justVerified) && state !== "EXECUTED" && (
@@ -401,7 +423,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
                 disabled={anyBusy}
                 onClick={() => void evaluate()}
               >
-                Re-evaluate
+                Check again
               </Button>
             )}
             {(state === "HELD" || state === "AWAITING_APPROVAL") && (
@@ -430,6 +452,14 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
         </div>
 
         {receipt && <ReceiptView receipt={receipt} />}
+        <details className="mt-4 text-xs text-zinc-400">
+          <summary className="cursor-pointer py-2">Transfer reference details</summary>
+          <dl className="mt-2 grid gap-3 sm:grid-cols-2">
+            <Field label="Transfer reference"><code className="break-all">{action.id}</code></Field>
+            <Field label="Version">{action.version}</Field>
+            <Field label="Approved version">{action.approvedVersion ?? "Not approved"}</Field>
+          </dl>
+        </details>
       </Card>
 
       <PolicyCard action={action} />
@@ -448,7 +478,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
           <Loading />
         ) : audit.data && audit.data.events.length > 0 ? (
           <AuditList events={audit.data.events.slice(0, 10)} showActionLink={false} />
-        ) : (
+        ) : audit.error ? null : (
           <EmptyState>No audit events yet.</EmptyState>
         )}
         <p className="mt-3 text-xs">
@@ -463,20 +493,53 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
 
 // ---------------------------------------------------------------------------
 
+function stateCalloutTone(state: ActionState): string {
+  if (state === "HELD" || state === "FAILED") {
+    return "border-red-200 bg-red-50 text-red-950 dark:border-red-900 dark:bg-red-950/40 dark:text-red-100";
+  }
+  if (state === "AWAITING_APPROVAL") {
+    return "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100";
+  }
+  if (state === "EXECUTED") {
+    return "border-green-200 bg-green-50 text-green-950 dark:border-green-900 dark:bg-green-950/40 dark:text-green-100";
+  }
+  return "border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100";
+}
+
+function stateSummary(action: TransferAction, recipient: RecipientWithStatus): string {
+  switch (action.state) {
+    case "HELD":
+      return recipient.status !== "verified"
+        ? "Transfer held. Verify the recipient through a trusted channel, then re-evaluate the policy."
+        : "Transfer held. Resolve the policy reasons below, then re-evaluate the transfer.";
+    case "AWAITING_APPROVAL":
+      return `Policy checks passed. Review this exact version before approving v${action.version}.`;
+    case "APPROVED":
+      return `Version ${action.approvedVersion ?? action.version} is approved. Execution still re-checks your controls.`;
+    case "EXECUTED":
+      return "The transfer executed as a simulation. The receipt and audit trail are recorded below.";
+    case "FAILED":
+      return "The simulated execution failed. No real funds moved; review the failure and audit details below.";
+    case "PROPOSED":
+    default:
+      return "This proposal is not yet evaluated. Run the policy checks before it can move to approval.";
+  }
+}
+
 function decisionHint(action: TransferAction, recipient: RecipientWithStatus): string {
   switch (action.state) {
     case "AWAITING_APPROVAL":
-      return `Approving binds to v${action.version}: this amount, this source account and this exact destination. Any edit invalidates it.`;
+      return "Your approval covers this amount and these accounts. Any changes need your approval again.";
     case "APPROVED":
-      return "Execution re-checks pause, limits and balance at the moment it runs. Money movement is simulated.";
+      return "We’ll check your limits and balance again before sending. No real money moves in this demo.";
     case "HELD":
       return recipient.status !== "verified"
-        ? "Held transfers can't be approved or executed. Verify the recipient, then re-evaluate."
-        : "Held transfers can't be approved or executed. Resolve the reasons above, then re-evaluate.";
+        ? "Verify the recipient, then check again. Transfers on hold can’t be sent."
+        : "Resolve the hold reasons above, then check again. This transfer can’t be sent yet.";
     case "EXECUTED":
-      return "Executing again tests idempotency: the server must return the same receipt instead of moving money twice.";
+      return "Checking again won’t send another transfer.";
     case "PROPOSED":
-      return "Not yet evaluated against your controls. Re-evaluate to run the policy checks.";
+      return "Check this transfer against your limits before approving it.";
     case "FAILED":
       return "The simulated transfer failed. No money moved.";
     default:
@@ -711,15 +774,14 @@ function PolicyCard({ action }: { action: TransferAction }) {
   const policy = action.policy;
   return (
     <Card
-      title="Policy checks"
+      title="Safety checks"
       subtitle={
         policy ? (
           <>
-            Decision{" "}
             <span className={`font-semibold ${policy.decision === "ALLOW" ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
-              {policy.decision}
+              {policy.decision === "ALLOW" ? "Checks passed" : "Needs attention"}
             </span>{" "}
-            · evaluated {formatDateTime(policy.evaluatedAt)}
+            · checked {formatDateTime(policy.evaluatedAt)}
           </>
         ) : (
           "Not evaluated yet"
@@ -727,13 +789,16 @@ function PolicyCard({ action }: { action: TransferAction }) {
       }
     >
       {!policy || policy.checks.length === 0 ? (
-        <EmptyState>No policy checks recorded for this version.</EmptyState>
+        <EmptyState>This transfer hasn’t been checked yet.</EmptyState>
       ) : (
+        <details open={policy.decision !== "ALLOW"}>
+          <summary className="cursor-pointer pb-3 text-sm">View safety checks</summary>
         <ul className="space-y-2">
           {policy.checks.map((c) => (
             <PolicyCheckRow key={c.id} check={c} />
           ))}
         </ul>
+        </details>
       )}
     </Card>
   );
@@ -779,33 +844,34 @@ function ReceiptView({ receipt }: { receipt: ExecutionReceipt }) {
   return (
     <div className="mt-5 rounded-2xl border border-green-200 bg-green-50/60 p-4 dark:border-green-900 dark:bg-green-950/30">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-semibold text-green-900 dark:text-green-200">✓ Receipt</p>
+        <p className="font-semibold text-green-900 dark:text-green-200">✓ Transfer complete</p>
         <div className="flex gap-1.5">
           <Badge tone="amber">Simulated</Badge>
           <SyntheticLabel />
         </div>
       </div>
       <dl className="mt-3 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-        <Field label="Receipt ID">
-          <code className="font-mono text-xs break-all">{receipt.receiptId}</code>
-        </Field>
-        <Field label="Executed at">{formatDateTime(receipt.executedAt, { full: true })}</Field>
+        <Field label="Sent on">{formatDateTime(receipt.executedAt, { full: true })}</Field>
         <Field label="Amount">
-          <Money cents={receipt.amountCents} className="font-medium" />
+          <Money cents={receipt.amountCents} className="font-medium" /> <span className="text-zinc-500">USD</span>
         </Field>
-        <Field label="Destination">{receipt.destination}</Field>
-        <Field label="Source balance after">
+        <Field label="To">{receipt.destination}</Field>
+        <Field label="From account balance after">
           <Money cents={receipt.sourceBalanceAfterCents} />
         </Field>
         {receipt.destinationBalanceAfterCents !== null && (
-          <Field label="Destination balance after">
+          <Field label="To account balance after">
             <Money cents={receipt.destinationBalanceAfterCents} />
           </Field>
         )}
       </dl>
       <p className="mt-3 text-xs text-green-900/70 dark:text-green-200/70">
-        Simulated settlement against synthetic balances. No real funds moved.
+        Demo transfer using synthetic balances. No real money moved.
       </p>
+      <details className="mt-3 text-xs text-green-200/70">
+        <summary className="cursor-pointer py-2">Receipt reference</summary>
+        <code className="block break-all py-2">{receipt.receiptId}</code>
+      </details>
     </div>
   );
 }
