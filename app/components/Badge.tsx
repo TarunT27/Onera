@@ -1,17 +1,19 @@
 import type { ReactNode } from "react";
 import type { AccountCapability, ActionCreator, ActionState, HoldReason, RecipientStatus } from "@/lib/types";
+// Pure data module: the single source of governance wording for hold reasons.
+import { HOLD_MESSAGES } from "@/lib/policy/messages";
 
 export type BadgeTone = "gray" | "red" | "amber" | "blue" | "indigo" | "green" | "brand" | "violet";
 
 const TONES: Record<BadgeTone, string> = {
-  gray: "bg-zinc-100 text-zinc-700 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700",
-  red: "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/60 dark:text-red-300 dark:ring-red-900",
-  amber: "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:ring-amber-900",
-  blue: "bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:ring-blue-900",
-  indigo: "bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:ring-indigo-900",
-  green: "bg-green-50 text-green-700 ring-green-200 dark:bg-green-950/60 dark:text-green-300 dark:ring-green-900",
-  brand: "bg-brand-50 text-brand-800 ring-brand-200 dark:bg-brand-950/60 dark:text-brand-300 dark:ring-brand-900",
-  violet: "bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-950/60 dark:text-violet-300 dark:ring-violet-900",
+  gray: "bg-white/[0.08] text-white/70",
+  red: "bg-red-400/15 text-red-200",
+  amber: "bg-amber-300/15 text-amber-200",
+  blue: "bg-sky-400/15 text-sky-200",
+  indigo: "bg-indigo-400/15 text-indigo-200",
+  green: "bg-emerald-400/15 text-emerald-200",
+  brand: "bg-brand-400/15 text-brand-200",
+  violet: "bg-violet-400/15 text-violet-200",
 };
 
 export function Badge({
@@ -28,7 +30,7 @@ export function Badge({
   return (
     <span
       title={title}
-      className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${TONES[tone]} ${className}`}
+      className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11.5px] font-medium ${TONES[tone]} ${className}`}
     >
       {children}
     </span>
@@ -38,8 +40,8 @@ export function Badge({
 const STATE_META: Record<ActionState, { tone: BadgeTone; label: string }> = {
   PROPOSED: { tone: "gray", label: "Proposed" },
   HELD: { tone: "red", label: "Held" },
-  AWAITING_APPROVAL: { tone: "blue", label: "Awaiting approval" },
-  APPROVED: { tone: "indigo", label: "Approved" },
+  AWAITING_APPROVAL: { tone: "amber", label: "Ready for approval" },
+  APPROVED: { tone: "blue", label: "Approved" },
   EXECUTED: { tone: "green", label: "Executed" },
   FAILED: { tone: "red", label: "Failed" },
 };
@@ -81,20 +83,30 @@ export function CreatorBadge({ createdBy }: { createdBy: ActionCreator }) {
   );
 }
 
-export const HOLD_REASON_LABELS: Record<HoldReason, string> = {
-  RECIPIENT_CHANGED: "Recipient details changed",
-  RECIPIENT_UNVERIFIED: "Recipient not verified",
-  LIMIT_EXCEEDED: "Over per-transfer limit",
-  DAILY_LIMIT_EXCEEDED: "Over daily limit",
-  INSUFFICIENT_FUNDS: "Insufficient funds",
-  PAUSED: "Execution paused",
-};
+/** Short chip label for a hold reason (wording lives in lib/policy/messages). */
+export function holdReasonLabel(reason: HoldReason): string {
+  return HOLD_MESSAGES[reason]?.label ?? reason;
+}
 
 export function HoldReasonChip({ reason }: { reason: HoldReason }) {
   return (
-    <Badge tone="amber" title={reason}>
-      {HOLD_REASON_LABELS[reason] ?? reason}
+    <Badge tone="amber" title={HOLD_MESSAGES[reason]?.explanation ?? reason}>
+      {holdReasonLabel(reason)}
     </Badge>
+  );
+}
+
+/** Paper-trading accounts hold simulated money and never count toward net worth. */
+export const PAPER_LABEL = "Paper · simulated money, not in net worth";
+
+export function PaperLabel({ className = "" }: { className?: string }) {
+  return (
+    <span
+      title="Paper trading account: simulated money, excluded from net worth"
+      className={`inline-flex max-w-full items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-medium ${TONES.violet} ${className}`}
+    >
+      {PAPER_LABEL}
+    </span>
   );
 }
 

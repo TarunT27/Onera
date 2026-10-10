@@ -24,7 +24,7 @@ export function ErrorBox({
   return (
     <div
       role="alert"
-      className={`min-w-0 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200 ${className}`}
+      className={`min-w-0 rounded-2xl bg-red-400/10 px-4 py-3 text-sm text-red-100 shadow-[inset_0_0_0_1px_rgb(248_113_113/0.2)] ${className}`}
     >
       <div className="flex items-start gap-3">
         <span aria-hidden className="mt-0.5 font-bold">
@@ -34,7 +34,7 @@ export function ErrorBox({
           {title && <p className="font-semibold">{title}</p>}
           {isApi ? (
             <p className="break-words">
-              <code className="mr-1.5 rounded bg-red-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-red-800 dark:bg-red-900/60 dark:text-red-100">
+              <code className="mr-1.5 rounded-md bg-red-400/20 px-1.5 py-0.5 font-mono text-xs font-semibold text-red-100">
                 {error.status > 0 ? `${error.status} ${error.code}` : error.code}
               </code>
               {error.serverMessage}

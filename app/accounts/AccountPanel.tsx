@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, CaretDown } from "@phosphor-icons/react";
 import type { Account, FxRate } from "@/lib/types";
@@ -11,26 +11,42 @@ import { useApiData } from "../components/useApiData";
 import { Button } from "../components/Button";
 import { Card, EmptyState, Loading } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
+import { PaperLabel } from "../components/Badge";
 import { formatCents } from "@/lib/finance/money";
 import { CurrencyValue } from "./CurrencyValue";
 import { filterAccountActivity } from "./presentation";
 
-export function AccountPanel({ account, preview, holding, rates, connection, query, holdingsError, onOpen }: {
+export function AccountPanel({ account, preview, holding, rates, connection, query, allowedAccountIds, holdingsError, onOpen }: {
   account?: Account;
   preview: boolean;
   holding?: Portfolio["accounts"][number];
   rates: FxRate[];
   connection?: Connection;
   query: string;
+  allowedAccountIds?: readonly string[];
   holdingsError: unknown;
   onOpen: (id: string) => void;
 }) {
   // Parent keys this panel by account/mode: old activity cannot flash under a new account.
+  const [requestedLimit, setRequestedLimit] = useState(16);
+  const limit = query ? 100 : requestedLimit;
+  const accountId = account?.id ?? (allowedAccountIds?.length === 1 ? allowedAccountIds[0] : undefined);
   const transactions = useApiData<TransactionsResponse>(
-    paths.transactions({ accountId: account?.id, limit: preview ? 6 : 100 }),
+    allowedAccountIds?.length === 0 ? null : paths.transactions({ accountId, limit }), true,
   );
-  const [visibleCount, setVisibleCount] = useState(account && !preview ? 12 : 6);
-  const txs = filterAccountActivity(transactions.data?.transactions ?? [], account?.id, query);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const hasMore = !!transactions.data && transactions.data.transactions.length === limit && limit < 100;
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore || transactions.loading || transactions.error || query) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setRequestedLimit((previous) => Math.min(previous + 16, 100));
+    }, { root: scrollRef.current, rootMargin: "0px 0px 200px 0px" });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, transactions.loading, transactions.error, query, limit]);
+  const txs = filterAccountActivity(transactions.data?.transactions ?? [], account?.id, query, allowedAccountIds);
   const fx = rates.find((r) => r.currency === account?.currency);
   const full = !!account && !preview;
   return (
@@ -38,7 +54,7 @@ export function AccountPanel({ account, preview, holding, rates, connection, que
       className={`account-panel ${full ? "account-full-view" : ""}`}
       bodyClassName={full ? "account-full-layout" : ""}
       title={full ? undefined : account?.name ?? "Recent activity"}
-      subtitle={full ? undefined : account ? `${account.institution} · ••${account.mask} · ${account.currency}` : "Latest transactions across your accounts"}
+      subtitle={full ? undefined : account ? `${account.institution} · ••${account.mask} · ${account.currency}` : query ? "Matching your search" : "For the accounts shown"}
     >
       {preview && account ? (
         <div className="account-preview-note">
@@ -55,8 +71,8 @@ export function AccountPanel({ account, preview, holding, rates, connection, que
             <div className="account-detail-balance"><CurrencyValue cents={account.balanceCents} currency={account.currency} rates={rates} /></div>
             <p className="account-capability">
               {account.capabilities.includes("transfer_source") ? "Eligible for simulated transfers" : "View only · cannot send transfers"}
-              {account.paper ? " · Paper money · Excluded from total balance" : ""}
             </p>
+            {account.paper && <div className="mt-3 space-y-2"><PaperLabel /><p className="account-capability">Paper trading available via API — no trading UI in this demo. Orders here use simulated prices and never touch your bank balances.</p></div>}
             {account.capabilities.includes("transfer_source") && (
               <Link href={`/transfers?source=${encodeURIComponent(account.id)}`} className="quiet-link mt-3">Transfer from this account<ArrowUpRight size={16} aria-hidden /></Link>
             )}
@@ -75,7 +91,8 @@ export function AccountPanel({ account, preview, holding, rates, connection, que
           {holding && (
             <section className="account-holdings">
               <h3>Holdings</h3>
-              <p>{holding.label} · Prices are simulated. {holding.paper ? "Excluded from total balance." : ""}</p>
+              <p>{holding.label} · Prices are simulated · Read-only view{holding.paper ? " · Not counted in net worth" : ""}</p>
+              {holding.positions.length === 0 && <EmptyState>No positions in this account.</EmptyState>}
               <ul>
                 {holding.positions.map((p) => (
                   <li key={p.symbol}>
@@ -91,14 +108,15 @@ export function AccountPanel({ account, preview, holding, rates, connection, que
       ) : null}
       <section className="account-activity-content" aria-label={preview ? "Recent account transactions" : "Account transaction history"}>
       <h3 className="account-activity-heading">{preview ? "Recent transactions" : "Transaction activity"}</h3>
-      {full && <p className="account-history-note">Latest 100 transactions · Open an entry for its details.</p>}
+      {full && <p className="account-history-note">Scroll for more. Open a transaction for its details.</p>}
+      <div className="account-activity-scroll" ref={scrollRef} role="region" aria-label="Scrollable transactions" tabIndex={0}>
       <ErrorBox error={transactions.error} onRetry={() => void transactions.reload()} />
-      {transactions.loading ? <Loading label="Loading activity…" /> : transactions.error ? null : txs.length === 0 ? (
+      {transactions.loading && !transactions.data ? <Loading label="Loading activity…" /> : transactions.error && !transactions.data ? null : txs.length === 0 ? (
         <EmptyState>{query ? "No matching transactions. Try another search." : account ? "No transactions for this account yet." : "No recent transactions."}</EmptyState>
       ) : (
         <ul className="account-transactions">
-          {txs.slice(0, preview ? 6 : visibleCount).map((t) => (
-            <li key={t.id}>
+          {txs.map((t) => (
+            <li key={t.id} data-account-id={t.accountId}>
               {preview ? (
               <div className="transaction-line">
                 <div className="min-w-0">
@@ -124,7 +142,11 @@ export function AccountPanel({ account, preview, holding, rates, connection, que
           ))}
         </ul>
       )}
-      {!preview && txs.length > visibleCount && <Button className="mt-4 w-full" onClick={() => setVisibleCount((c) => c + 12)}>Show more activity ({txs.length - visibleCount} remaining)</Button>}
+      <div ref={sentinelRef} className="account-activity-sentinel" aria-hidden />
+      <p className="account-history-note" role="status">
+        {transactions.loading && transactions.data ? "Loading activity…" : hasMore ? "Scroll for more activity" : txs.length ? "End of recent activity" : ""}
+      </p>
+      </div>
       </section>
     </Card>
   );

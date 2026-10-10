@@ -21,8 +21,11 @@ import { useApiData } from "../components/useApiData";
 import { Button, inputClass } from "../components/Button";
 import { Card, Loading, EmptyState } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
+import { PaperLabel } from "../components/Badge";
+import "./account-explorer.css";
 import { AccountPanel } from "./AccountPanel";
 import { CurrencyValue } from "./CurrencyValue";
+import { directoryActivityScope } from "./presentation";
 
 export function AccountsClient() {
   const search = useSearchParams();
@@ -43,7 +46,6 @@ export function AccountsClient() {
   const institutions = useApiData<{ institutions: Institution[] }>(
     "/api/institutions",
   );
-  const [previewId, setPreviewId] = useState<string | null>(null);
   const [activityRevision, setActivityRevision] = useState(0);
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("all");
@@ -51,8 +53,8 @@ export function AccountsClient() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState("");
-  const activeId = previewId ?? selected;
-  const preview = previewId !== null;
+  const activeId = selected;
+  const preview = false;
   const account = accounts.data?.accounts.find((a) => a.id === activeId);
   const rates = accounts.data?.netWorth?.fxRates ?? [];
   const holding = portfolio.data?.portfolio.accounts.find(
@@ -63,9 +65,9 @@ export function AccountsClient() {
       (kind === "all" || a.type === kind) &&
       `${a.name} ${a.institution} ${a.mask}`
         .toLowerCase()
-        .includes(query.toLowerCase()),
+        .includes(query.trim().toLowerCase()),
   );
-  useEffect(() => { setPreviewId(null); }, [selected]);
+  const activityScope = directoryActivityScope(accounts.data?.accounts ?? [], kind, query);
   async function run(key: string, path: string, body?: unknown) {
     setBusy(key);
     setError(null);
@@ -93,18 +95,12 @@ export function AccountsClient() {
   }
   function choose(id: string | null) {
     setQuery("");
-    setPreviewId(null);
     router.push(
       id
         ? `/accounts?id=${encodeURIComponent(id)}&view=activity`
         : "/accounts?view=activity",
       { scroll: false },
     );
-  }
-  function previewAccount(id: string) {
-    if (window.matchMedia("(min-width: 1001px)").matches) {
-      setPreviewId(id === selected ? null : id);
-    }
   }
   if (selected) {
     const openedAccount = accounts.data?.accounts.find((a) => a.id === selected);
@@ -138,7 +134,7 @@ export function AccountsClient() {
       <div className="page-intro flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1>Your accounts</h1>
-          <p>Balances and activity, in one place.</p>
+          <p>One clear view. Every balance, every bank.</p>
         </div>
         <Button
           variant="primary"
@@ -147,12 +143,12 @@ export function AccountsClient() {
           aria-label={showBanks ? "Close bank picker" : "Link demo bank"}
         >
           <Plus size={18} aria-hidden />
-          {showBanks ? "Close bank picker" : "Link bank"}
+          {showBanks ? "Close bank picker" : "Link demo bank"}
         </Button>
       </div>
       <p className="account-disclaimer">
-        Synthetic data · Simulated connections. No real funds or credentials.
-        International accounts are view-only.
+        Simulated connections only. No bank credentials or real funds are used.
+        International accounts are view-only; totals use dated demo exchange rates.
       </p>
       <ErrorBox error={error} />
       <ErrorBox error={accounts.error} onRetry={() => void accounts.reload()} />
@@ -233,7 +229,7 @@ export function AccountsClient() {
             className={`${inputClass} !pl-10`}
             placeholder="Search accounts or activity"
             value={query}
-            onChange={(e) => { setQuery(e.target.value); setPreviewId(null); }}
+            onChange={(e) => setQuery(e.target.value)}
           />
         </div>
         <label className="sr-only" htmlFor="account-type">
@@ -243,7 +239,7 @@ export function AccountsClient() {
           id="account-type"
           className={`${inputClass} !w-auto`}
           value={kind}
-          onChange={(e) => { setKind(e.target.value); setPreviewId(null); }}
+          onChange={(e) => setKind(e.target.value)}
         >
           <option value="all">All account types</option>
           <option value="checking">Checking</option>
@@ -258,10 +254,9 @@ export function AccountsClient() {
           subtitle={`${accounts.data?.accounts.length ?? "…"} synthetic accounts`}
           className="account-list-card"
           bodyClassName="account-list-body"
-          action={<Button variant="ghost" size="sm" onClick={() => choose(null)}>All activity</Button>}
         >
           <p className="account-list-hint">
-            <span className="account-hint-desktop">Hover or focus to preview activity. Click to open the account.</span>
+            <span className="account-hint-desktop">Click an account to view its details and transactions.</span>
             <span className="account-hint-mobile">Tap an account to view its details and transactions.</span>
           </p>
           {accounts.loading && !accounts.data ? (
@@ -275,12 +270,8 @@ export function AccountsClient() {
               <button
                 key={a.id}
                 onClick={() => choose(a.id)}
-                onPointerEnter={(event) => { if (event.pointerType === "mouse") previewAccount(a.id); }}
-                onFocus={() => previewAccount(a.id)}
-                onKeyDown={(event) => { if (event.key === "Escape") setPreviewId(null); }}
-                aria-controls="account-detail"
                 aria-pressed={selected === a.id}
-                className={`account-row w-full text-left ${selected === a.id ? "account-selected" : ""} ${previewId === a.id ? "account-previewed" : ""}`}
+                className="account-row w-full text-left"
               >
                 <span className="round-icon">
                   <CreditCard size={23} aria-hidden />
@@ -289,8 +280,8 @@ export function AccountsClient() {
                   <span className="row-title block">{a.name}</span>
                   <span className="row-meta block">
                     {a.institution} · ••{a.mask}
-                    {a.paper ? " · Paper" : ""}
                   </span>
+                  {a.paper && <span className="mt-1.5 block"><PaperLabel /></span>}
                 </span>
                 <span className="row-value">
                   {a.type === "brokerage" && !portfolio.data
@@ -310,13 +301,14 @@ export function AccountsClient() {
           {activeId && !account ? (
             accounts.data ? <ErrorBox error={new Error("This account is not available. Choose another account.")} /> : <Loading label="Loading account…" />
           ) : <AccountPanel
-            key={`${activeId ?? "all"}:${preview ? "preview" : "details"}:${activityRevision}`}
+            key={`${activeId ?? "all"}:${kind}:${activityRevision}`}
             account={account}
             preview={preview}
             holding={holding}
             rates={rates}
             connection={connections.data?.connections.find((c) => c.id === account?.connectionId)}
-            query={query}
+            query={activityScope.query}
+            allowedAccountIds={accounts.data ? activityScope.accountIds : undefined}
             holdingsError={portfolio.error}
             onOpen={choose}
           />}

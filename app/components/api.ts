@@ -25,6 +25,16 @@ import type {
   UserControls,
   UserId,
 } from "@/lib/types";
+// Type-only: erased at build time, so no server code reaches the client bundle.
+import type {
+  AgentDefinition,
+  AgentRun,
+  Insight,
+  PermissionRow,
+  RunReport,
+  ScheduleReport,
+} from "@/lib/agents";
+import { displayCache } from "./readCache";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -66,6 +76,23 @@ function isErrorEnvelope(v: unknown): v is { error: { code: ApiErrorCode; messag
 type Method = "GET" | "POST" | "PATCH";
 
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  if (method === "GET") {
+    const result = await fetchJson<T>(method, path, body);
+    if (path === "/api/session") {
+      displayCache.setSession((result as SessionResponse).user.id);
+    }
+    return result;
+  }
+  // A failed write may still change state (e.g. a refusal can hold a transfer).
+  displayCache.invalidate(false);
+  try {
+    return await fetchJson<T>(method, path, body);
+  } finally {
+    displayCache.invalidate(true, path === "/api/session" || path === "/api/demo/reset");
+  }
+}
+
+async function fetchJson<T>(method: Method, path: string, body?: unknown): Promise<T> {
   let res: Response;
   try {
     res = await fetch(path, {
@@ -128,7 +155,7 @@ export interface SessionResponse {
 export interface AccountsResponse {
   accounts: Account[];
   netWorthCents: number;
-  /** Already returned by the server; optional for older demo responses. */
+  /** Dated demo FX metadata already returned by the server. */
   netWorth?: NetWorth;
   asOf: string;
 }
@@ -173,6 +200,20 @@ export interface ActionDetailResponse {
   recipient: RecipientWithStatus;
   sourceAccount: Account;
 }
+export interface AgentsResponse {
+  agents: (AgentDefinition & { lastRun: AgentRun | null })[];
+  permissions: PermissionRow[];
+  notice: string;
+}
+export interface AgentInsightsResponse {
+  insights: Insight[];
+}
+export interface AgentRunResponse {
+  scheduled: ScheduleReport;
+  report: RunReport;
+  insights: Insight[];
+}
+export type { Insight as AgentInsight };
 export interface ExecuteResponse {
   action: TransferAction;
   receipt: ExecutionReceipt;
@@ -205,6 +246,8 @@ export const paths = {
   audit: (opts: { actionId?: string; limit?: number } = {}) => withQuery("/api/audit", opts),
   actions: "/api/actions",
   action: (id: string) => `/api/actions/${enc(id)}`,
+  agents: "/api/agents",
+  agentInsights: "/api/agents/insights",
 };
 
 export const clearfi = {
@@ -223,6 +266,12 @@ export const clearfi = {
   updateControls: (input: UpdateControlsInput) => api.patch<{ controls: UserControls }>(paths.controls, input),
 
   chat: (req: ChatRequest) => api.post<ChatResponse>("/api/chat", req),
+
+  // Monitoring agents are advisory: these calls only run read-only monitors and
+  // mark their findings. Nothing here approves, executes or changes controls.
+  runAgents: () => api.post<AgentRunResponse>("/api/agents/run"),
+  setInsightStatus: (id: string, status: "seen" | "dismissed") =>
+    api.patch<{ insight: Insight }>(`/api/agents/insights/${enc(id)}`, { status }),
 };
 
 export function errorMessage(err: unknown): string {
