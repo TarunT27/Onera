@@ -13,7 +13,8 @@ describe("assistant boundary", () => {
       "get_accounts", "get_transactions", "get_spending_summary", "get_subscription_insights",
       "list_recipients", "get_research_document",
       "get_connections", "get_portfolio", "get_quotes", "get_agent_insights",
-      "propose_transfer",
+      "get_price_history", "get_trading_controls",
+      "propose_transfer", "propose_order",
     ]);
     const db = freshDb();
     const ctx = { db, userId: "alice" as const, proposedActionIds: [] };
@@ -22,12 +23,15 @@ describe("assistant boundary", () => {
     }
   });
 
-  it("exposes no trading, mandate, connection-management or control tools", () => {
-    const privileged = /approve|execute|mandate|verify|control|pause|sync|link|disconnect|order/;
+  it("exposes no trade-execution, mandate, connection-management or control-changing tools", () => {
+    const privileged = /approve|execute|mandate|verify|pause|sync|link|disconnect|update|set_|place|create|dismiss/;
     const names = TOOL_DEFINITIONS.map((t) => t.name);
     expect(names.filter((n) => privileged.test(n))).toEqual([]);
-    // propose_transfer is the only tool that writes anything (a proposal, never money movement).
-    expect(names.filter((n) => !n.startsWith("get_") && !n.startsWith("list_"))).toEqual(["propose_transfer"]);
+    // Only the two proposal tools write anything: a transfer or paper-order
+    // proposal that waits for the user's approval, never money movement or a fill.
+    expect(names.filter((n) => !n.startsWith("get_") && !n.startsWith("list_"))).toEqual([
+      "propose_transfer", "propose_order",
+    ]);
 
     const db = freshDb();
     const ctx = { db, userId: "alice" as const, proposedActionIds: [] };

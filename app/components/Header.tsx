@@ -8,6 +8,7 @@ import {
   ChatCircle,
   SlidersHorizontal,
   Bank,
+  ChartLineUp,
   ArrowCounterClockwise,
 } from "@phosphor-icons/react";
 import { clearfi, errorMessage } from "./api";
@@ -20,6 +21,7 @@ const navigation = [
   { href: "/", label: "Overview", icon: House },
   { href: "/accounts", label: "Accounts", icon: Bank },
   { href: "/transfers", label: "Transfers", icon: ArrowsLeftRight },
+  { href: "/trade", label: "Trade", icon: ChartLineUp },
   { href: "/chat", label: "Assistant", icon: ChatCircle },
   { href: "/control", label: "Controls", icon: SlidersHorizontal },
 ];
