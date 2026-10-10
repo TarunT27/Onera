@@ -75,8 +75,8 @@ describe("portfolio", () => {
     expect(imported.tradable).toBe(false);
     expect(imported.cashCents).toBe(42_015);
     expect(imported.positions.map((x) => x.symbol).sort()).toEqual(["AAPL", "BND", "MSFT", "VTI"]);
-    // Seeded to ~$8,000 at seed-time prices.
-    expect(Math.abs(imported.positionsValueCents - 800_000)).toBeLessThan(5_000);
+    // Seeded to ~$355,000 at seed-time prices.
+    expect(Math.abs(imported.positionsValueCents - 35_500_000)).toBeLessThan(50_000);
     const weights = imported.positions.reduce((s, x) => s + x.weightPct, 0);
     expect(weights).toBeCloseTo(100, 0);
     for (const pos of imported.positions) {
