@@ -10,10 +10,11 @@ Deterministic, session-scoped demo monitors. No approval, execution, verificatio
 | Portfolio monitor (`portfolio_monitor`) | `portfolio_review` | — | — | — | — | yes | — | — | yes | — | — | never | never | never | never | never | none |
 | Connection monitor (`connection_monitor`) | `sync_connection` | — | — | — | — | — | yes | — | yes | yes | yes | never | never | never | never | never | none |
 | Threat monitor (`threat_monitor`) | `threat_sweep` | — | — | — | yes | — | — | yes | yes | — | — | never | never | never | never | never | none |
+| Personal assistant (`personal_assistant`) | `assistant_briefing` | yes | yes | — | yes | yes | yes | — | yes | — | — | never | never | never | never | never | none |
 
 ## Running the worker
 
-The background worker runs the monitors asynchronously. Each tick schedules every user's recurring jobs (daily reviews; a connection sync every 15 minutes per healthy connection, deduped per day/bucket; a threat sweep whenever new activity reaches the user's audit log, deduped per latest audit event) and then runs due jobs. Every job still runs scoped to its own user and is audited as `agent:<id>`.
+The background worker runs the monitors asynchronously. Each tick schedules every user's recurring jobs (daily reviews; a connection sync every 15 minutes per healthy connection, deduped per day/bucket; a personal-assistant briefing every 30 minutes; a threat sweep whenever new activity reaches the user's audit log, deduped per latest audit event) and then runs due jobs. Every job still runs scoped to its own user and is audited as `agent:<id>`.
 
 ```bash
 npm run worker                    # loop: tick every 5 s until Ctrl-C

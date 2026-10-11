@@ -13,6 +13,7 @@ import type { DB } from "@/lib/db";
 import type { UserId } from "@/lib/types";
 import { buildAgentContext, type AgentHandler, type ContextTracker } from "./context";
 import { PermanentJobError, ScopeViolationError } from "./errors";
+import { assistantBriefing } from "./monitors/assistant";
 import { syncConnectionJob } from "./monitors/connections";
 import { portfolioReview } from "./monitors/portfolio";
 import { securityReview } from "./monitors/security";
@@ -31,6 +32,7 @@ const HANDLERS: Record<AgentId, AgentHandler> = {
   portfolio_monitor: portfolioReview,
   connection_monitor: syncConnectionJob,
   threat_monitor: threatSweep,
+  personal_assistant: assistantBriefing,
 };
 
 export const DEFAULT_RUN_LIMIT = 25;

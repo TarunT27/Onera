@@ -23,7 +23,16 @@ import {
 } from "@/lib/db/rows";
 import { usdConverter } from "@/lib/finance/fx";
 import { detectSubscriptionIncreases } from "@/lib/finance/subscriptions";
-import { getPortfolio, getQuote, type Portfolio, type Quote } from "@/lib/markets";
+import {
+  getPortfolio,
+  getPriceHistory,
+  getQuote,
+  listInstruments,
+  type Instrument,
+  type Portfolio,
+  type PriceHistory,
+  type Quote,
+} from "@/lib/markets";
 import { listConnections, syncConnection, type Connection, type SyncSummary } from "@/lib/providers";
 import type {
   Account,
@@ -64,7 +73,14 @@ export interface AgentReads {
     get(id: string): TransferAction | null;
     list(opts?: { recipientId?: string; states?: ActionState[]; excludeId?: string; limit?: number }): TransferAction[];
   };
-  portfolio: { get(): Portfolio; quote(symbol: string): Quote | null };
+  portfolio: {
+    get(): Portfolio;
+    quote(symbol: string): Quote | null;
+    /** Simulated daily closes (reference data), or null for unknown symbols. */
+    history(symbol: string, days: number): PriceHistory | null;
+    /** The simulated instrument catalog (reference data). */
+    instruments(): Instrument[];
+  };
   connections: { list(): Connection[] };
   audit: {
     /** The user's own audit events created at or after sinceIso, oldest first. */
@@ -205,6 +221,14 @@ export function buildAgentContext(
       quote(symbol) {
         needRead("portfolio", "portfolio.quote");
         return getQuote(symbol, now);
+      },
+      history(symbol, days) {
+        needRead("portfolio", "portfolio.history");
+        return getPriceHistory(symbol, days, now);
+      },
+      instruments() {
+        needRead("portfolio", "portfolio.instruments");
+        return listInstruments();
       },
     },
     connections: {

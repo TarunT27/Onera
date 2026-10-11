@@ -37,6 +37,8 @@ export default defineConfig({
       CLEARFI_NEXT_DIR: ".next-e2e",
       CLEARFI_DB_PATH: path.join(os.tmpdir(), `clearfi-e2e-${process.pid}.db`),
       ANTHROPIC_API_KEY: "",
+      // Keep e2e runs deterministic: no in-process background agents.
+      CLEARFI_BACKGROUND: "off",
     },
   },
 });

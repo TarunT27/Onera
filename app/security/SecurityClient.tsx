@@ -18,8 +18,10 @@ import {
   type AgentInsightsResponse,
   type AgentsResponse,
   type AuditResponse,
+  type ChatSecurityResponse,
   type ControlsResponse,
 } from "../components/api";
+import { AssistantMonitor } from "./AssistantMonitor";
 import { AuditList } from "../components/AuditList";
 import { Badge, SyntheticLabel } from "../components/Badge";
 import { Button } from "../components/Button";
@@ -61,6 +63,7 @@ export function SecurityClient() {
   const audit = useApiData<AuditResponse>(paths.audit({ limit: AUDIT_LIMIT }));
   const agents = useApiData<AgentsResponse>(paths.agents);
   const controls = useApiData<ControlsResponse>(paths.controls);
+  const chat = useApiData<ChatSecurityResponse>(paths.chatSecurity);
 
   const [running, setRunning] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -73,9 +76,10 @@ export function SecurityClient() {
       void insights.reload();
       void audit.reload();
       void agents.reload();
+      void chat.reload();
     }, POLL_MS);
     return () => clearInterval(id);
-  }, [insights.reload, audit.reload, agents.reload]);
+  }, [insights.reload, audit.reload, agents.reload, chat.reload]);
 
   // Open before seen, then most severe; the API already orders by most recent.
   const alerts = (insights.data?.insights ?? [])
@@ -94,7 +98,7 @@ export function SecurityClient() {
     setError(null);
     try {
       await clearfi.runAgents();
-      await Promise.all([insights.reload(), audit.reload(), agents.reload()]);
+      await Promise.all([insights.reload(), audit.reload(), agents.reload(), chat.reload()]);
     } catch (e) {
       setError(e);
     } finally {
@@ -133,7 +137,7 @@ export function SecurityClient() {
     <div className="space-y-6">
       <PageHeader
         title="Security"
-        description="A background threat monitor watches your audit log for attack patterns and flags them here. It can only raise alerts: it can't pause, approve or move money."
+        description="Background monitors watch your audit log and every assistant conversation for attack patterns and flag them here. They can only raise alerts: they can't pause, approve or move money."
         action={
           <Button onClick={() => void runSweep()} busy={running}>
             Run sweep now
@@ -192,6 +196,8 @@ export function SecurityClient() {
           </ul>
         )}
       </Card>
+
+      <AssistantMonitor chat={chat} />
 
       <Card
         title="Security events"

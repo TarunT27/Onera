@@ -1,9 +1,14 @@
 /**
- * `npm run worker` — background worker for the monitoring agents.
+ * `npm run worker` — background worker for the monitoring agents, the personal
+ * assistant and the chat security monitor.
  *
  * Each tick schedules the recurring reviews (deduped per day / 15-min bucket)
- * and runs due jobs. Agents are advisory only: they write insights and queue
- * follow-up jobs; they never approve, execute or change controls.
+ * and runs due jobs. The chat security monitor polls for new chat security
+ * events alongside it. Agents are advisory only: they write insights, briefings
+ * and findings; they never approve, execute or change controls.
+ *
+ * The Next.js server also runs both in-process (instrumentation.ts) unless
+ * CLEARFI_BACKGROUND=off; running this worker as well is safe.
  *
  *   npm run worker                  # loop forever, tick every CLEARFI_WORKER_INTERVAL_MS (default 5000)
  *   npm run worker -- --once        # one tick, then exit (0 on success, 1 if the tick failed)
@@ -14,6 +19,7 @@
  */
 import path from "node:path";
 import { DEFAULT_WORKER_INTERVAL_MS, runWorkerLoop } from "@/lib/agents";
+import { processChatSecurityBatch, startChatSecurityMonitor } from "@/lib/chatguard";
 import { openDb } from "@/lib/db";
 
 function usage(message: string): never {
@@ -65,11 +71,19 @@ async function main(): Promise<number> {
     `[worker] db=${file} ${args.once ? "mode=once" : `interval=${intervalMs}ms`}` +
       (args.limit ? ` limit=${args.limit}` : ""),
   );
+  // A separate process gets no in-process wake-ups, so it polls on the worker interval.
+  const monitor = args.once ? null : startChatSecurityMonitor(db, { pollMs: intervalMs, log: (l) => console.log(l) });
   try {
     const result = await runWorkerLoop(db, { once: args.once, limit: args.limit, intervalMs, signal: stop.signal });
+    if (args.once) {
+      const r = await processChatSecurityBatch(db);
+      console.log(`[chatguard] processed=${r.processed} findings=${r.findingsWritten} reviewer=${r.reviewerCalls} cursor=${r.cursor}`);
+    }
     console.log(`[worker] stopped after ${result.ticks} tick(s), ${result.errors} error(s)`);
     return args.once && result.errors > 0 ? 1 : 0;
   } finally {
+    monitor?.stop();
+    await monitor?.idle();
     db.close();
     process.off("SIGINT", onSignal);
     process.off("SIGTERM", onSignal);

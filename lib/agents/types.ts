@@ -13,6 +13,7 @@ export const JOB_TYPES = [
   "security_review",
   "portfolio_review",
   "threat_sweep",
+  "assistant_briefing",
 ] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 
@@ -116,7 +117,8 @@ export type AgentId =
   | "security_sentinel"
   | "portfolio_monitor"
   | "connection_monitor"
-  | "threat_monitor";
+  | "threat_monitor"
+  | "personal_assistant";
 
 export interface AgentDefinition {
   id: AgentId;
@@ -199,3 +201,96 @@ export interface InsightDraft {
 }
 
 export type UpsertOutcome = "created" | "updated" | "unchanged";
+
+// ---------------------------------------------------------------------------
+// Personal assistant briefing (the latest snapshot the PA prepared)
+// ---------------------------------------------------------------------------
+
+export type BriefingTipKind = "save" | "spending" | "invest";
+
+export interface BriefingTip {
+  /** Stable identity, e.g. "habit:bean there". */
+  id: string;
+  kind: BriefingTipKind;
+  severity: InsightSeverity;
+  title: string;
+  body: string;
+  /** Estimated yearly saving if acted on, integer USD cents; null when there is no honest estimate. */
+  annualSavingsCents: number | null;
+  /** One-time amount at stake (e.g. a possible duplicate charge), integer USD cents. */
+  oneTimeCents: number | null;
+  evidence: InsightEvidence;
+  /** The persisted insight for this tip, when it is one worth an inbox alert. */
+  insightId: string | null;
+}
+
+export interface BriefingResearchNote {
+  symbol: string;
+  name: string;
+  sector: string | null;
+  instrumentType: "stock" | "etf" | null;
+  accountIds: string[];
+  /** True when only held in paper (practice) accounts. */
+  paper: boolean;
+  marketValueCents: number;
+  unrealizedPnlCents: number;
+  /** Share of invested (non-paper) holdings, 0–100, or null for paper-only positions. */
+  weightPct: number | null;
+  change30dPct: number | null;
+  change90dPct: number | null;
+  /** Annualized volatility of simulated daily returns over the window, in percent. */
+  volatilityPct: number | null;
+  /** Deepest peak-to-trough fall in the window, in percent (≤ 0). */
+  maxDrawdownPct: number | null;
+  notable: boolean;
+  note: string;
+}
+
+export interface BriefingMarketMover {
+  symbol: string;
+  name: string;
+  priceCents: number;
+  changePct: number;
+}
+
+export interface BriefingAttentionItem {
+  id: string;
+  kind: "approval" | "held" | "approved" | "connection";
+  title: string;
+  detail: string;
+  /** In-app link to where the user can act. The PA itself can't act. */
+  href: string;
+  evidence: InsightEvidence;
+}
+
+export interface BriefingSnapshot {
+  /** Days of history the averages are based on (up to 90). */
+  windowDays: number;
+  monthlyIncomeCents: number;
+  monthlySpendingCents: number;
+  /** (income − spending) / income, or null with no income. */
+  savingsRatePct: number | null;
+  /** Checking + savings, USD, excluding paper accounts. */
+  cashCents: number;
+  savingsCents: number;
+  /** Savings balance ÷ average monthly spending. */
+  emergencyFundMonths: number | null;
+  investedCents: number;
+  /** Last 30 days, largest first. */
+  topCategories: { category: string; cents: number; pct: number }[];
+}
+
+export interface Briefing {
+  agentId: "personal_assistant";
+  generatedAt: string;
+  headline: string;
+  snapshot: BriefingSnapshot;
+  potentialAnnualSavingsCents: number;
+  tips: BriefingTip[];
+  research: BriefingResearchNote[];
+  movers: BriefingMarketMover[];
+  attention: BriefingAttentionItem[];
+  disclaimer: string;
+  /** Deterministic rules over synthetic data and simulated prices; no model involved. */
+  deterministic: true;
+}

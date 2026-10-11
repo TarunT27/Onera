@@ -100,6 +100,21 @@ const DEFINITIONS: AgentDefinition[] = [
     enqueues: [],
     ...NO_POWERS,
   },
+  {
+    id: "personal_assistant",
+    name: "Personal assistant",
+    purpose:
+      "Prepares a briefing in the background: where you could save (recurring charges, small habits, fees, idle " +
+      "cash), where spending looks too high or doesn't add up (possible duplicate charges, spending above income), " +
+      "notes on your holdings from simulated price history, and transfers or bank connections that need you. " +
+      "Observation only: it can't move money, propose, approve, trade or change anything. Not financial advice.",
+    trigger: "Every 30 minutes per user, and on demand from the Briefing page",
+    jobTypes: ["assistant_briefing"],
+    reads: ["accounts", "transactions", "actions", "portfolio", "connections"],
+    writes: ["insights"],
+    enqueues: [],
+    ...NO_POWERS,
+  },
 ];
 
 /** Frozen at load: nothing can widen an agent's permissions at runtime. */

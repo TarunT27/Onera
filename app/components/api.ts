@@ -29,11 +29,13 @@ import type {
 import type {
   AgentDefinition,
   AgentRun,
+  Briefing,
   Insight,
   PermissionRow,
   RunReport,
   ScheduleReport,
 } from "@/lib/agents";
+import type { ChatSecurityEvent, ChatSecurityFinding, MonitorStatus } from "@/lib/chatguard";
 import { displayCache } from "./readCache";
 
 // ---------------------------------------------------------------------------
@@ -214,6 +216,26 @@ export interface AgentRunResponse {
   insights: Insight[];
 }
 export type { Insight as AgentInsight };
+export type {
+  Briefing,
+  BriefingAttentionItem,
+  BriefingResearchNote,
+  BriefingTip,
+} from "@/lib/agents";
+export interface BriefingResponse {
+  /** null until the personal assistant has run once for this user. */
+  briefing: Briefing | null;
+  preparedAt: string | null;
+  lastRun: AgentRun | null;
+  agent: AgentDefinition | undefined;
+  report?: RunReport;
+}
+export type { ChatSecurityFinding, MonitorStatus };
+export interface ChatSecurityResponse {
+  status: MonitorStatus;
+  findings: ChatSecurityFinding[];
+  events: ChatSecurityEvent[];
+}
 export interface ExecuteResponse {
   action: TransferAction;
   receipt: ExecutionReceipt;
@@ -248,6 +270,8 @@ export const paths = {
   action: (id: string) => `/api/actions/${enc(id)}`,
   agents: "/api/agents",
   agentInsights: "/api/agents/insights",
+  briefing: "/api/agents/briefing",
+  chatSecurity: "/api/security/chat",
 };
 
 export const clearfi = {
@@ -272,6 +296,8 @@ export const clearfi = {
   runAgents: () => api.post<AgentRunResponse>("/api/agents/run"),
   setInsightStatus: (id: string, status: "seen" | "dismissed") =>
     api.patch<{ insight: Insight }>(`/api/agents/insights/${enc(id)}`, { status }),
+  // The personal assistant only reads and writes its briefing and insights.
+  refreshBriefing: () => api.post<BriefingResponse>(paths.briefing),
 };
 
 export function errorMessage(err: unknown): string {
