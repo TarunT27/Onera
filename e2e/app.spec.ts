@@ -426,6 +426,9 @@ test("AI monitoring panel runs advisory agents and manages the StreamFlix insigh
   await checkLayout(page);
 
   await page.goto("/control");
+  // Desktop shows the audit log and permissions as tabs; phones stack both.
+  const permissionsTab = page.getByRole("radio", { name: "Permissions", exact: true });
+  if (await permissionsTab.isVisible()) await permissionsTab.click();
   const matrix = page.getByRole("table", { name: "Agent permission matrix" });
   await expect(matrix).toBeVisible();
   const row = matrix.getByRole("row", { name: /Subscription monitor/ });

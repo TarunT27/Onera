@@ -6,6 +6,7 @@
  * patterns over time; prevention happens inline, before a reply or tool runs.
  */
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { ChatSecurityEvent } from "@/lib/chatguard";
 import { type ChatSecurityFinding, type ChatSecurityResponse, type MonitorStatus } from "../components/api";
 import { Badge, type BadgeTone } from "../components/Badge";
@@ -60,10 +61,11 @@ export function monitorLabel(s: MonitorStatus, t: Translate = identityT): string
   }
 }
 
-export function AssistantMonitor({ chat, className, bodyClassName }: {
+export function AssistantMonitor({ chat, className, bodyClassName, action }: {
   chat: ApiData<ChatSecurityResponse>;
   className?: string;
   bodyClassName?: string;
+  action?: ReactNode;
 }) {
   const { t, tp } = useI18n();
   const s = chat.data?.status;
@@ -74,6 +76,7 @@ export function AssistantMonitor({ chat, className, bodyClassName }: {
     <Card
       title={t("Assistant security monitor")}
       subtitle={t("A background worker reviews every chat turn for unsafe instructions, blocked tool use and unsupported claims")}
+      action={action}
       className={className}
       bodyClassName={bodyClassName}
     >
