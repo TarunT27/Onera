@@ -38,6 +38,8 @@ import type {
 } from "@/lib/agents";
 import type { ChatSecurityEvent, ChatSecurityFinding, MonitorStatus } from "@/lib/chatguard";
 import type { CardCharge, FamilyCard, FamilyOverview, SimulatePurchaseInput, UpdateCardInput } from "@/lib/family";
+import { identityT, type Translate } from "@/lib/i18n/translate";
+import { msg } from "@/lib/i18n/msg";
 import { displayCache } from "./readCache";
 
 // ---------------------------------------------------------------------------
@@ -107,7 +109,7 @@ async function fetchJson<T>(method: Method, path: string, body?: unknown): Promi
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (err) {
-    throw new ApiRequestError(0, "NETWORK", err instanceof Error ? err.message : "Network request failed");
+    throw new ApiRequestError(0, "NETWORK", err instanceof Error ? err.message : msg("Network request failed"));
   }
 
   const text = await res.text();
@@ -128,7 +130,7 @@ async function fetchJson<T>(method: Method, path: string, body?: unknown): Promi
     throw new ApiRequestError(
       res.status,
       fallbackCode,
-      json === undefined ? `${method} ${path} returned a non-JSON response (${res.statusText || "error"})` : res.statusText || "Request failed",
+      json === undefined ? `${method} ${path} returned a non-JSON response (${res.statusText || "error"})` : res.statusText || msg("Request failed"),
     );
   }
 
@@ -148,12 +150,12 @@ async function postRaw(path: string, body: BodyInit, headers: Record<string, str
   try {
     res = await fetch(path, { method: "POST", cache: "no-store", credentials: "same-origin", headers, body });
   } catch (err) {
-    throw new ApiRequestError(0, "NETWORK", err instanceof Error ? err.message : "Network request failed");
+    throw new ApiRequestError(0, "NETWORK", err instanceof Error ? err.message : msg("Network request failed"));
   }
   if (res.ok) return res;
   const json: unknown = await res.json().catch(() => undefined);
   if (isErrorEnvelope(json)) throw new ApiRequestError(res.status, json.error.code, json.error.message, json.error.details);
-  throw new ApiRequestError(res.status, "INTERNAL", res.statusText || "Request failed");
+  throw new ApiRequestError(res.status, "INTERNAL", res.statusText || msg("Request failed"));
 }
 
 export const api = {
@@ -351,8 +353,12 @@ export const clearfi = {
 
 export type { CardCharge, FamilyCard, FamilyOverview };
 
-export function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
-  return "Something went wrong";
+export function errorMessage(err: unknown, t: Translate = identityT): string {
+  if (err instanceof ApiRequestError) {
+    const message = t(err.serverMessage);
+    return err.status > 0 ? `${err.status} ${err.code}: ${message}` : `${err.code}: ${message}`;
+  }
+  if (err instanceof Error) return t(err.message);
+  if (typeof err === "string") return t(err);
+  return t("Something went wrong");
 }

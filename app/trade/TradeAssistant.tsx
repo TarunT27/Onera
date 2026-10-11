@@ -7,6 +7,8 @@ import type { AssistantAgentId, ChatRequest, ChatResponse } from "@/lib/types";
 import { api } from "../components/api";
 import { Badge } from "../components/Badge";
 import { ErrorBox } from "../components/ErrorBox";
+import { useT } from "../components/I18nContext";
+import { msg } from "@/lib/i18n/msg";
 
 type TradeAgent = Exclude<AssistantAgentId, "general">;
 
@@ -16,9 +18,12 @@ interface AgentStyle {
   label: string;
   /** Name used in replies and screen-reader text. */
   name: string;
+  /** Lower-case form of the name for use inside a sentence. */
+  noun: string;
   tagline: string;
-  headline: (symbol: string) => string;
-  ask: (symbol: string) => string;
+  /** English templates with a `{symbol}` placeholder. */
+  headline: string;
+  ask: string;
   /** Accent: the mascot's own colour. */
   color: string;
   mascot: string;
@@ -26,23 +31,23 @@ interface AgentStyle {
 
 const AGENTS: AgentStyle[] = [
   {
-    id: "research", label: "Research", name: "Research analyst", tagline: "Companies, explained.",
-    headline: (s) => `A clearer view of ${s}.`, ask: (s) => `What is ${s} and how has it done lately?`,
+    id: "research", label: msg("Research"), name: msg("Research analyst"), noun: msg("research analyst"), tagline: msg("Companies, explained."),
+    headline: msg("A clearer view of {symbol}."), ask: msg("What is {symbol} and how has it done lately?"),
     color: "#72c6fa", mascot: "/agents/research.png",
   },
   {
-    id: "chart", label: "Charts", name: "Chart reader", tagline: "Trend, range and volatility.",
-    headline: (s) => `How ${s} has moved.`, ask: (s) => `Read the ${s} chart over the last 3 months.`,
+    id: "chart", label: msg("Charts"), name: msg("Chart reader"), noun: msg("chart reader"), tagline: msg("Trend, range and volatility."),
+    headline: msg("How {symbol} has moved."), ask: msg("Read the {symbol} chart over the last 3 months."),
     color: "#b6abf9", mascot: "/agents/charts.png",
   },
   {
-    id: "risk", label: "Risk", name: "Risk checker", tagline: "Concentration and your limits.",
-    headline: (s) => `How ${s} fits your portfolio.`, ask: (s) => `Would $250 more of ${s} make my paper portfolio lopsided?`,
+    id: "risk", label: msg("Risk"), name: msg("Risk checker"), noun: msg("risk checker"), tagline: msg("Concentration and your limits."),
+    headline: msg("How {symbol} fits your portfolio."), ask: msg("Would $250 more of {symbol} make my paper portfolio lopsided?"),
     color: "#9be5bf", mascot: "/agents/risk.png",
   },
   {
-    id: "drafter", label: "Trade", name: "Trade drafter", tagline: "Drafts orders you approve.",
-    headline: (s) => `Draft an order for ${s}.`, ask: (s) => `Buy $250 of ${s} in my paper account.`,
+    id: "drafter", label: msg("Trade"), name: msg("Trade drafter"), noun: msg("trade drafter"), tagline: msg("Drafts orders you approve."),
+    headline: msg("Draft an order for {symbol}."), ask: msg("Buy $250 of {symbol} in my paper account."),
     color: "#fcb18e", mascot: "/agents/trade.png",
   },
 ];
@@ -71,6 +76,7 @@ export function TradeAssistant({
   /** Shown as a Close button when the assistant is a slide-over (below 1200px). */
   onClose?: () => void;
 }) {
+  const t = useT();
   const [agent, setAgent] = useState<TradeAgent>("research");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -121,13 +127,13 @@ export function TradeAssistant({
   }
 
   return (
-    <aside className="trade-assistant glass" aria-label="Assistant" style={accent(current)}>
+    <aside className="trade-assistant glass" aria-label={t("Assistant")} style={accent(current)}>
       <header className="assistant-head">
         <Sparkle className="assistant-spark" size={18} weight="fill" aria-hidden />
-        <h2>Ask Onera</h2>
-        <span className="row-meta">Not financial advice</span>
+        <h2>{t("Ask Onera")}</h2>
+        <span className="row-meta">{t("Not financial advice")}</span>
         {onClose && (
-          <button type="button" className="icon-btn assistant-close" onClick={onClose} aria-label="Close assistant">
+          <button type="button" className="icon-btn assistant-close" onClick={onClose} aria-label={t("Close assistant")}>
             <X size={16} aria-hidden />
           </button>
         )}
@@ -137,7 +143,7 @@ export function TradeAssistant({
         ref={tabsRef}
         className="agent-tabs"
         role="radiogroup"
-        aria-label="Choose an agent"
+        aria-label={t("Choose an agent")}
         onKeyDown={onTabsKey}
         style={{ "--idx": index } as CSSProperties}
       >
@@ -153,24 +159,24 @@ export function TradeAssistant({
             onClick={() => setAgent(a.id)}
           >
             <img src={a.mascot} alt="" width={40} height={40} />
-            <span>{a.label}</span>
+            <span>{t(a.label)}</span>
           </button>
         ))}
         <span className="agent-bar" aria-hidden />
       </div>
 
       <p className="agent-line" key={`line-${agent}`}>
-        <strong>{current.label}</strong> · {current.tagline}
+        <strong>{t(current.label)}</strong> · {t(current.tagline)}
       </p>
 
       <div className="assistant-thread" ref={listRef} aria-live="polite">
         {messages.length === 0 && !pending && (
           <div className="agent-hello" key={`hello-${agent}`}>
             <img className="agent-hero" src={current.mascot} alt="" width={72} height={72} />
-            <h3>{current.headline(symbol)}</h3>
-            <p>Ask a question to get started.</p>
-            <button type="button" className="agent-suggest" onClick={() => void send(current.ask(symbol))}>
-              <span>{current.ask(symbol)}</span>
+            <h3>{t(current.headline, { symbol })}</h3>
+            <p>{t("Ask a question to get started.")}</p>
+            <button type="button" className="agent-suggest" onClick={() => void send(t(current.ask, { symbol }))}>
+              <span>{t(current.ask, { symbol })}</span>
               <ArrowUpRight size={16} weight="bold" aria-hidden />
             </button>
           </div>
@@ -186,17 +192,17 @@ export function TradeAssistant({
               <img src={who.mascot} alt="" width={28} height={28} />
               <div className="agent-reply-body">
                 <span className="bubble-agent">
-                  {who.name}
-                  {m.response.mode === "fallback" && <Badge tone="amber">Fallback · no model</Badge>}
+                  {t(who.name)}
+                  {m.response.mode === "fallback" && <Badge tone="amber">{t("Fallback · no model")}</Badge>}
                 </span>
                 <p>{m.content}</p>
-                {m.response.notice && <p className="bubble-notice">{m.response.notice}</p>}
+                {m.response.notice && <p className="bubble-notice">{t(m.response.notice)}</p>}
                 {m.response.trace.length > 0 && (
-                  <p className="bubble-tools">Used {[...new Set(m.response.trace.map((t) => t.tool))].join(" · ")}</p>
+                  <p className="bubble-tools">{t("Used {tools}", { tools: [...new Set(m.response.trace.map((step) => step.tool))].join(" · ") })}</p>
                 )}
                 {(m.response.proposedOrderIds ?? []).map((id) => (
                   <button key={id} type="button" className="agent-review" onClick={() => onReviewOrder(id)}>
-                    Review proposed order
+                    {t("Review proposed order")}
                   </button>
                 ))}
               </div>
@@ -206,7 +212,7 @@ export function TradeAssistant({
         {pending && (
           <div className="agent-typing" role="status">
             <img src={current.mascot} alt="" width={22} height={22} />
-            <span className="sr-only">The {current.name.toLowerCase()} is working…</span>
+            <span className="sr-only">{t("The {name} is working…", { name: t(current.noun) })}</span>
             <i />
             <i />
             <i />
@@ -224,21 +230,21 @@ export function TradeAssistant({
         }}
       >
         <label htmlFor="trade-ask" className="sr-only">
-          Message the {current.name.toLowerCase()}
+          {t("Message the {name}", { name: t(current.noun) })}
         </label>
         <input
           id="trade-ask"
           value={input}
           maxLength={4000}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={messages.length ? "Ask a follow-up…" : `Ask about ${symbol}…`}
+          placeholder={messages.length ? t("Ask a follow-up…") : t("Ask about {symbol}…", { symbol })}
         />
-        <button type="submit" aria-label="Send" disabled={pending || !input.trim()}>
+        <button type="submit" aria-label={t("Send")} disabled={pending || !input.trim()}>
           <ArrowUp size={17} weight="bold" aria-hidden />
         </button>
       </form>
       <p className="assistant-foot">
-        Agents read your synthetic data. Only Trade can propose orders, and only you can approve them.
+        {t("Agents read your synthetic data. Only Trade can propose orders, and only you can approve them.")}
       </p>
     </aside>
   );

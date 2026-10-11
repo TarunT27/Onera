@@ -10,6 +10,9 @@ import { Button } from "../components/Button";
 import { Card, Loading } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
 import { centsToDollarInput, formatCents, mask, parseDollarsToCents } from "../components/format";
+import { useT } from "../components/I18nContext";
+import { msg } from "@/lib/i18n/msg";
+import type { Translate } from "@/lib/i18n/translate";
 import { destinationName, isOnera, ownDestinations, shortInstitution, type OwnDestination } from "./accountLabels";
 
 type Mode = "own" | "external";
@@ -48,6 +51,7 @@ export function NewTransferForm({
   onRetryRecipients: () => void;
   onCreated: (action: TransferAction) => void;
 }) {
+  const t = useT();
   const sources = useMemo(() => (accounts ?? []).filter((a) => a.capabilities.includes("transfer_source")), [accounts]);
   const ownDests = useMemo(() => ownDestinations(recipients ?? [], accounts ?? []), [recipients, accounts]);
   const externals = useMemo(() => (recipients ?? []).filter((r) => r.kind === "external"), [recipients]);
@@ -118,20 +122,20 @@ export function NewTransferForm({
     setError(null);
   }
 
-  const parsed = amount.trim() ? parseDollarsToCents(amount) : null;
+  const parsed = amount.trim() ? parseDollarsToCents(amount, { t }) : null;
   const amountCents = parsed?.ok ? parsed.cents : null;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const result = parseDollarsToCents(amount);
+    const result = parseDollarsToCents(amount, { t });
     if (!result.ok) {
       setAmountError(result.error);
       return;
     }
     setAmountError(null);
     if (!source || !recipient) {
-      setError(new Error("Choose where the money comes from and where it goes."));
+      setError(new Error(t("Choose where the money comes from and where it goes.")));
       return;
     }
     setSubmitting(true);
@@ -158,11 +162,11 @@ export function NewTransferForm({
   const unavailable = (accounts === null && !!accountsError) || (recipients === null && !!recipientsError);
   const disabledReason =
     sources.length === 0
-      ? "None of your linked accounts can send transfers."
+      ? t("None of your linked accounts can send transfers.")
       : !recipient
         ? mode === "own"
-          ? "Link another account to move money between them."
-          : "Choose who to pay."
+          ? t("Link another account to move money between them.")
+          : t("Choose who to pay.")
         : null;
 
   const overAvailable = amountCents !== null && source !== null && amountCents > source.availableCents;
@@ -172,28 +176,28 @@ export function NewTransferForm({
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <h2 className="text-[17px] font-semibold tracking-[-0.015em] text-zinc-50">Move money</h2>
-          <Badge tone="amber" title="Demo transfers move synthetic balances only">
-            Simulated
+          <h2 className="text-[17px] font-semibold tracking-[-0.015em] text-zinc-50">{t("Move money")}</h2>
+          <Badge tone="amber" title={t("Demo transfers move synthetic balances only")}>
+            {t("Simulated")}
           </Badge>
         </div>
         <ModeSwitch mode={mode} onChange={switchMode} />
       </div>
 
-      <ErrorBox error={accountsError} title="Couldn't load accounts" className="mt-4" onRetry={onRetryAccounts} />
-      <ErrorBox error={recipientsError} title="Couldn't load recipients" className="mt-4" onRetry={onRetryRecipients} />
+      <ErrorBox error={accountsError} title={t("Couldn't load accounts")} className="mt-4" onRetry={onRetryAccounts} />
+      <ErrorBox error={recipientsError} title={t("Couldn't load recipients")} className="mt-4" onRetry={onRetryRecipients} />
 
       {loading ? (
         <div className="mt-4">
-          <Loading label="Loading your accounts…" />
+          <Loading label={msg("Loading your accounts…")} />
         </div>
       ) : unavailable ? null : (
         <form onSubmit={submit} className="mt-5" noValidate>
           {/* From / To */}
           <div className="relative space-y-2">
             <SlotPicker
-              label="From"
-              valueText={source ? `${source.name} ${mask(source.mask)}, ${shortInstitution(source.institution)}` : "none"}
+              label={msg("From")}
+              valueText={source ? `${source.name} ${mask(source.mask)}, ${shortInstitution(source.institution)}` : t("none")}
               open={openSlot === "from"}
               onToggle={() => setOpenSlot(openSlot === "from" ? null : "from")}
               summary={
@@ -202,10 +206,10 @@ export function NewTransferForm({
                     institution={source.institution}
                     name={source.name}
                     mask={source.mask}
-                    detail={`${formatCents(source.availableCents)} available · ${shortInstitution(source.institution)}`}
+                    detail={`${t("{amount} available", { amount: formatCents(source.availableCents) })} · ${shortInstitution(source.institution)}`}
                   />
                 ) : (
-                  <Placeholder>No account can send transfers</Placeholder>
+                  <Placeholder>{t("No account can send transfers")}</Placeholder>
                 )
               }
             >
@@ -220,7 +224,7 @@ export function NewTransferForm({
                   institution={a.institution}
                   title={a.name}
                   mask={a.mask}
-                  detail={`${formatCents(a.availableCents)} available · ${shortInstitution(a.institution)}`}
+                  detail={`${t("{amount} available", { amount: formatCents(a.availableCents) })} · ${shortInstitution(a.institution)}`}
                 />
               ))}
             </SlotPicker>
@@ -231,8 +235,8 @@ export function NewTransferForm({
                   type="button"
                   onClick={swap}
                   disabled={!swapTarget}
-                  aria-label="Swap from and to"
-                  title={swapTarget ? "Swap from and to" : "This destination can't send money back"}
+                  aria-label={t("Swap from and to")}
+                  title={swapTarget ? t("Swap from and to") : t("This destination can't send money back")}
                   className="grid size-9 place-items-center rounded-full bg-zinc-900 text-white/80 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.14)] transition hover:bg-zinc-800 hover:text-white active:scale-95 disabled:opacity-40"
                 >
                   <ArrowsDownUp size={16} weight="bold" />
@@ -245,11 +249,11 @@ export function NewTransferForm({
             </div>
 
             <SlotPicker
-              label="To"
+              label={msg("To")}
               valueText={
                 recipient
                   ? `${mode === "own" && ownDest ? destinationName(ownDest) : recipient.displayName} ${mask(recipient.details.accountMask)}, ${shortInstitution(recipient.details.institution)}`
-                  : "none"
+                  : t("none")
               }
               open={openSlot === "to"}
               onToggle={() => setOpenSlot(openSlot === "to" ? null : "to")}
@@ -260,10 +264,10 @@ export function NewTransferForm({
                       institution={ownDest.recipient.details.institution}
                       name={destinationName(ownDest)}
                       mask={ownDest.recipient.details.accountMask}
-                      detail={destinationDetail(ownDest)}
+                      detail={destinationDetail(ownDest, t)}
                     />
                   ) : (
-                    <Placeholder>No other account to move money into</Placeholder>
+                    <Placeholder>{t("No other account to move money into")}</Placeholder>
                   )
                 ) : external ? (
                   <AccountSummary
@@ -274,7 +278,7 @@ export function NewTransferForm({
                     badge={<RecipientStatusBadge status={external.status} />}
                   />
                 ) : (
-                  <Placeholder>Choose who to pay</Placeholder>
+                  <Placeholder>{t("Choose who to pay")}</Placeholder>
                 )
               }
             >
@@ -290,7 +294,7 @@ export function NewTransferForm({
                       institution={d.recipient.details.institution}
                       title={destinationName(d)}
                       mask={d.recipient.details.accountMask}
-                      detail={destinationDetail(d)}
+                      detail={destinationDetail(d, t)}
                     />
                   ))
                 : externals.map((r) => (
@@ -308,22 +312,22 @@ export function NewTransferForm({
                       badge={<RecipientStatusBadge status={r.status} />}
                     />
                   ))}
-              {mode === "external" && externals.length === 0 && <Placeholder>No saved payees yet.</Placeholder>}
+              {mode === "external" && externals.length === 0 && <Placeholder>{t("No saved payees yet.")}</Placeholder>}
             </SlotPicker>
           </div>
 
           {mode === "external" && external && external.status !== "verified" && (
             <p className="mt-3 rounded-2xl bg-amber-300/10 px-4 py-2.5 text-[13px] text-amber-200">
               {external.status === "changed"
-                ? "This payee's bank details changed since you verified them. Onera will hold the transfer until you confirm."
-                : "You haven't verified this payee yet. Onera will hold the transfer until you do."}
+                ? t("This payee's bank details changed since you verified them. Onera will hold the transfer until you confirm.")
+                : t("You haven't verified this payee yet. Onera will hold the transfer until you do.")}
             </p>
           )}
 
           {/* Amount */}
           <div className="mt-6 rounded-[22px] bg-white/[0.035] px-4 pt-4 pb-3 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]">
             <label htmlFor="tf-amount" className="block text-center text-[12px] font-medium tracking-wide text-white/50 uppercase">
-              Amount
+              {t("Amount")}
             </label>
             <div className="mt-1 flex items-baseline justify-center gap-1">
               <span className={`text-4xl font-semibold ${amount ? "text-zinc-50" : "text-white/30"}`} aria-hidden>
@@ -354,7 +358,7 @@ export function NewTransferForm({
               ))}
               {source && source.availableCents > 0 && (
                 <Chip active={amountCents === source.availableCents} onClick={() => setAmount(centsToDollarInput(source.availableCents))}>
-                  All
+                  {t("All")}
                 </Chip>
               )}
             </div>
@@ -367,12 +371,14 @@ export function NewTransferForm({
             >
               {amountError ??
                 (overAvailable && source
-                  ? `More than the ${formatCents(source.availableCents)} available. Onera will hold it.`
+                  ? t("More than the {amount} available. Onera will hold it.", { amount: formatCents(source.availableCents) })
                   : overLimit && perTransferLimitCents !== null
-                    ? `Above your ${formatCents(perTransferLimitCents, { whole: true })} per-transfer limit. Onera will hold it.`
+                    ? t("Above your {amount} per-transfer limit. Onera will hold it.", { amount: formatCents(perTransferLimitCents, { whole: true }) })
                     : source
-                      ? `${formatCents(source.availableCents)} available${
-                          perTransferLimitCents !== null ? ` · ${formatCents(perTransferLimitCents, { whole: true })} limit per transfer` : ""
+                      ? `${t("{amount} available", { amount: formatCents(source.availableCents) })}${
+                          perTransferLimitCents !== null
+                            ? ` · ${t("{amount} limit per transfer", { amount: formatCents(perTransferLimitCents, { whole: true }) })}`
+                            : ""
                         }`
                       : "")}
             </p>
@@ -383,7 +389,7 @@ export function NewTransferForm({
             {showMemo ? (
               <div>
                 <label htmlFor="tf-memo" className="sr-only">
-                  Note
+                  {t("Note")}
                 </label>
                 <input
                   id="tf-memo"
@@ -391,7 +397,7 @@ export function NewTransferForm({
                   maxLength={140}
                   autoComplete="off"
                   autoFocus
-                  placeholder="Add a note (optional)"
+                  placeholder={t("Add a note (optional)")}
                   value={memo}
                   onChange={(e) => setMemo(e.target.value)}
                   className="block w-full rounded-2xl border-0 bg-white/[0.05] px-4 py-2.5 text-sm text-zinc-100 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)] placeholder:text-white/35 focus:shadow-[inset_0_0_0_1px_rgb(140_185_204/0.6)] focus:outline-none"
@@ -403,12 +409,12 @@ export function NewTransferForm({
                 onClick={() => setShowMemo(true)}
                 className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[13px] text-white/55 hover:bg-white/[0.06] hover:text-white"
               >
-                <NotePencil size={15} aria-hidden /> Add a note
+                <NotePencil size={15} aria-hidden /> {t("Add a note")}
               </button>
             )}
           </div>
 
-          <ErrorBox error={error} title="Transfer not created" className="mt-3" />
+          <ErrorBox error={error} title={t("Transfer not created")} className="mt-3" />
 
           <Button
             type="submit"
@@ -419,10 +425,10 @@ export function NewTransferForm({
             aria-describedby="tf-submit-help"
             className="mt-4 w-full"
           >
-            Review transfer
+            {t("Review transfer")}
           </Button>
           <p id="tf-submit-help" className="mt-2 text-center text-xs text-white/45">
-            {disabledReason ?? "Nothing moves until you approve it on the next step. Simulated money only."}
+            {disabledReason ?? t("Nothing moves until you approve it on the next step. Simulated money only.")}
           </p>
         </form>
       )}
@@ -432,20 +438,21 @@ export function NewTransferForm({
 
 // ---------------------------------------------------------------------------
 
-function destinationDetail(d: OwnDestination): string {
+function destinationDetail(d: OwnDestination, t: Translate): string {
   const bank = shortInstitution(d.recipient.details.institution);
   if (!d.account) return bank;
-  if (d.account.type === "credit") return `${formatCents(Math.abs(d.account.balanceCents))} owed · ${bank}`;
+  if (d.account.type === "credit") return `${t("{amount} owed", { amount: formatCents(Math.abs(d.account.balanceCents)) })} · ${bank}`;
   return `${formatCents(d.account.balanceCents)} · ${bank}`;
 }
 
 function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
+  const t = useT();
   const options: { value: Mode; label: string }[] = [
-    { value: "own", label: "My accounts" },
-    { value: "external", label: "Pay someone" },
+    { value: "own", label: msg("My accounts") },
+    { value: "external", label: msg("Pay someone") },
   ];
   return (
-    <div role="radiogroup" aria-label="Transfer type" className="flex rounded-full bg-white/[0.06] p-[3px] shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]">
+    <div role="radiogroup" aria-label={t("Transfer type")} className="flex rounded-full bg-white/[0.06] p-[3px] shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]">
       {options.map((o) => {
         const active = o.value === mode;
         return (
@@ -461,7 +468,7 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
                 : "text-white/55 hover:text-white"
             }`}
           >
-            {o.label}
+            {t(o.label)}
           </button>
         );
       })}
@@ -484,7 +491,9 @@ function SlotPicker({
   summary: ReactNode;
   children: ReactNode;
 }) {
+  const t = useT();
   const listId = useId();
+  const tLabel = t(label);
   return (
     <div
       className={`rounded-[22px] bg-white/[0.04] shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)] transition-shadow ${
@@ -496,17 +505,17 @@ function SlotPicker({
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={listId}
-        aria-label={`${label}: ${valueText}. Change`}
+        aria-label={t("{label}: {value}. Change", { label: tLabel, value: valueText })}
         className="flex w-full items-center gap-3 rounded-[22px] px-4 py-3 text-left hover:bg-white/[0.03]"
       >
         <span className="min-w-0 flex-1">
-          <span className="mb-1 block text-[11px] font-medium tracking-wide text-white/45 uppercase">{label}</span>
+          <span className="mb-1 block text-[11px] font-medium tracking-wide text-white/45 uppercase">{tLabel}</span>
           {summary}
         </span>
         <CaretDown size={16} aria-hidden className={`shrink-0 text-white/45 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div id={listId} role="radiogroup" aria-label={`${label} account`} className="space-y-1 px-2 pb-2">
+        <div id={listId} role="radiogroup" aria-label={t("{label} account", { label: tLabel })} className="space-y-1 px-2 pb-2">
           {children}
         </div>
       )}

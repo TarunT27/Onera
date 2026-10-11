@@ -13,24 +13,27 @@ import {
   ShieldWarning,
   Robot,
   UsersThree,
+  GearSix,
 } from "@phosphor-icons/react";
 import { clearfi, errorMessage } from "./api";
 import { useSession } from "./SessionContext";
+import { useI18n } from "./I18nContext";
+import { msg } from "@/lib/i18n/msg";
 import { LogoLockup } from "./Logo";
 import { DemoUserMenu } from "./DemoUserMenu";
 import type { UserId } from "@/lib/types";
 
 const navigation = [
-  { href: "/", label: "Overview", icon: House },
-  { href: "/accounts", label: "Accounts", icon: Bank },
-  { href: "/family", label: "Family", icon: UsersThree },
-  { href: "/transfers", label: "Transfers", icon: ArrowsLeftRight },
-  { href: "/trade", label: "Trade", icon: ChartLineUp },
+  { href: "/", label: msg("Overview"), icon: House },
+  { href: "/accounts", label: msg("Accounts"), icon: Bank },
+  { href: "/family", label: msg("Family"), icon: UsersThree },
+  { href: "/transfers", label: msg("Transfers"), icon: ArrowsLeftRight },
+  { href: "/trade", label: msg("Trade"), icon: ChartLineUp },
   // The Assistant tab covers the chat and the personal assistant's briefing.
-  { href: "/chat", label: "Assistant", icon: ChatCircle, also: ["/briefing"] },
-  { href: "/agents", label: "Agents", icon: Robot },
-  { href: "/security", label: "Security", icon: ShieldWarning },
-  { href: "/control", label: "Controls", icon: SlidersHorizontal },
+  { href: "/chat", label: msg("Assistant"), icon: ChatCircle, also: ["/briefing"] },
+  { href: "/agents", label: msg("Agents"), icon: Robot },
+  { href: "/security", label: msg("Security"), icon: ShieldWarning },
+  { href: "/control", label: msg("Controls"), icon: SlidersHorizontal },
 ];
 
 const isActive = (href: string, pathname: string) =>
@@ -97,6 +100,7 @@ function useLiquidLens(activeHref: string | null) {
 }
 
 export function Header() {
+  const { t } = useI18n();
   const pathname = usePathname();
   const { data: session, error: sessionError } = useSession();
   const [busy, setBusy] = useState(false);
@@ -135,7 +139,7 @@ export function Header() {
   async function reset() {
     if (
       !confirm(
-        "Reset all synthetic demo accounts, connections, transfers and history?",
+        t("Reset all synthetic demo accounts, connections, transfers and history?"),
       )
     )
       return;
@@ -152,14 +156,14 @@ export function Header() {
   return (
     <>
       <a href="#main-content" className="skip-link">
-        Skip to content
+        {t("Skip to content")}
       </a>
       <header className="topbar" data-scrolled={scrolled ? "true" : undefined}>
-        <Link className="wordmark" href="/" aria-label="Onera home">
+        <Link className="wordmark" href="/" aria-label={t("Onera home")}>
           <LogoLockup />
         </Link>
         <nav
-          aria-label="Main"
+          aria-label={t("Main")}
           className="island"
           ref={navRef}
           style={{ "--nav-n": navigation.length } as CSSProperties}
@@ -171,7 +175,7 @@ export function Header() {
               <Link
                 key={href}
                 href={href}
-                title={label}
+                title={t(label)}
                 onClick={(e) => {
                   // Modified clicks open a new tab; the current page stays put.
                   if (
@@ -192,14 +196,14 @@ export function Header() {
                   weight={activeHref === href ? "fill" : "regular"}
                   aria-hidden
                 />
-                <span>{label}</span>
+                <span>{t(label)}</span>
               </Link>
             );
           })}
         </nav>
         <div className="session">
           <span className="demo-label">
-            Demo <span>· simulated money</span>
+            {t("Demo")} <span>· {t("simulated money")}</span>
           </span>
           <div className="session-user">
             <span className="avatar" aria-hidden>
@@ -209,12 +213,21 @@ export function Header() {
                 .join("") ?? "…"}
             </span>
             <DemoUserMenu session={session} busy={busy} onChange={changeUser} />
+            <Link
+              className="icon-btn"
+              href="/settings"
+              title={t("Settings")}
+              aria-label={t("Settings")}
+              aria-current={pathname.startsWith("/settings") ? "page" : undefined}
+            >
+              <GearSix size={16} aria-hidden />
+            </Link>
             <button
               className="icon-btn"
               onClick={reset}
               disabled={busy}
-              title="Reset demo"
-              aria-label="Reset demo"
+              title={t("Reset demo")}
+              aria-label={t("Reset demo")}
             >
               <ArrowCounterClockwise size={16} aria-hidden />
             </button>
@@ -224,7 +237,7 @@ export function Header() {
       {error && (
         <div role="alert" className="shell-error">
           {error}
-          <button onClick={() => setError("")}>Dismiss</button>
+          <button onClick={() => setError("")}>{t("Dismiss")}</button>
         </div>
       )}
     </>

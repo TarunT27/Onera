@@ -13,8 +13,10 @@ import { Card, EmptyState, Loading } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
 import { PaperLabel } from "../components/Badge";
 import { formatCents } from "@/lib/finance/money";
+import { formatDate, formatDateTime, formatNumber } from "../components/format";
+import { useI18n } from "../components/I18nContext";
 import { CurrencyValue } from "./CurrencyValue";
-import { filterAccountActivity } from "./presentation";
+import { ACCOUNT_TYPE_LABEL, CONNECTION_STATUS_LABEL, TXN_STATUS_LABEL, filterAccountActivity } from "./presentation";
 
 export function AccountPanel({ account, preview, holding, rates, connection, query, allowedAccountIds, holdingsError, onOpen }: {
   account?: Account;
@@ -27,6 +29,7 @@ export function AccountPanel({ account, preview, holding, rates, connection, que
   holdingsError: unknown;
   onOpen: (id: string) => void;
 }) {
+  const { t, tr } = useI18n();
   // Parent keys this panel by account/mode: old activity cannot flash under a new account.
   const [requestedLimit, setRequestedLimit] = useState(16);
   const limit = query ? 100 : requestedLimit;
@@ -53,89 +56,89 @@ export function AccountPanel({ account, preview, holding, rates, connection, que
     <Card
       className={`account-panel ${full ? "account-full-view" : ""}`}
       bodyClassName={full ? "account-full-layout" : ""}
-      title={full ? undefined : account?.name ?? "Recent activity"}
-      subtitle={full ? undefined : account ? `${account.institution} · ••${account.mask} · ${account.currency}` : query ? "Matching your search" : "For the accounts shown"}
+      title={full ? undefined : account?.name ?? t("Recent activity")}
+      subtitle={full ? undefined : account ? `${account.institution} · ••${account.mask} · ${account.currency}` : query ? t("Matching your search") : t("For the accounts shown")}
     >
       {preview && account ? (
         <div className="account-preview-note">
           <div>
-            <p className="account-pane-kicker">Activity preview</p>
-            <p>Latest 6 transactions · Synthetic data</p>
+            <p className="account-pane-kicker">{t("Activity preview")}</p>
+            <p>{t("Latest 6 transactions · Synthetic data")}</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => onOpen(account.id)}>Open account<ArrowUpRight size={16} aria-hidden /></Button>
+          <Button variant="ghost" size="sm" onClick={() => onOpen(account.id)}>{t("Open account")}<ArrowUpRight size={16} aria-hidden /></Button>
         </div>
       ) : account ? (
         <div className="account-overview-content">
           <div className="account-balance-card">
-            <p className="account-pane-kicker">{account.type === "brokerage" ? "Cash balance" : "Current balance"}</p>
+            <p className="account-pane-kicker">{account.type === "brokerage" ? t("Cash balance") : t("Current balance")}</p>
             <div className="account-detail-balance"><CurrencyValue cents={account.balanceCents} currency={account.currency} rates={rates} /></div>
             <p className="account-capability">
-              {account.capabilities.includes("transfer_source") ? "Eligible for simulated transfers" : "View only · cannot send transfers"}
+              {account.capabilities.includes("transfer_source") ? t("Eligible for simulated transfers") : t("View only · cannot send transfers")}
             </p>
-            {account.paper && <div className="mt-3 space-y-2"><PaperLabel /><p className="account-capability">Trade it on the <Link href="/trade" className="quiet-link">Trade page</Link>. Orders use simulated prices, wait for your approval and never touch your bank balances.</p></div>}
+            {account.paper && <div className="mt-3 space-y-2"><PaperLabel /><p className="account-capability">{tr("Trade it on the {link}. Orders use simulated prices, wait for your approval and never touch your bank balances.", { link: <Link href="/trade" className="quiet-link">{t("Trade page")}</Link> })}</p></div>}
             {account.capabilities.includes("transfer_source") && (
-              <Link href={`/transfers?source=${encodeURIComponent(account.id)}`} className="quiet-link mt-3">Transfer from this account<ArrowUpRight size={16} aria-hidden /></Link>
+              <Link href={`/transfers?source=${encodeURIComponent(account.id)}`} className="quiet-link mt-3">{t("Transfer from this account")}<ArrowUpRight size={16} aria-hidden /></Link>
             )}
           </div>
-          <section className="account-facts" aria-label="Account information">
+          <section className="account-facts" aria-label={t("Account information")}>
             <dl>
-              <div><dt>Available balance</dt><dd><CurrencyValue cents={account.availableCents} currency={account.currency} rates={rates} /></dd></div>
-              <div><dt>Account type</dt><dd className="capitalize">{account.type}</dd></div>
-              <div><dt>Connection</dt><dd>{connection ? connection.status.replaceAll("_", " ") : "Demo import"}</dd></div>
-              <div><dt>Updated</dt><dd>{new Date(account.updatedAt).toLocaleString()}</dd></div>
+              <div><dt>{t("Available balance")}</dt><dd><CurrencyValue cents={account.availableCents} currency={account.currency} rates={rates} /></dd></div>
+              <div><dt>{t("Account type")}</dt><dd className="capitalize">{t(ACCOUNT_TYPE_LABEL[account.type])}</dd></div>
+              <div><dt>{t("Connection")}</dt><dd>{connection ? t(CONNECTION_STATUS_LABEL[connection.status]) : t("Demo import")}</dd></div>
+              <div><dt>{t("Updated")}</dt><dd>{formatDateTime(account.updatedAt, { full: true })}</dd></div>
             </dl>
-            <p>Synthetic account · All activity is simulated.</p>
-            {account.currency !== "USD" && <p>USD equivalents use {fx ? `${fx.source} · ${new Date(fx.asOf).toLocaleDateString()}` : "an unavailable demo rate"}. Display only; international accounts cannot send transfers.</p>}
+            <p>{t("Synthetic account · All activity is simulated.")}</p>
+            {account.currency !== "USD" && <p>{fx ? t("USD equivalents use {rate}. Display only; international accounts cannot send transfers.", { rate: `${fx.source} · ${formatDate(fx.asOf)}` }) : t("USD equivalents use an unavailable demo rate. Display only; international accounts cannot send transfers.")}</p>}
           </section>
-          <ErrorBox error={holdingsError} title="Couldn't load holdings" />
+          <ErrorBox error={holdingsError} title={t("Couldn't load holdings")} />
           {holding && (
             <section className="account-holdings">
-              <h3>Holdings</h3>
-              <p>{holding.label} · Prices are simulated · Read-only view{holding.paper ? " · Not counted in net worth" : ""}</p>
-              {holding.positions.length === 0 && <EmptyState>No positions in this account.</EmptyState>}
+              <h3>{t("Holdings")}</h3>
+              <p>{holding.label} · {t("Prices are simulated")} · {t("Read-only view")}{holding.paper ? ` · ${t("Not counted in net worth")}` : ""}</p>
+              {holding.positions.length === 0 && <EmptyState>{t("No positions in this account.")}</EmptyState>}
               <ul>
                 {holding.positions.map((p) => (
                   <li key={p.symbol}>
-                    <span>{p.symbol}<small>{(p.quantityMicros / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 6 })} shares</small></span>
+                    <span>{p.symbol}<small>{t("{qty} shares", { qty: formatNumber(p.quantityMicros / 1_000_000, { maximumFractionDigits: 6 }) })}</small></span>
                     <span>{formatCents(p.marketValueCents)}</span>
                   </li>
                 ))}
               </ul>
-              <div className="account-holdings-total"><span>Cash + holdings</span><strong>{formatCents(holding.totalCents)}</strong></div>
+              <div className="account-holdings-total"><span>{t("Cash + holdings")}</span><strong>{formatCents(holding.totalCents)}</strong></div>
             </section>
           )}
         </div>
       ) : null}
-      <section className="account-activity-content" aria-label={preview ? "Recent account transactions" : "Account transaction history"}>
-      <h3 className="account-activity-heading">{preview ? "Recent transactions" : "Transaction activity"}</h3>
-      {full && <p className="account-history-note">Scroll for more. Open a transaction for its details.</p>}
-      <div className="account-activity-scroll" ref={scrollRef} role="region" aria-label="Scrollable transactions" tabIndex={0}>
+      <section className="account-activity-content" aria-label={preview ? t("Recent account transactions") : t("Account transaction history")}>
+      <h3 className="account-activity-heading">{preview ? t("Recent transactions") : t("Transaction activity")}</h3>
+      {full && <p className="account-history-note">{t("Scroll for more. Open a transaction for its details.")}</p>}
+      <div className="account-activity-scroll" ref={scrollRef} role="region" aria-label={t("Scrollable transactions")} tabIndex={0}>
       <ErrorBox error={transactions.error} onRetry={() => void transactions.reload()} />
-      {transactions.loading && !transactions.data ? <Loading label="Loading activity…" /> : transactions.error && !transactions.data ? null : txs.length === 0 ? (
-        <EmptyState>{query ? "No matching transactions. Try another search." : account ? "No transactions for this account yet." : "No recent transactions."}</EmptyState>
+      {transactions.loading && !transactions.data ? <Loading label={t("Loading activity…")} /> : transactions.error && !transactions.data ? null : txs.length === 0 ? (
+        <EmptyState>{query ? t("No matching transactions. Try another search.") : account ? t("No transactions for this account yet.") : t("No recent transactions.")}</EmptyState>
       ) : (
         <ul className="account-transactions">
-          {txs.map((t) => (
-            <li key={t.id} data-account-id={t.accountId}>
+          {txs.map((tx) => (
+            <li key={tx.id} data-account-id={tx.accountId}>
               {preview ? (
               <div className="transaction-line">
                 <div className="min-w-0">
-                  <p className="font-medium break-words">{t.merchant ?? t.description}</p>
-                  <p className="transaction-meta">{new Date(t.postedAt).toLocaleDateString()} · {t.category} · {t.status}</p>
+                  <p className="font-medium break-words">{tx.merchant ?? tx.description}</p>
+                  <p className="transaction-meta">{formatDate(tx.postedAt)} · {tx.category} · {t(TXN_STATUS_LABEL[tx.status])}</p>
                 </div>
-                <CurrencyValue cents={t.amountCents} currency={t.currency} rates={rates} />
+                <CurrencyValue cents={tx.amountCents} currency={tx.currency} rates={rates} />
               </div>
               ) : (
                 <details className="transaction-details">
-                  <summary className="transaction-line" aria-label={`Transaction details: ${t.merchant ?? t.description}, ${new Date(t.postedAt).toLocaleDateString()}, ${formatCents(t.amountCents, t.currency)}`}>
+                  <summary className="transaction-line" aria-label={t("Transaction details: {name}, {date}, {amount}", { name: tx.merchant ?? tx.description, date: formatDate(tx.postedAt), amount: formatCents(tx.amountCents, tx.currency) })}>
                     <span className="min-w-0">
-                      <span className="font-medium break-words block">{t.merchant ?? t.description}</span>
-                      <span className="transaction-meta block">{new Date(t.postedAt).toLocaleDateString()} · {t.category} · {t.status}</span>
+                      <span className="font-medium break-words block">{tx.merchant ?? tx.description}</span>
+                      <span className="transaction-meta block">{formatDate(tx.postedAt)} · {tx.category} · {t(TXN_STATUS_LABEL[tx.status])}</span>
                     </span>
-                    <span className="transaction-entry-value"><CurrencyValue cents={t.amountCents} currency={t.currency} rates={rates} /><CaretDown size={14} aria-hidden /></span>
+                    <span className="transaction-entry-value"><CurrencyValue cents={tx.amountCents} currency={tx.currency} rates={rates} /><CaretDown size={14} aria-hidden /></span>
                   </summary>
-                  <p>{t.description}{t.transferGroupId ? " · Transfer between your accounts" : ""}</p>
-                  {t.actionId && <Link href={`/transfers?id=${encodeURIComponent(t.actionId)}`}>View transfer receipt</Link>}
+                  <p>{tx.description}{tx.transferGroupId ? ` · ${t("Transfer between your accounts")}` : ""}</p>
+                  {tx.actionId && <Link href={`/transfers?id=${encodeURIComponent(tx.actionId)}`}>{t("View transfer receipt")}</Link>}
                 </details>
               )}
             </li>
@@ -144,7 +147,7 @@ export function AccountPanel({ account, preview, holding, rates, connection, que
       )}
       <div ref={sentinelRef} className="account-activity-sentinel" aria-hidden />
       <p className="account-history-note" role="status">
-        {transactions.loading && transactions.data ? "Loading activity…" : hasMore ? "Scroll for more activity" : txs.length ? "End of recent activity" : ""}
+        {transactions.loading && transactions.data ? t("Loading activity…") : hasMore ? t("Scroll for more activity") : txs.length ? t("End of recent activity") : ""}
       </p>
       </div>
       </section>

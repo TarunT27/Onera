@@ -22,6 +22,7 @@ import {
   type FamilyOverview,
   type SimulatePurchaseInput,
 } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 interface CardRow {
   id: string;
@@ -102,8 +103,8 @@ function toCard(db: DB, userId: UserId, row: CardRow, now: Date): FamilyCard {
   const pctUsed = row.monthly_limit_cents > 0 ? Math.round((spent / row.monthly_limit_cents) * 1000) / 10 : 0;
 
   const alerts: FamilyAlert[] = [];
-  if (row.status === "frozen") alerts.push({ level: "info", message: "Card is frozen. New purchases are declined until you unfreeze it." });
-  if (pctUsed >= 100) alerts.push({ level: "critical", message: "Monthly limit reached. New purchases will be declined." });
+  if (row.status === "frozen") alerts.push({ level: "info", message: msg("Card is frozen. New purchases are declined until you unfreeze it.") });
+  if (pctUsed >= 100) alerts.push({ level: "critical", message: msg("Monthly limit reached. New purchases will be declined.") });
   else if (pctUsed >= row.alert_threshold_pct) alerts.push({ level: "warning", message: `${Math.round(pctUsed)}% of the monthly limit used.` });
   if (declined > 0) alerts.push({ level: "info", message: `${declined} declined purchase${declined === 1 ? "" : "s"} this month.` });
 

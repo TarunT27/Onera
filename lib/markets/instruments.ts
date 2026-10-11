@@ -4,6 +4,7 @@
  * margin, leverage or shorting.
  */
 import type { Instrument } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 export interface SimParams {
   /** Price at the simulator epoch, in cents. */
@@ -19,29 +20,29 @@ interface CatalogEntry extends Instrument {
 }
 
 const CATALOG: CatalogEntry[] = [
-  { symbol: "VTI", name: "Vanguard Total Stock Market ETF", type: "etf", sector: "Broad market",
+  { symbol: "VTI", name: "Vanguard Total Stock Market ETF", type: "etf", sector: msg("Broad market"),
     sim: { basePriceCents: 23_500, dailyVol: 0.009, annualDrift: 0.07 } },
-  { symbol: "VOO", name: "Vanguard S&P 500 ETF", type: "etf", sector: "Large cap",
+  { symbol: "VOO", name: "Vanguard S&P 500 ETF", type: "etf", sector: msg("Large cap"),
     sim: { basePriceCents: 43_000, dailyVol: 0.009, annualDrift: 0.07 } },
-  { symbol: "QQQ", name: "Invesco QQQ Trust", type: "etf", sector: "Technology-heavy",
+  { symbol: "QQQ", name: "Invesco QQQ Trust", type: "etf", sector: msg("Technology-heavy"),
     sim: { basePriceCents: 40_500, dailyVol: 0.012, annualDrift: 0.09 } },
-  { symbol: "SCHD", name: "Schwab U.S. Dividend Equity ETF", type: "etf", sector: "Dividend",
+  { symbol: "SCHD", name: "Schwab U.S. Dividend Equity ETF", type: "etf", sector: msg("Dividend"),
     sim: { basePriceCents: 7_600, dailyVol: 0.008, annualDrift: 0.04 } },
-  { symbol: "BND", name: "Vanguard Total Bond Market ETF", type: "etf", sector: "Bonds",
+  { symbol: "BND", name: "Vanguard Total Bond Market ETF", type: "etf", sector: msg("Bonds"),
     sim: { basePriceCents: 7_300, dailyVol: 0.003, annualDrift: 0.0 } },
-  { symbol: "AAPL", name: "Apple Inc.", type: "stock", sector: "Technology",
+  { symbol: "AAPL", name: "Apple Inc.", type: "stock", sector: msg("Technology"),
     sim: { basePriceCents: 18_500, dailyVol: 0.015, annualDrift: 0.08 } },
-  { symbol: "MSFT", name: "Microsoft Corporation", type: "stock", sector: "Technology",
+  { symbol: "MSFT", name: "Microsoft Corporation", type: "stock", sector: msg("Technology"),
     sim: { basePriceCents: 37_500, dailyVol: 0.014, annualDrift: 0.08 } },
-  { symbol: "NVDA", name: "NVIDIA Corporation", type: "stock", sector: "Technology",
+  { symbol: "NVDA", name: "NVIDIA Corporation", type: "stock", sector: msg("Technology"),
     sim: { basePriceCents: 9_000, dailyVol: 0.026, annualDrift: 0.15 } },
-  { symbol: "AMZN", name: "Amazon.com, Inc.", type: "stock", sector: "Consumer discretionary",
+  { symbol: "AMZN", name: "Amazon.com, Inc.", type: "stock", sector: msg("Consumer discretionary"),
     sim: { basePriceCents: 15_500, dailyVol: 0.017, annualDrift: 0.08 } },
-  { symbol: "GOOGL", name: "Alphabet Inc. Class A", type: "stock", sector: "Communication services",
+  { symbol: "GOOGL", name: "Alphabet Inc. Class A", type: "stock", sector: msg("Communication services"),
     sim: { basePriceCents: 14_000, dailyVol: 0.016, annualDrift: 0.08 } },
-  { symbol: "JPM", name: "JPMorgan Chase & Co.", type: "stock", sector: "Financials",
+  { symbol: "JPM", name: "JPMorgan Chase & Co.", type: "stock", sector: msg("Financials"),
     sim: { basePriceCents: 17_000, dailyVol: 0.013, annualDrift: 0.06 } },
-  { symbol: "KO", name: "The Coca-Cola Company", type: "stock", sector: "Consumer staples",
+  { symbol: "KO", name: "The Coca-Cola Company", type: "stock", sector: msg("Consumer staples"),
     sim: { basePriceCents: 6_000, dailyVol: 0.008, annualDrift: 0.03 } },
 ];
 

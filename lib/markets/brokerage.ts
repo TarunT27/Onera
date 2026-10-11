@@ -59,6 +59,7 @@ import { getOrder, loadOrderRow } from "./orders";
 import type { BrokerLinkRow, OrderRow } from "./rows";
 import { venueOf } from "./rows";
 import type { BrokerConnection, OrderFill, PaperOrder, PlaceOrderResult } from "./types";
+import { msg, tpl } from "@/lib/i18n/msg";
 
 /** Account mirrors newer than this are reused (unless forced). */
 const ACCOUNT_SYNC_MS = 10_000;
@@ -74,21 +75,21 @@ const TERMINAL = new Set(["filled", "canceled", "expired", "rejected"]);
 function brokerError(err: unknown, what: string): ServiceError {
   if (err instanceof ServiceError) return err;
   if (!(err instanceof AlpacaError)) {
-    return new ServiceError("INTERNAL", `${what} failed.`, 502, { retryable: true });
+    return new ServiceError("INTERNAL", tpl("{what} failed.", { what }), 502, { retryable: true });
   }
   switch (err.kind) {
     case "auth":
       return new ServiceError("UNSUPPORTED",
         "Alpaca rejected the API keys. Check ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY and ALPACA_ENV.", 503);
     case "rate_limited":
-      return new ServiceError("RATE_LIMITED", "Alpaca rate limit reached. Try again in a minute.", 429,
+      return new ServiceError("RATE_LIMITED", msg("Alpaca rate limit reached. Try again in a minute."), 429,
         { retryable: true });
     case "network":
     case "server":
-      return new ServiceError("INTERNAL", `Alpaca could not be reached (${what}). Nothing changed; try again.`, 502,
+      return new ServiceError("INTERNAL", tpl("Alpaca could not be reached ({what}). Nothing changed; try again.", { what }), 502,
         { retryable: true });
     default:
-      return new ServiceError("INTERNAL", `${what} failed: ${err.brokerMessage}`, 502);
+      return new ServiceError("INTERNAL", tpl("{what} failed: {message}", { what, message: err.brokerMessage }), 502);
   }
 }
 
@@ -185,7 +186,7 @@ export async function connectAlpaca(db: DB, userId: UserId): Promise<BrokerConne
     [account, positions] = await Promise.all([getAccount(), listPositions()]);
     noShorting = (await getAccountConfig()).no_shorting;
   } catch (err) {
-    throw brokerError(err, "Connecting to Alpaca");
+    throw brokerError(err, msg("Connecting to Alpaca"));
   }
 
   const paperAccount = account.account_number.startsWith("PA");
@@ -196,9 +197,9 @@ export async function connectAlpaca(db: DB, userId: UserId): Promise<BrokerConne
     throw badRequest("ALPACA_ENV=live, but these keys belong to an Alpaca paper account.");
   }
   if (account.account_blocked || account.trading_blocked || account.status !== "ACTIVE") {
-    throw badRequest(`This Alpaca account cannot trade right now (status ${account.status}).`);
+    throw badRequest(tpl("This Alpaca account cannot trade right now (status {status}).", { status: account.status }));
   }
-  if (account.currency !== "USD") throw badRequest("Only USD Alpaca accounts are supported.");
+  if (account.currency !== "USD") throw badRequest(msg("Only USD Alpaca accounts are supported."));
 
   const now = new Date();
   const ts = now.toISOString();
@@ -248,11 +249,11 @@ export async function syncBrokerAccount(db: DB, userId: UserId, opts: { force?: 
     const [account, positions] = await Promise.all([getAccount(), listPositions()]);
     if (account.id !== link.external_account_id) {
       throw new ServiceError("UNSUPPORTED",
-        "The configured Alpaca keys belong to a different account than the one you connected. Reconnect Alpaca.", 409);
+        msg("The configured Alpaca keys belong to a different account than the one you connected. Reconnect Alpaca."), 409);
     }
     db.transaction(() => applyAccountSnapshot(db, userId, link.account_id, account, positions, new Date())).immediate();
   } catch (err) {
-    const e = brokerError(err, "Syncing your Alpaca account");
+    const e = brokerError(err, msg("Syncing your Alpaca account"));
     try {
       db.prepare("UPDATE broker_links SET last_sync_error = ? WHERE account_id = ? AND user_id = ?")
         .run(e.message, link.account_id, userId);
@@ -288,7 +289,7 @@ export async function refreshMarketData(
   ]);
   const errors = results
     .filter((r): r is PromiseRejectedResult => r.status === "rejected")
-    .map((r) => brokerError(r.reason, "Refreshing market data").message);
+    .map((r) => brokerError(r.reason, msg("Refreshing market data")).message);
   if (errors.length) console.warn(`[clearfi] Alpaca refresh: ${errors.join(" | ")}`);
   return { ok: errors.length === 0, errors };
 }
@@ -359,7 +360,7 @@ function applyBrokerOrder(db: DB, userId: UserId, orderId: string, bo: AlpacaOrd
         `UPDATE orders SET state = 'CANCELED', broker_order_id = ?, broker_status = ?, broker_filled_qty_micros = 0,
            failure_reason = ?, updated_at = ?
          WHERE id = ? AND user_id = ? AND state = ?`,
-      ).run(bo.id, bo.status, bo.status === "expired" ? "Expired at Alpaca without filling (day order)." : null, ts,
+      ).run(bo.id, bo.status, bo.status === "expired" ? msg("Expired at Alpaca without filling (day order).") : null, ts,
         orderId, userId, row.state);
       if (updated.changes !== 1) return false;
       writeAudit(db, { userId, actor: "system", eventType: "order.canceled", actionId: orderId,
@@ -372,7 +373,7 @@ function applyBrokerOrder(db: DB, userId: UserId, orderId: string, bo: AlpacaOrd
       const updated = db.prepare(
         `UPDATE orders SET state = 'FAILED', broker_order_id = ?, broker_status = ?, failure_reason = ?, updated_at = ?
          WHERE id = ? AND user_id = ? AND state = ?`,
-      ).run(bo.id, bo.status, "Alpaca rejected the order.", ts, orderId, userId, row.state);
+      ).run(bo.id, bo.status, msg("Alpaca rejected the order."), ts, orderId, userId, row.state);
       if (updated.changes !== 1) return false;
       writeAudit(db, { userId, actor: "system", eventType: "order.broker_rejected", actionId: orderId,
         detail: { venue: row.venue, brokerOrderId: bo.id, brokerStatus: bo.status } });
@@ -413,11 +414,11 @@ export async function submitOrder(db: DB, userId: UserId, orderId: string): Prom
   const actor = `user:${userId}`;
   const first = loadOrderRow(db, userId, orderId);
   if (first.venue === "onera_paper") {
-    throw conflict("INVALID_STATE", "This is an Onera paper order; it executes in the paper broker.");
+    throw conflict("INVALID_STATE", msg("This is an Onera paper order; it executes in the paper broker."));
   }
   if (first.client_order_id !== null) return resultFor(db, userId, orderId, true);
   if (first.state !== "APPROVED") {
-    throw conflict("INVALID_STATE", `Order is ${first.state}; only an APPROVED order can be submitted`,
+    throw conflict("INVALID_STATE", tpl("Order is {state}; only an APPROVED order can be submitted", { state: first.state }),
       { state: first.state });
   }
 
@@ -427,12 +428,12 @@ export async function submitOrder(db: DB, userId: UserId, orderId: string): Prom
     await refreshQuotes(db, { force: true });
     await syncBrokerAccount(db, userId, { force: true });
     const asset = await getAsset(first.symbol);
-    if (!asset.tradable) throw badRequest(`${first.symbol} is not tradable at Alpaca right now.`);
+    if (!asset.tradable) throw badRequest(tpl("{symbol} is not tradable at Alpaca right now.", { symbol: first.symbol }));
     fractionable = asset.fractionable;
   } catch (err) {
-    const e = brokerError(err, "Preparing the order");
+    const e = brokerError(err, msg("Preparing the order"));
     if (e.status >= 500 || e.status === 429) {
-      throw new ServiceError(e.code, `${e.message} The order is still approved and nothing was sent.`, e.status,
+      throw new ServiceError(e.code, tpl("{message} The order is still approved and nothing was sent.", { message: e.message }), e.status,
         { retryable: true });
     }
     throw e;
@@ -453,7 +454,7 @@ export async function submitOrder(db: DB, userId: UserId, orderId: string): Prom
         writeAudit(db, { userId, actor, eventType: "order.execute_refused", actionId: orderId,
           detail: { reason: "NOT_APPROVED", state: row.state } });
         return { kind: "rejected", error: conflict("INVALID_STATE",
-          `Order is ${row.state}; only an APPROVED order can be submitted`, { state: row.state }) };
+          tpl("Order is {state}; only an APPROVED order can be submitted", { state: row.state }), { state: row.state }) };
       }
       const verified = verifyApprovedOrder(db, userId, row, now);
       if (!verified.ok) return { kind: "rejected", error: verified.error };
@@ -463,8 +464,8 @@ export async function submitOrder(db: DB, userId: UserId, orderId: string): Prom
       if (!fractionable) quantityMicros -= quantityMicros % MICROS_PER_SHARE;
       if (quantityMicros <= 0) {
         return { kind: "rejected", error: badRequest(fractionable
-          ? "The order is too small to buy any shares."
-          : `${row.symbol} can't be traded in fractions at Alpaca, and this amount buys less than one share. Edit the order.`) };
+          ? msg("The order is too small to buy any shares.")
+          : tpl("{symbol} can't be traded in fractions at Alpaca, and this amount buys less than one share. Edit the order.", { symbol: row.symbol })) };
       }
       const clientOrderId = `${row.id}-v${row.version}`;
       const ts = now.toISOString();
@@ -474,7 +475,7 @@ export async function submitOrder(db: DB, userId: UserId, orderId: string): Prom
          WHERE id = ? AND user_id = ? AND state = 'APPROVED' AND version = ?`,
       ).run(clientOrderId, quantityMicros, verified.policy.estimatedValueCents, ts, ts, orderId, userId, row.version);
       if (claimed.changes !== 1) {
-        return { kind: "rejected", error: conflict("INVALID_STATE", "The order changed while it was being submitted.") };
+        return { kind: "rejected", error: conflict("INVALID_STATE", msg("The order changed while it was being submitted.")) };
       }
       writeAudit(db, { userId, actor, eventType: "order.submitting", actionId: orderId,
         detail: { venue: row.venue, version: row.version, clientOrderId, quantityMicros, limitPriceCents: bound,
@@ -483,7 +484,7 @@ export async function submitOrder(db: DB, userId: UserId, orderId: string): Prom
     }).immediate();
   } catch (err) {
     if (isTransientLockError(err)) {
-      throw new ServiceError("INTERNAL", "Onera is busy. Nothing was sent; try again.", 503, { retryable: true });
+      throw new ServiceError("INTERNAL", msg("Onera is busy. Nothing was sent; try again."), 503, { retryable: true });
     }
     throw err;
   }
@@ -507,7 +508,7 @@ export async function submitOrder(db: DB, userId: UserId, orderId: string): Prom
   } catch (err) {
     if (!(err instanceof AlpacaError)) throw err;
     if (err.kind === "forbidden" || err.kind === "unprocessable") {
-      markSubmitFailed(db, userId, orderId, `Alpaca rejected the order: ${err.brokerMessage}`,
+      markSubmitFailed(db, userId, orderId, tpl("Alpaca rejected the order: {message}", { message: err.brokerMessage }),
         { status: err.status, venue: row.venue });
       return resultFor(db, userId, orderId, false);
     }
@@ -518,7 +519,7 @@ export async function submitOrder(db: DB, userId: UserId, orderId: string): Prom
            broker_filled_qty_micros = NULL, reserved_cents = NULL, submitted_at = NULL, updated_at = ?
          WHERE id = ? AND user_id = ? AND state = 'SUBMITTING'`,
       ).run(new Date().toISOString(), orderId, userId);
-      throw brokerError(err, "Submitting the order");
+      throw brokerError(err, msg("Submitting the order"));
     }
     // Ambiguous (timeout, network, 5xx): the order may exist. Look it up; never re-post blindly.
     try {
@@ -572,7 +573,7 @@ export async function syncOrders(db: DB, userId?: UserId): Promise<number> {
           const age = Date.now() - new Date(row.submitted_at ?? row.updated_at).getTime();
           if (age > SUBMIT_CONFIRM_MS) {
             markSubmitFailed(db, owner, row.id,
-              "Alpaca never received this order (submission could not be confirmed). Nothing was traded.",
+              msg("Alpaca never received this order (submission could not be confirmed). Nothing was traded."),
               { clientOrderId: row.client_order_id });
             finals++;
           }
@@ -596,13 +597,13 @@ export async function cancelOrder(db: DB, userId: UserId, orderId: string): Prom
   requireAlpaca();
   const row = loadOrderRow(db, userId, orderId);
   if (row.venue === "onera_paper") {
-    throw conflict("INVALID_STATE", "Onera paper orders fill immediately; there is nothing to cancel.");
+    throw conflict("INVALID_STATE", msg("Onera paper orders fill immediately; there is nothing to cancel."));
   }
   if (row.state === "SUBMITTING" || (row.state === "SUBMITTED" && !row.broker_order_id)) {
-    throw conflict("INVALID_STATE", "The order is still being submitted to Alpaca. Try again in a moment.");
+    throw conflict("INVALID_STATE", msg("The order is still being submitted to Alpaca. Try again in a moment."));
   }
   if (row.state !== "SUBMITTED") {
-    throw conflict("INVALID_STATE", `Order is ${row.state}; only an open Alpaca order can be canceled`,
+    throw conflict("INVALID_STATE", tpl("Order is {state}; only an open Alpaca order can be canceled", { state: row.state }),
       { state: row.state });
   }
   let refused: string | null = null;
@@ -612,7 +613,7 @@ export async function cancelOrder(db: DB, userId: UserId, orderId: string): Prom
     if (err instanceof AlpacaError && (err.kind === "unprocessable" || err.kind === "not_found")) {
       refused = err.brokerMessage;
     } else {
-      throw brokerError(err, "Canceling the order");
+      throw brokerError(err, msg("Canceling the order"));
     }
   }
   const ts = new Date().toISOString();
@@ -635,7 +636,7 @@ export async function cancelOrder(db: DB, userId: UserId, orderId: string): Prom
   if (refused) {
     const order = getOrder(db, userId, orderId);
     if (order.state === "SUBMITTED") {
-      throw conflict("INVALID_STATE", `Alpaca could not cancel this order: ${refused}`, { state: order.state });
+      throw conflict("INVALID_STATE", tpl("Alpaca could not cancel this order: {reason}", { reason: refused }), { state: order.state });
     }
     return order;
   }

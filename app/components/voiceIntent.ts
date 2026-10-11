@@ -10,19 +10,21 @@
  * Whatever the route, writes are still only proposals that wait for the user's
  * approval in the app. Choosing an agent here is the same as clicking its chip.
  */
+import { msg } from "@/lib/i18n/msg";
+
 export type VoiceRoute =
   | { kind: "navigate"; href: string; label: string }
   | { kind: "ask"; agent: "general" | "drafter" };
 
 const PAGES: { href: string; label: string; names: string[] }[] = [
-  { href: "/", label: "Overview", names: ["overview", "home", "home page", "dashboard"] },
-  { href: "/accounts", label: "Accounts", names: ["accounts", "account", "balances"] },
-  { href: "/family", label: "Family", names: ["family", "family cards", "kids", "kids cards", "kids' cards"] },
-  { href: "/transfers", label: "Transfers", names: ["transfers", "transfer", "payments"] },
-  { href: "/trade", label: "Trade", names: ["trade", "trading", "paper trading", "market", "markets"] },
-  { href: "/chat", label: "Assistant", names: ["assistant", "chat", "ask onera"] },
-  { href: "/security", label: "Security", names: ["security", "threats", "threat monitor"] },
-  { href: "/control", label: "Controls", names: ["controls", "control", "limits", "settings"] },
+  { href: "/", label: msg("Overview"), names: ["overview", "home", "home page", "dashboard"] },
+  { href: "/accounts", label: msg("Accounts"), names: ["accounts", "account", "balances"] },
+  { href: "/family", label: msg("Family"), names: ["family", "family cards", "kids", "kids cards", "kids' cards"] },
+  { href: "/transfers", label: msg("Transfers"), names: ["transfers", "transfer", "payments"] },
+  { href: "/trade", label: msg("Trade"), names: ["trade", "trading", "paper trading", "market", "markets"] },
+  { href: "/chat", label: msg("Assistant"), names: ["assistant", "chat", "ask onera"] },
+  { href: "/security", label: msg("Security"), names: ["security", "threats", "threat monitor"] },
+  { href: "/control", label: msg("Controls"), names: ["controls", "control", "limits", "settings"] },
 ];
 
 const NAVIGATE =

@@ -19,6 +19,8 @@ import { Badge, PaperLabel } from "../components/Badge";
 import { Loading } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatCents } from "../components/format";
+import { useT } from "../components/I18nContext";
+import { msg } from "@/lib/i18n/msg";
 import { useApiData } from "../components/useApiData";
 import { OrderReview, OrderStateBadge, creatorLabel, orderTitle } from "./OrderReview";
 import { OrderTicket } from "./OrderTicket";
@@ -27,10 +29,10 @@ import { TradeAssistant } from "./TradeAssistant";
 import { formatShares } from "./shares";
 
 const RANGES = [
-  { label: "1W", days: 7, desc: "past week" },
-  { label: "1M", days: 30, desc: "past month" },
-  { label: "3M", days: 90, desc: "past 3 months" },
-  { label: "1Y", days: 365, desc: "past year" },
+  { label: "1W", days: 7, desc: msg("past week") },
+  { label: "1M", days: 30, desc: msg("past month") },
+  { label: "3M", days: 90, desc: msg("past 3 months") },
+  { label: "1Y", days: 365, desc: msg("past year") },
 ] as const;
 
 interface InstrumentsResponse {
@@ -40,17 +42,19 @@ interface InstrumentsResponse {
 }
 
 function VenueBadge({ account }: { account: PortfolioAccount }) {
+  const t = useT();
   if (account.venue === "alpaca_live") {
-    return <Badge tone="red" title="Alpaca live account: real money">LIVE · real money</Badge>;
+    return <Badge tone="red" title={t("Alpaca live account: real money")}>{t("LIVE · real money")}</Badge>;
   }
   if (account.venue === "alpaca_paper") {
-    return <Badge tone="brand" title="Alpaca paper trading: real market prices, paper money">Alpaca paper</Badge>;
+    return <Badge tone="brand" title={t("Alpaca paper trading: real market prices, paper money")}>{t("Alpaca paper")}</Badge>;
   }
   return <PaperLabel />;
 }
 
 /** Shown when the server has Alpaca keys for this user. Connecting is always the user's own click. */
 function AlpacaCard({ connection, onConnected }: { connection: BrokerConnection; onConnected: () => void }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const live = connection.env === "live";
@@ -70,21 +74,21 @@ function AlpacaCard({ connection, onConnected }: { connection: BrokerConnection;
 
   if (connection.accountId) {
     return connection.lastSyncError ? (
-      <p className="trade-paused" role="status">Alpaca sync problem: {connection.lastSyncError}</p>
+      <p className="trade-paused" role="status">{t("Alpaca sync problem: {error}", { error: connection.lastSyncError })}</p>
     ) : null;
   }
   return (
-    <section className="trade-connect glass" aria-label="Connect Alpaca">
+    <section className="trade-connect glass" aria-label={t("Connect Alpaca")}>
       <div>
-        <strong>{live ? "Connect your Alpaca LIVE account" : "Connect your Alpaca paper account"}</strong>
+        <strong>{live ? t("Connect your Alpaca LIVE account") : t("Connect your Alpaca paper account")}</strong>
         <p className="row-meta">
           {live
-            ? "Real money. Orders you approve are sent to Alpaca as limit orders, capped per order."
-            : "Trade with real market prices and Alpaca paper money. You still approve every order before it's sent."}
+            ? t("Real money. Orders you approve are sent to Alpaca as limit orders, capped per order.")
+            : t("Trade with real market prices and Alpaca paper money. You still approve every order before it's sent.")}
         </p>
       </div>
       <button type="button" className="pill" disabled={busy} onClick={() => void connect()}>
-        {busy ? "Connecting…" : "Connect Alpaca"}
+        {busy ? t("Connecting…") : t("Connect Alpaca")}
       </button>
       <ErrorBox error={error} onDismiss={() => setError(null)} />
     </section>
@@ -109,6 +113,7 @@ function Price({ cents }: { cents: number }) {
 }
 
 export function TradeClient() {
+  const t = useT();
   const [symbol, setSymbol] = useState("NVDA");
   const [range, setRange] = useState(1);
   const [selected, setSelected] = useState<PaperOrder | null>(null);
@@ -142,8 +147,8 @@ export function TradeClient() {
   // Quotes move every minute (simulated or real); keep the watchlist fresh.
   const reloadQuotes = quotes.reload;
   useEffect(() => {
-    const t = setInterval(() => void reloadQuotes(), 30_000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => void reloadQuotes(), 30_000);
+    return () => clearInterval(timer);
   }, [reloadQuotes]);
 
   // Tradable accounts: Onera paper and, once connected, Alpaca. Default to Alpaca when it's there.
@@ -223,28 +228,28 @@ export function TradeClient() {
     <div className="trade">
       <div className="trade-head rise" style={{ ["--i" as string]: 0 }} inert={assistantOpen || undefined}>
         <div className="trade-title">
-          <h1>Trade</h1>
-          <p className="eyebrow">{paper ? `${paper.name} · ••${paper.mask}` : "Paper trading"}</p>
+          <h1>{t("Trade")}</h1>
+          <p className="eyebrow">{paper ? `${paper.name} · ••${paper.mask}` : t("Paper trading")}</p>
         </div>
         <div className="trade-chips">
-          {(!paper || paper.venue === "onera_paper") && <span className="chip">Synthetic data · simulated money</span>}
+          {(!paper || paper.venue === "onera_paper") && <span className="chip">{t("Synthetic data · simulated money")}</span>}
           {paper ? <VenueBadge account={paper} /> : <PaperLabel />}
-          <span className="chip" title={market?.nextOpen ? `Next open ${new Date(market.nextOpen).toLocaleString()}` : undefined}>
-            {market?.label ?? "Simulated market"}
+          <span className="chip" title={market?.nextOpen ? t("Next open {time}", { time: new Date(market.nextOpen).toLocaleString() }) : undefined}>
+            {t(market?.label ?? "Simulated market")}
           </span>
           <span className="chip">
-            <span className="chip-dim">Prices</span> {realPrices ? "Alpaca · IEX" : "Simulated"}
+            <span className="chip-dim">{t("Prices")}</span> {realPrices ? t("Alpaca · IEX") : t("Simulated")}
           </span>
           {paper && (
             <span className="chip">
-              <span className="chip-dim">Buying power</span> {formatCents(paper.buyingPowerCents)}
+              <span className="chip-dim">{t("Buying power")}</span> {formatCents(paper.buyingPowerCents)}
             </span>
           )}
         </div>
       </div>
 
       {tradable.length > 1 && (
-        <div className="trade-accounts" role="radiogroup" aria-label="Trading account">
+        <div className="trade-accounts" role="radiogroup" aria-label={t("Trading account")}>
           {tradable.map((a) => (
             <button
               key={a.accountId}
@@ -272,26 +277,26 @@ export function TradeClient() {
       )}
       {paper?.venue === "alpaca_live" && (
         <p className="trade-paused trade-live" role="status">
-          LIVE account: orders you submit here trade real money at Alpaca.
+          {t("LIVE account: orders you submit here trade real money at Alpaca.")}
         </p>
       )}
 
       {controls.data?.paused && (
         <p className="trade-paused" role="status">
-          Execution is paused in Controls. New orders will be held until you resume.
+          {t("Execution is paused in Controls. New orders will be held until you resume.")}
         </p>
       )}
       <ErrorBox error={openError} onDismiss={() => setOpenError(null)} />
 
       <div className="trade-grid">
-        <section className="watchlist glass rise" style={{ ["--i" as string]: 1 }} aria-label="Watchlist" inert={assistantOpen || undefined}>
+        <section className="watchlist glass rise" style={{ ["--i" as string]: 1 }} aria-label={t("Watchlist")} inert={assistantOpen || undefined}>
           <header>
-            <h2>Watchlist</h2>
-            <span className="row-meta">{quotes.data?.quotes.length ?? "…"} symbols</span>
+            <h2>{t("Watchlist")}</h2>
+            <span className="row-meta">{t("{count} symbols", { count: quotes.data?.quotes.length ?? "…" })}</span>
           </header>
-          <ErrorBox error={quotes.error} title="Couldn't load quotes" onRetry={() => void quotes.reload()} />
+          <ErrorBox error={quotes.error} title={t("Couldn't load quotes")} onRetry={() => void quotes.reload()} />
           {quotes.loading && !quotes.data ? (
-            <Loading label="Loading quotes…" />
+            <Loading label={t("Loading quotes…")} />
           ) : (
             <ul>
               {quotes.data?.quotes.map((q) => {
@@ -324,11 +329,11 @@ export function TradeClient() {
         </section>
 
         <div className="trade-main" inert={assistantOpen || undefined}>
-          <section className="tile glass chart-card rise" style={{ ["--i" as string]: 2 }} aria-label={`${symbol} chart`}>
+          <section className="tile glass chart-card rise" style={{ ["--i" as string]: 2 }} aria-label={t("{symbol} chart", { symbol })}>
             <header className="chart-head">
               <div>
                 <p className="row-meta">
-                  {instrument ? `${instrument.name} · ${instrument.type === "etf" ? "ETF" : "Stock"}` : symbol}
+                  {instrument ? `${instrument.name} · ${instrument.type === "etf" ? t("ETF") : t("Stock")}` : symbol}
                 </p>
                 <p className="chart-price">
                   <span className="chart-big">{last ? <Price cents={last} /> : "—"}</span>
@@ -337,10 +342,10 @@ export function TradeClient() {
                     {formatCents(Math.abs(change))} ({changePct >= 0 ? "+" : ""}
                     {changePct.toFixed(2)}%)
                   </span>
-                  <span className="row-meta">{RANGES[range].desc}</span>
+                  <span className="row-meta">{t(RANGES[range].desc)}</span>
                 </p>
               </div>
-              <div className="seg range-seg" role="radiogroup" aria-label="Chart range" style={{ ["--n" as string]: RANGES.length, ["--idx" as string]: range }}>
+              <div className="seg range-seg" role="radiogroup" aria-label={t("Chart range")} style={{ ["--n" as string]: RANGES.length, ["--idx" as string]: range }}>
                 <span className="seg-lens" aria-hidden />
                 {RANGES.map((r, i) => (
                   <button key={r.label} type="button" role="radio" aria-checked={range === i} onClick={() => setRange(i)}>
@@ -349,19 +354,23 @@ export function TradeClient() {
                 ))}
               </div>
             </header>
-            <ErrorBox error={history.error} title="Couldn't load the chart" onRetry={() => void history.reload()} />
+            <ErrorBox error={history.error} title={t("Couldn't load the chart")} onRetry={() => void history.reload()} />
             {points.length > 0 ? (
               <PriceChart
                 points={points}
                 rising={change >= 0}
-                label={`${history.data?.history.source === "simulated" ? "Simulated" : "Alpaca"} ${symbol} price over the ${RANGES[range].desc}`}
+                label={
+                  history.data?.history.source === "simulated"
+                    ? t("Simulated {symbol} price over the {range}", { symbol, range: t(RANGES[range].desc) })
+                    : t("Alpaca {symbol} price over the {range}", { symbol, range: t(RANGES[range].desc) })
+                }
               />
             ) : (
               <div className="trade-chart">
-                <Loading label="Loading chart…" />
+                <Loading label={t("Loading chart…")} />
               </div>
             )}
-            <p className="chart-foot">{history.data?.history.disclaimer ?? "Simulated prices — not real market data"}</p>
+            <p className="chart-foot">{t(history.data?.history.disclaimer ?? "Simulated prices — not real market data")}</p>
           </section>
 
           <div className="trade-lower" ref={lowerRef}>
@@ -380,39 +389,45 @@ export function TradeClient() {
                 onClose={() => setSelected(null)}
               />
             ) : (
-              <section className="tile glass positions" aria-label="Positions and orders">
+              <section className="tile glass positions" aria-label={t("Positions and orders")}>
                 <header className="ticket-head">
                   <div
                     className="seg lower-seg"
                     role="radiogroup"
-                    aria-label="Show positions or orders"
+                    aria-label={t("Show positions or orders")}
                     style={{ ["--n" as string]: 2, ["--idx" as string]: lowerTab }}
                   >
                     <span className="seg-lens" aria-hidden />
-                    {["Positions", "Orders"].map((label, i) => (
+                    {[msg("Positions"), msg("Orders")].map((label, i) => (
                       <button key={label} type="button" role="radio" aria-checked={lowerTab === i} onClick={() => setLowerTab(i)}>
-                        {label}
+                        {t(label)}
                       </button>
                     ))}
                   </div>
                   {paper && (
                     <span className="row-meta">
-                      {paper.venue === "onera_paper" ? "Paper value" : "Account value"} {formatCents(paper.totalCents)}
+                      {paper.venue === "onera_paper"
+                        ? t("Paper value {amount}", { amount: formatCents(paper.totalCents) })
+                        : t("Account value {amount}", { amount: formatCents(paper.totalCents) })}
                     </span>
                   )}
                 </header>
                 {lowerTab === 0 ? (
                   <div className="pane-scroll">
                     <ErrorBox error={portfolio.error} onRetry={() => void portfolio.reload()} />
-                    {paper && paper.positions.length === 0 && <p className="row-meta">No positions yet.</p>}
+                    {paper && paper.positions.length === 0 && <p className="row-meta">{t("No positions yet.")}</p>}
                     <ul className="position-list">
                       {paper?.positions.map((p) => (
                         <li key={p.symbol}>
                           <button type="button" className="position-row" onClick={() => setSymbol(p.symbol)}>
                             <span className="squircle ticker">{p.symbol}</span>
                             <span className="position-body">
-                              <strong>{formatShares(p.quantityMicros)} sh</strong>
-                              <small>{p.weightPct.toFixed(1)}% of {paper.venue === "onera_paper" ? "paper " : ""}portfolio</small>
+                              <strong>{t("{shares} sh", { shares: formatShares(p.quantityMicros) })}</strong>
+                              <small>
+                                {paper.venue === "onera_paper"
+                                  ? t("{pct}% of paper portfolio", { pct: p.weightPct.toFixed(1) })
+                                  : t("{pct}% of portfolio", { pct: p.weightPct.toFixed(1) })}
+                              </small>
                             </span>
                             <span className="position-value">
                               <strong>{formatCents(p.marketValueCents)}</strong>
@@ -428,13 +443,13 @@ export function TradeClient() {
                   </div>
                 ) : (
                   <div className="pane-scroll">
-                    {orders.data?.orders.length === 0 && <p className="row-meta">No orders yet.</p>}
+                    {orders.data?.orders.length === 0 && <p className="row-meta">{t("No orders yet.")}</p>}
                     <ul className="order-list">
                       {orders.data?.orders.map((o) => (
                         <li key={o.id}>
                           <button type="button" className="order-row" onClick={() => void openOrder(o.id)}>
-                            <span>{orderTitle(o)}</span>
-                            <small>{creatorLabel(o)}</small>
+                            <span>{orderTitle(o, t)}</span>
+                            <small>{creatorLabel(o, t)}</small>
                             <OrderStateBadge state={o.state} />
                           </button>
                         </li>
@@ -457,7 +472,7 @@ export function TradeClient() {
           className={`assistant-slot${assistantOpen ? " open" : ""}`}
           role={assistantOpen ? "dialog" : undefined}
           aria-modal={assistantOpen || undefined}
-          aria-label={assistantOpen ? "Ask Onera" : undefined}
+          aria-label={assistantOpen ? t("Ask Onera") : undefined}
           tabIndex={-1}
         >
           <TradeAssistant
@@ -481,7 +496,7 @@ export function TradeClient() {
         hidden={assistantOpen}
       >
         <img src="/agents/research.png" alt="" width={28} height={28} />
-        Ask Onera
+        {t("Ask Onera")}
       </button>
     </div>
   );

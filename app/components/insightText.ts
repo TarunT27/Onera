@@ -1,4 +1,5 @@
 /** Pure text helpers for monitoring findings (no React, safe to unit test). */
+import { identityT, type Translate } from "@/lib/i18n/translate";
 
 /** Sentences that restate the panel-wide advisory and synthetic-data labels. */
 const FINE_PRINT =
@@ -10,7 +11,7 @@ const FINE_PRINT =
  * about two lines; fine print, advice paragraphs and extra signals go to
  * `more`, in their original order.
  */
-export function splitInsightBody(body: string, maxChars = 170): { lede: string; more: string } {
+export function splitInsightBody(body: string, maxChars = 170, t: Translate = identityT): { lede: string; more: string } {
   const paragraphs = body.trim().split(/\n\s*\n/);
   const first = paragraphs[0] ?? "";
   const later = paragraphs.slice(1);
@@ -19,7 +20,7 @@ export function splitInsightBody(body: string, maxChars = 170): { lede: string; 
   if (/^\s*•/m.test(first)) {
     const lines = first.split("\n").map((l) => l.trim()).filter(Boolean);
     const [head, ...tail] = lines;
-    const extra = tail.length ? ` (+${tail.length} more)` : "";
+    const extra = tail.length ? ` (${t("+{n} more", { n: tail.length })})` : "";
     return {
       lede: `${head.replace(/^•\s*/, "")}${extra}`,
       more: [tail.join("\n"), ...later].filter(Boolean).join("\n\n"),

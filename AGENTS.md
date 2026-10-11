@@ -23,6 +23,7 @@ Onera is a hackathon finance demo whose whole pitch is that AI can't move money 
 - Chat safety lives in `lib/chatguard`: inline gates run before a reply or tool result is released; the background monitor only explains afterwards. Security events are written by server code only, with redacted excerpts. Don't stream replies past the output gate (docs/api/chat-security.md).
 - New state-changing logic needs a Vitest test in `tests/` (use `freshDb()` from `tests/helpers.ts`, an in-memory seeded database).
 - UI code talks to the server only through `/api/*` fetches; never import `lib/db`, `lib/actions` or `lib/ai` into client components.
+- UI text is translated (Settings → Accessibility → Language). In client components write `const { t, tp, tr } = useI18n()` and wrap every user-visible string: `t("English text")` — the English is the key. Use `{name}` placeholders (never template literals), `tp(n, "{n} item", "{n} items")` for plurals, `msg("…")` for module-level constants, and `getServerT()` in server components. `npm test` fails if a message in the code is missing from any `lib/i18n/locales/*.ts`; list gaps with `npx tsx scripts/i18n-missing.ts <code>`.
 - Run `npm run typecheck` and `npm test` before pushing.
 
 <!-- BEGIN:nextjs-agent-rules -->

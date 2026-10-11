@@ -28,6 +28,7 @@ import { MICROS_PER_SHARE, mulDiv, valueCents } from "./math";
 import { applyOrderEvaluation, approvableOrder, getOrder, loadOrderRow, runOrderPolicy } from "./orders";
 import type { OrderRow, PositionRow } from "./rows";
 import type { ExecuteOrderResult, OrderFill, OrderPolicyResult, Quote } from "./types";
+import { msg, tpl } from "@/lib/i18n/msg";
 
 type Outcome =
   | { kind: "executed" }
@@ -58,13 +59,13 @@ export function verifyApprovedOrder(
       detail: { reason: "Order changed after approval" } });
     applyOrderEvaluation(db, userId, row, "system", now, { bumpOnReprice: true });
     return { ok: false, error: conflict("APPROVAL_INVALID",
-      "Something material changed after approval. The approval was discarded; review the order again.") };
+      msg("Something material changed after approval. The approval was discarded; review the order again.")) };
   }
   const { policy, account, quote } = runOrderPolicy(db, userId, row, now);
   if (policy.decision === "HOLD" || !quote) {
     applyOrderEvaluation(db, userId, row, "system", now, { bumpOnReprice: true });
     return { ok: false, error: conflict("POLICY_HOLD",
-      `Execution blocked: ${policy.reasons.join(", ")}. The approval was discarded.`, { reasons: policy.reasons }) };
+      tpl("Execution blocked: {reasons}. The approval was discarded.", { reasons: policy.reasons.join(", ") }), { reasons: policy.reasons }) };
   }
   return { ok: true, policy, account, quote };
 }
@@ -77,7 +78,7 @@ export function isTransientLockError(err: unknown): boolean {
 
 // TODO(wire): ApiErrorCode has no retryable code yet (lib/types.ts); "INTERNAL" + 503 + details.retryable for now.
 const brokerBusy = () => new ServiceError("INTERNAL",
-  "The paper broker is busy. Nothing was executed and the order is unchanged; try again.", 503, { retryable: true });
+  msg("The paper broker is busy. Nothing was executed and the order is unchanged; try again."), 503, { retryable: true });
 
 /** User route: executes the signed-in user's APPROVED order as `user:<userId>`. */
 export function executeOrder(db: DB, userId: UserId, orderId: string): ExecuteOrderResult {
@@ -112,7 +113,7 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
         writeAudit(db, { userId, actor, eventType: "order.execute_refused", actionId: orderId,
           detail: { reason: "BROKER_ORDER", venue: row.venue, state: row.state } });
         return { kind: "rejected", error: conflict("INVALID_STATE",
-          "This order is placed through Alpaca, not Onera's paper broker. Submit it to Alpaca instead.",
+          msg("This order is placed through Alpaca, not Onera's paper broker. Submit it to Alpaca instead."),
           { venue: row.venue }) };
       }
       if (row.state === "EXECUTED") {
@@ -123,7 +124,7 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
         writeAudit(db, { userId, actor, eventType: "order.execute_refused", actionId: orderId,
           detail: { reason: "NOT_APPROVED", state: row.state, holdReasons: JSON.parse(row.hold_reasons) } });
         return { kind: "rejected", error: conflict("INVALID_STATE",
-          `Order is ${row.state}; only an APPROVED order can execute`, { state: row.state }) };
+          tpl("Order is {state}; only an APPROVED order can execute", { state: row.state }), { state: row.state }) };
       }
       // An agent may only execute its own order, authorized by the mandate it used.
       if (executor.kind === "mandate" && (row.mandate_id !== executor.mandateId || row.created_by !== actor
@@ -131,7 +132,7 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
         writeAudit(db, { userId, actor, eventType: "order.execute_refused", actionId: orderId,
           detail: { reason: "AGENT_NOT_AUTHORIZED", approvedBy: row.approved_by, mandateId: executor.mandateId } });
         return { kind: "rejected", error: conflict("INVALID_STATE",
-          "Agents can only execute their own mandate-authorized orders") };
+          msg("Agents can only execute their own mandate-authorized orders")) };
       }
 
       // 1–2. Exact-version approval, then current controls, limits, cash/shares, mandate and price bound.
@@ -143,7 +144,7 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
       const priceCents = quote.priceCents;
       const bound = row.price_bound_cents!;
       const inBound = row.side === "buy" ? priceCents <= bound : priceCents >= bound;
-      if (!inBound) throw new Error("Price outside the approved bound"); // policy already checked; defense in depth
+      if (!inBound) throw new Error(msg("Price outside the approved bound")); // policy already checked; defense in depth
 
       const position = db
         .prepare("SELECT * FROM positions WHERE user_id = ? AND account_id = ? AND symbol = ?")
@@ -155,11 +156,11 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
       let costPortionCents = 0;
       if (row.side === "buy") {
         quantityMicros = row.quantity_micros ?? mulDiv(row.notional_cents!, MICROS_PER_SHARE, priceCents, "floor");
-        if (quantityMicros <= 0) throw new Error("Order too small to buy any shares");
+        if (quantityMicros <= 0) throw new Error(msg("Order too small to buy any shares"));
         grossCents = valueCents(quantityMicros, priceCents, "ceil");
       } else {
         quantityMicros = row.quantity_micros!;
-        if (!position || quantityMicros > heldBefore) throw new Error("Insufficient shares at execution");
+        if (!position || quantityMicros > heldBefore) throw new Error(msg("Insufficient shares at execution"));
         grossCents = valueCents(quantityMicros, priceCents, "floor");
         costPortionCents = quantityMicros === heldBefore
           ? position.cost_basis_cents
@@ -197,7 +198,7 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
         `UPDATE orders SET state = 'EXECUTED', executed_at = ?, fill = ?, filled_gross_cents = ?, updated_at = ?
          WHERE id = ? AND user_id = ? AND state = 'APPROVED' AND version = ?`,
       ).run(ts, JSON.stringify(fill), grossCents, ts, orderId, userId, row.version);
-      if (claimed.changes !== 1) throw new Error("Order changed during execution");
+      if (claimed.changes !== 1) throw new Error(msg("Order changed during execution"));
 
       // Paper cash only (is_paper = 1); never real or imported balances.
       const cash = row.side === "buy"
@@ -209,7 +210,7 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
             `UPDATE accounts SET balance_cents = balance_cents + ?, available_cents = available_cents + ?, updated_at = ?
              WHERE id = ? AND user_id = ? AND is_paper = 1`,
           ).run(grossCents, grossCents, ts, account.id, userId);
-      if (cash.changes !== 1) throw new Error("Insufficient paper cash at execution");
+      if (cash.changes !== 1) throw new Error(msg("Insufficient paper cash at execution"));
 
       if (row.side === "buy") {
         const bought = db.prepare(
@@ -221,7 +222,7 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
              updated_at = excluded.updated_at
            WHERE positions.user_id = excluded.user_id`,
         ).run(userId, account.id, row.symbol, quantityMicros, grossCents, ts);
-        if (bought.changes !== 1) throw new Error("Position update failed");
+        if (bought.changes !== 1) throw new Error(msg("Position update failed"));
       } else if (quantityMicros === heldBefore) {
         db.prepare("DELETE FROM positions WHERE user_id = ? AND account_id = ? AND symbol = ?")
           .run(userId, account.id, row.symbol);
@@ -230,7 +231,7 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
           `UPDATE positions SET quantity_micros = quantity_micros - ?, cost_basis_cents = cost_basis_cents - ?, updated_at = ?
            WHERE user_id = ? AND account_id = ? AND symbol = ? AND quantity_micros > ?`,
         ).run(quantityMicros, costPortionCents, ts, userId, account.id, row.symbol, quantityMicros);
-        if (sold.changes !== 1) throw new Error("Insufficient shares at execution");
+        if (sold.changes !== 1) throw new Error(msg("Insufficient shares at execution"));
       }
 
       writeAudit(db, { userId, actor, eventType: "order.executed", actionId: orderId,
@@ -244,7 +245,7 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
     // Lock contention is transient: nothing committed, the order stays APPROVED and can be retried.
     if (isTransientLockError(err)) throw brokerBusy();
     // The fill rolled back; record the failure separately, stamped with this attempt's time.
-    const message = err instanceof Error ? err.message : "Unknown paper broker error";
+    const message = err instanceof Error ? err.message : msg("Unknown paper broker error");
     try {
       db.transaction(() => {
         db.prepare(`UPDATE orders SET state = 'FAILED', failure_reason = ?, updated_at = ?
@@ -257,7 +258,7 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
       if (isTransientLockError(recordErr)) throw brokerBusy();
       throw recordErr;
     }
-    throw new ServiceError("INTERNAL", `Paper order failed: ${message}`, 500);
+    throw new ServiceError("INTERNAL", tpl("Paper order failed: {message}", { message }), 500);
   }
 
   if (outcome.kind === "rejected") throw outcome.error;

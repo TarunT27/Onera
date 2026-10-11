@@ -11,10 +11,12 @@ import { Badge } from "./Badge";
 import { Loading } from "./Card";
 import { ErrorBox } from "./ErrorBox";
 import { formatCents, formatDateTime } from "./format";
+import { useI18n } from "./I18nContext";
 import { SEVERITY } from "./InsightCard";
 import { useApiData } from "./useApiData";
 
 export function AssistantPanel() {
+  const { t, tp, tr } = useI18n();
   const { data, error, loading, reload } = useApiData<BriefingResponse>(paths.briefing);
   const b = data?.briefing ?? null;
   const top = (b?.tips ?? []).slice(0, 3);
@@ -23,43 +25,45 @@ export function AssistantPanel() {
     <section className="surface monitoring-panel" aria-labelledby="assistant-heading">
       <header className="surface-head monitoring-head">
         <div className="min-w-0">
-          <h2 id="assistant-heading">Your personal assistant</h2>
+          <h2 id="assistant-heading">{t("Your personal assistant")}</h2>
           <p className="monitoring-advisory">
             <Sparkle size={17} weight="fill" aria-hidden />
-            {b ? `Briefing prepared ${formatDateTime(b.generatedAt)} · works in the background` : "Works in the background"}
+            {b ? t("Briefing prepared {time} · works in the background", { time: formatDateTime(b.generatedAt) }) : t("Works in the background")}
           </p>
         </div>
         <Link href="/briefing" className="pill small">
-          Open briefing
+          {t("Open briefing")}
           <span className="knob" aria-hidden>
             <ArrowRight size={16} weight="bold" />
           </span>
         </Link>
       </header>
       <div className="insight-body">
-        <ErrorBox error={error} title="Couldn't load your briefing" onRetry={() => void reload()} />
+        <ErrorBox error={error} title={t("Couldn't load your briefing")} onRetry={() => void reload()} />
         {loading && !data ? (
-          <Loading label="Loading your briefing…" />
+          <Loading label={t("Loading your briefing…")} />
         ) : !b ? (
           <p className="monitoring-empty">
-            Your assistant hasn&apos;t prepared a briefing yet. <Link href="/briefing">Prepare one now</Link>.
+            {tr("Your assistant hasn't prepared a briefing yet. {link}.", {
+              link: <Link href="/briefing">{t("Prepare one now")}</Link>,
+            })}
           </p>
         ) : (
           <>
             <p className="mb-4 text-[17px] font-medium leading-snug tracking-[-0.015em] text-zinc-50">{b.headline}</p>
             {top.length > 0 && (
-              <ul className="monitoring-list" aria-label="Top tips">
-                {top.map((t) => {
-                  const sev = SEVERITY[t.severity] ?? SEVERITY.info;
+              <ul className="monitoring-list" aria-label={t("Top tips")}>
+                {top.map((tip) => {
+                  const sev = SEVERITY[tip.severity] ?? SEVERITY.info;
                   return (
-                    <li key={t.id} className={`monitoring-item sev-${t.severity}`}>
+                    <li key={tip.id} className={`monitoring-item sev-${tip.severity}`}>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <Badge tone={sev.tone}>{sev.label}</Badge>
-                        {t.annualSavingsCents !== null && t.annualSavingsCents > 0 && (
-                          <Badge tone="green">Save ~{formatCents(t.annualSavingsCents, { whole: true })}/yr</Badge>
+                        <Badge tone={sev.tone}>{t(sev.label)}</Badge>
+                        {tip.annualSavingsCents !== null && tip.annualSavingsCents > 0 && (
+                          <Badge tone="green">{t("Save ~{amount}/yr", { amount: formatCents(tip.annualSavingsCents, { whole: true }) })}</Badge>
                         )}
                       </div>
-                      <h3 className="monitoring-title">{t.title}</h3>
+                      <h3 className="monitoring-title">{tip.title}</h3>
                     </li>
                   );
                 })}
@@ -67,9 +71,12 @@ export function AssistantPanel() {
             )}
             {b.attention.length > 0 && (
               <p className="row-meta mt-4">
-                {b.attention.length} item{b.attention.length === 1 ? "" : "s"} need your attention:{" "}
-                {b.attention.slice(0, 2).map((a) => a.title).join("; ")}
-                {b.attention.length > 2 ? "…" : ""}
+                {tp(
+                  b.attention.length,
+                  "{n} item needs your attention: {titles}",
+                  "{n} items need your attention: {titles}",
+                  { titles: `${b.attention.slice(0, 2).map((a) => a.title).join("; ")}${b.attention.length > 2 ? "…" : ""}` },
+                )}
               </p>
             )}
           </>

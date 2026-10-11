@@ -13,12 +13,13 @@ import { MICROS_PER_SHARE, mulDiv, valueCents } from "./math";
 import { isTradableAccount } from "./policy";
 import { venueOf, type PositionRow } from "./rows";
 import { brokerLinkFor, brokerTermsFor } from "./store";
-import type { OrderVenue, Portfolio, PortfolioAccount, Position } from "./types";
+import { SIMULATED_PRICES_DISCLAIMER, type OrderVenue, type Portfolio, type PortfolioAccount, type Position } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 function accountLabel(venue: OrderVenue | null, paper: boolean): string {
-  if (venue === "alpaca_paper") return "Alpaca paper trading";
-  if (venue === "alpaca_live") return "Alpaca LIVE — real money";
-  return paper ? "Paper trading (simulated)" : "Imported holdings (view-only)";
+  if (venue === "alpaca_paper") return msg("Alpaca paper trading");
+  if (venue === "alpaca_live") return msg("Alpaca LIVE — real money");
+  return paper ? msg("Paper trading (simulated)") : msg("Imported holdings (view-only)");
 }
 
 export function computePortfolio(db: DB, userId: UserId, now: Date): Portfolio {

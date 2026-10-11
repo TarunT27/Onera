@@ -24,20 +24,23 @@ import { Button } from "../components/Button";
 import { Card, EmptyState, Loading, PageHeader } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatCents, formatDateTime, formatPct } from "../components/format";
+import { useI18n, useT } from "../components/I18nContext";
+import { msg } from "@/lib/i18n/msg";
 import { SEVERITY } from "../components/InsightCard";
 import { useApiData } from "../components/useApiData";
 
 const POLL_MS = 30_000;
 
 const KIND: Record<BriefingTip["kind"], { title: string; subtitle: string; Icon: typeof Lightbulb }> = {
-  spending: { title: "Spending check", subtitle: "Where spending looks too high or doesn't add up", Icon: WarningCircle },
-  save: { title: "Ways to save", subtitle: "Estimates from your own transactions", Icon: Lightbulb },
-  invest: { title: "Investments", subtitle: "How your holdings are spread (simulated prices)", Icon: ChartLineUp },
+  spending: { title: msg("Spending check"), subtitle: msg("Where spending looks too high or doesn't add up"), Icon: WarningCircle },
+  save: { title: msg("Ways to save"), subtitle: msg("Estimates from your own transactions"), Icon: Lightbulb },
+  invest: { title: msg("Investments"), subtitle: msg("How your holdings are spread (simulated prices)"), Icon: ChartLineUp },
 };
 
 const titleCase = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 export function BriefingClient() {
+  const { t, tp, tr } = useI18n();
   const data = useApiData<BriefingResponse>(paths.briefing);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -72,17 +75,17 @@ export function BriefingClient() {
   }, [data.reload]);
 
   const b = data.data?.briefing ?? null;
-  const tipsBy = (kind: BriefingTip["kind"]) => (b?.tips ?? []).filter((t) => t.kind === kind);
+  const tipsBy = (kind: BriefingTip["kind"]) => (b?.tips ?? []).filter((tip) => tip.kind === kind);
 
   return (
     <div className="space-y-6">
       <AssistantTabs className="" />
       <PageHeader
-        title="Personal assistant"
-        description="Works in the background: watches your spending, subscriptions and investments, looks for ways to save, researches your holdings and lists what needs you. It can't move money, propose, approve or change anything."
+        title={t("Personal assistant")}
+        description={t("Works in the background: watches your spending, subscriptions and investments, looks for ways to save, researches your holdings and lists what needs you. It can't move money, propose, approve or change anything.")}
         action={
           <Button onClick={() => void refresh()} busy={refreshing}>
-            Refresh briefing
+            {t("Refresh briefing")}
           </Button>
         }
       />
@@ -90,55 +93,55 @@ export function BriefingClient() {
       <p className="flex flex-wrap items-center gap-2 text-[13px] text-white/55">
         <SyntheticLabel />
         <Sparkle size={16} weight="fill" aria-hidden />
-        {b ? `Prepared ${formatDateTime(b.generatedAt)}` : "Not prepared yet"} · refreshes every 30 minutes in the background ·
-        deterministic rules, not financial advice
+        {b ? t("Prepared {date}", { date: formatDateTime(b.generatedAt) }) : t("Not prepared yet")} ·{" "}
+        {t("refreshes every 30 minutes in the background")} · {t("deterministic rules, not financial advice")}
       </p>
 
-      <ErrorBox error={error} title="Couldn't refresh the briefing" onDismiss={() => setError(null)} />
-      <ErrorBox error={data.error} title="Couldn't load the briefing" onRetry={() => void data.reload()} />
+      <ErrorBox error={error} title={t("Couldn't refresh the briefing")} onDismiss={() => setError(null)} />
+      <ErrorBox error={data.error} title={t("Couldn't load the briefing")} onRetry={() => void data.reload()} />
 
       {!b ? (
         data.loading || refreshing || !data.data ? (
-          <Loading label="Preparing your briefing…" />
+          <Loading label={t("Preparing your briefing…")} />
         ) : (
-          <EmptyState>Your assistant hasn&apos;t prepared a briefing yet. Use Refresh briefing to run it now.</EmptyState>
+          <EmptyState>{t("Your assistant hasn't prepared a briefing yet. Use Refresh briefing to run it now.")}</EmptyState>
         )
       ) : (
         <>
-          <section className="glass flex flex-wrap items-end justify-between gap-6 !rounded-[28px] px-6 py-6 sm:px-8 sm:py-7" aria-label="Briefing headline">
+          <section className="glass flex flex-wrap items-end justify-between gap-6 !rounded-[28px] px-6 py-6 sm:px-8 sm:py-7" aria-label={t("Briefing headline")}>
             <div className="min-w-0 max-w-2xl">
-              <p className="text-xs font-semibold tracking-wide text-white/45 uppercase">Today&apos;s briefing</p>
+              <p className="text-xs font-semibold tracking-wide text-white/45 uppercase">{t("Today's briefing")}</p>
               <h2 className="mt-2 text-[22px] font-semibold leading-snug tracking-[-0.02em] text-zinc-50 sm:text-[26px]">
-                {b.headline}
+                {t(b.headline)}
               </h2>
             </div>
             <div className="sm:text-right">
-              <p className="text-xs font-semibold tracking-wide text-white/45 uppercase">Potential savings</p>
+              <p className="text-xs font-semibold tracking-wide text-white/45 uppercase">{t("Potential savings")}</p>
               <p className="mt-1 text-[38px] font-light leading-none tracking-[-0.04em] tabular-nums text-emerald-200">
                 {formatCents(b.potentialAnnualSavingsCents, { whole: true })}
-                <span className="text-base text-white/45"> /yr</span>
+                <span className="text-base text-white/45"> {t("/yr")}</span>
               </p>
             </div>
           </section>
 
           <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
-            <Stat label="Monthly income" value={formatCents(b.snapshot.monthlyIncomeCents, { whole: true })} detail={`Average of ${b.snapshot.windowDays} days`} />
-            <Stat label="Monthly spending" value={formatCents(b.snapshot.monthlySpendingCents, { whole: true })} detail="Own-account moves excluded" />
+            <Stat label={t("Monthly income")} value={formatCents(b.snapshot.monthlyIncomeCents, { whole: true })} detail={tp(b.snapshot.windowDays, "Average of {n} day", "Average of {n} days")} />
+            <Stat label={t("Monthly spending")} value={formatCents(b.snapshot.monthlySpendingCents, { whole: true })} detail={t("Own-account moves excluded")} />
             <Stat
-              label="Savings rate"
+              label={t("Savings rate")}
               value={b.snapshot.savingsRatePct === null ? "—" : `${b.snapshot.savingsRatePct}%`}
               tone={b.snapshot.savingsRatePct !== null && b.snapshot.savingsRatePct < 0 ? "text-red-300" : "text-zinc-50"}
             />
             <Stat
-              label="Emergency fund"
-              value={b.snapshot.emergencyFundMonths === null ? "—" : `${b.snapshot.emergencyFundMonths} mo`}
-              detail={`${formatCents(b.snapshot.savingsCents, { whole: true })} in savings`}
+              label={t("Emergency fund")}
+              value={b.snapshot.emergencyFundMonths === null ? "—" : t("{months} mo", { months: b.snapshot.emergencyFundMonths })}
+              detail={t("{amount} in savings", { amount: formatCents(b.snapshot.savingsCents, { whole: true }) })}
             />
-            <Stat label="Invested" value={formatCents(b.snapshot.investedCents, { whole: true })} detail="Simulated prices · paper excluded" />
+            <Stat label={t("Invested")} value={formatCents(b.snapshot.investedCents, { whole: true })} detail={t("Simulated prices · paper excluded")} />
           </div>
 
           {b.attention.length > 0 && (
-            <Card title="Needs your attention" subtitle="Your assistant can't act on these. Each link opens the page where you can.">
+            <Card title={t("Needs your attention")} subtitle={t("Your assistant can't act on these. Each link opens the page where you can.")}>
               <ul className="grid gap-2">
                 {b.attention.map((a) => (
                   <AttentionRow key={a.id} item={a} />
@@ -151,32 +154,32 @@ export function BriefingClient() {
             <div className="min-w-0 space-y-6 lg:col-span-7">
               {(["spending", "save", "invest"] as const).map((kind) =>
                 tipsBy(kind).length === 0 ? null : (
-                  <Card key={kind} title={KIND[kind].title} subtitle={KIND[kind].subtitle}>
+                  <Card key={kind} title={t(KIND[kind].title)} subtitle={t(KIND[kind].subtitle)}>
                     <ul className="grid gap-3">
-                      {tipsBy(kind).map((t) => (
-                        <TipCard key={t.id} tip={t} />
+                      {tipsBy(kind).map((tip) => (
+                        <TipCard key={tip.id} tip={tip} />
                       ))}
                     </ul>
                   </Card>
                 ),
               )}
               {b.tips.length === 0 && (
-                <Card title="Tips">
-                  <EmptyState>Nothing stands out right now. Your assistant keeps checking in the background.</EmptyState>
+                <Card title={t("Tips")}>
+                  <EmptyState>{t("Nothing stands out right now. Your assistant keeps checking in the background.")}</EmptyState>
                 </Card>
               )}
             </div>
 
             <div className="min-w-0 space-y-6 lg:col-span-5">
-              <Card title="Where your money went" subtitle="Last 30 days, by category">
+              <Card title={t("Where your money went")} subtitle={t("Last 30 days, by category")}>
                 {b.snapshot.topCategories.length === 0 ? (
-                  <EmptyState>No spending in the last 30 days.</EmptyState>
+                  <EmptyState>{t("No spending in the last 30 days.")}</EmptyState>
                 ) : (
-                  <ul className="space-y-3" aria-label="Spending by category">
+                  <ul className="space-y-3" aria-label={t("Spending by category")}>
                     {b.snapshot.topCategories.map((c) => (
                       <li key={c.category}>
                         <div className="flex items-baseline justify-between gap-3 text-sm">
-                          <span className="text-zinc-100">{titleCase(c.category)}</span>
+                          <span className="text-zinc-100">{t(titleCase(c.category))}</span>
                           <span className="tabular-nums text-white/60">
                             {formatCents(c.cents)} · {c.pct}%
                           </span>
@@ -190,7 +193,7 @@ export function BriefingClient() {
                 )}
               </Card>
 
-              <Card title="Market movers today" subtitle="Simulated prices — not real market data">
+              <Card title={t("Market movers today")} subtitle={t("Simulated prices — not real market data")}>
                 <ul className="divide-y divide-white/[0.06]">
                   {b.movers.map((m) => (
                     <li key={m.symbol} className="flex items-center justify-between gap-3 py-2 text-sm">
@@ -209,11 +212,11 @@ export function BriefingClient() {
           </div>
 
           <Card
-            title="Research desk"
-            subtitle="Each of your holdings over the last 90 days of simulated prices. Describes the past; not a forecast or advice."
+            title={t("Research desk")}
+            subtitle={t("Each of your holdings over the last 90 days of simulated prices. Describes the past; not a forecast or advice.")}
           >
             {b.research.length === 0 ? (
-              <EmptyState>You don&apos;t hold any investments yet.</EmptyState>
+              <EmptyState>{t("You don't hold any investments yet.")}</EmptyState>
             ) : (
               <ul className="grid gap-3 md:grid-cols-2">
                 {b.research.map((r) => (
@@ -224,11 +227,14 @@ export function BriefingClient() {
           </Card>
 
           <p className="text-xs text-white/40">
-            {b.disclaimer} See what each background agent may read on the{" "}
-            <Link href="/security" className="underline underline-offset-2">
-              Security
-            </Link>{" "}
-            page.
+            {t(b.disclaimer)}{" "}
+            {tr("See what each background agent may read on the {link} page.", {
+              link: (
+                <Link href="/security" className="underline underline-offset-2">
+                  {t("Security")}
+                </Link>
+              ),
+            })}
           </p>
         </>
       )}
@@ -247,46 +253,48 @@ function Stat({ label, value, tone = "text-zinc-50", detail }: { label: string; 
 }
 
 function AttentionRow({ item }: { item: BriefingAttentionItem }) {
+  const t = useT();
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/[0.04] px-4 py-3 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.07)]">
       <div className="min-w-0">
-        <p className="text-sm font-medium text-zinc-50">{item.title}</p>
-        <p className="mt-0.5 text-xs text-white/50">{item.detail}</p>
+        <p className="text-sm font-medium text-zinc-50">{t(item.title)}</p>
+        <p className="mt-0.5 text-xs text-white/50">{t(item.detail)}</p>
       </div>
       <Link href={item.href} className="inline-flex items-center gap-1 text-xs font-medium text-brand-300 hover:underline">
-        Open <ArrowRight size={12} weight="bold" aria-hidden />
+        {t("Open")} <ArrowRight size={12} weight="bold" aria-hidden />
       </Link>
     </li>
   );
 }
 
-function TipCard({ tip: t }: { tip: BriefingTip }) {
-  const sev = SEVERITY[t.severity] ?? SEVERITY.info;
-  const txns = t.evidence.transactionIds ?? [];
-  const symbols = t.evidence.symbols ?? [];
-  const ask = `/chat?q=${encodeURIComponent(`My personal assistant says: "${t.title}". Can you explain this using my data?`)}`;
+function TipCard({ tip }: { tip: BriefingTip }) {
+  const { t, tp } = useI18n();
+  const sev = SEVERITY[tip.severity] ?? SEVERITY.info;
+  const txns = tip.evidence.transactionIds ?? [];
+  const symbols = tip.evidence.symbols ?? [];
+  const ask = `/chat?q=${encodeURIComponent(t('My personal assistant says: "{title}". Can you explain this using my data?', { title: tip.title }))}`;
   return (
-    <li className={`monitoring-item sev-${t.severity}`}>
-      <article aria-labelledby={`tip-${t.id}`}>
+    <li className={`monitoring-item sev-${tip.severity}`}>
+      <article aria-labelledby={`tip-${tip.id}`}>
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge tone={sev.tone}>
             <sev.Icon size={13} weight="fill" aria-hidden />
-            {sev.label}
+            {t(sev.label)}
           </Badge>
-          {t.annualSavingsCents !== null && t.annualSavingsCents > 0 && (
-            <Badge tone="green">Save ~{formatCents(t.annualSavingsCents, { whole: true })}/yr</Badge>
+          {tip.annualSavingsCents !== null && tip.annualSavingsCents > 0 && (
+            <Badge tone="green">{t("Save ~{amount}/yr", { amount: formatCents(tip.annualSavingsCents, { whole: true }) })}</Badge>
           )}
-          {t.oneTimeCents !== null && <Badge tone="amber">{formatCents(t.oneTimeCents)} at stake</Badge>}
-          {t.insightId && <Badge tone="gray" title="Also raised as a monitoring finding">In your alerts</Badge>}
+          {tip.oneTimeCents !== null && <Badge tone="amber">{t("{amount} at stake", { amount: formatCents(tip.oneTimeCents) })}</Badge>}
+          {tip.insightId && <Badge tone="gray" title={t("Also raised as a monitoring finding")}>{t("In your alerts")}</Badge>}
         </div>
-        <h3 id={`tip-${t.id}`} className="monitoring-title">{t.title}</h3>
-        <p className="monitoring-body">{t.body}</p>
+        <h3 id={`tip-${tip.id}`} className="monitoring-title">{t(tip.title)}</h3>
+        <p className="monitoring-body">{t(tip.body)}</p>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
           {txns.length > 0 && (
             <details className="monitoring-evidence !mt-0">
               <summary>
                 <Receipt size={14} aria-hidden className="mr-1" />
-                Evidence ({txns.length} transaction{txns.length === 1 ? "" : "s"})
+                {tp(txns.length, "Evidence ({n} transaction)", "Evidence ({n} transactions)")}
               </summary>
               <ul>
                 {txns.map((id) => (
@@ -297,9 +305,9 @@ function TipCard({ tip: t }: { tip: BriefingTip }) {
               </ul>
             </details>
           )}
-          {symbols.length > 0 && <span className="text-white/50">Holdings: {symbols.join(", ")}</span>}
+          {symbols.length > 0 && <span className="text-white/50">{t("Holdings: {symbols}", { symbols: symbols.join(", ") })}</span>}
           <Link href={ask} className="inline-flex items-center gap-1 font-medium text-brand-300 hover:underline">
-            <MagnifyingGlass size={12} aria-hidden /> Ask Onera about this
+            <MagnifyingGlass size={12} aria-hidden /> {t("Ask Onera about this")}
           </Link>
         </div>
       </article>
@@ -308,9 +316,10 @@ function TipCard({ tip: t }: { tip: BriefingTip }) {
 }
 
 function ResearchCard({ note: r }: { note: BriefingResearchNote }) {
+  const t = useT();
   const metric = (label: string, value: number | null, suffix = "%") => (
     <div>
-      <dt className="text-[11px] text-white/40">{label}</dt>
+      <dt className="text-[11px] text-white/40">{t(label)}</dt>
       <dd className={`tabular-nums ${value === null ? "text-white/40" : value < 0 ? "text-red-300" : "text-zinc-100"}`}>
         {value === null ? "—" : suffix === "%" ? formatPct(value) : `${value}${suffix}`}
       </dd>
@@ -321,27 +330,27 @@ function ResearchCard({ note: r }: { note: BriefingResearchNote }) {
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-base font-semibold text-zinc-50">{r.symbol}</span>
         <span className="min-w-0 truncate text-sm text-white/55">{r.name}</span>
-        {r.notable && <Badge tone="amber">Notable move</Badge>}
-        {r.paper && <Badge tone="violet">Paper</Badge>}
+        {r.notable && <Badge tone="amber">{t("Notable move")}</Badge>}
+        {r.paper && <Badge tone="violet">{t("Paper")}</Badge>}
         {r.sector && <Badge tone="gray">{r.sector}</Badge>}
       </div>
       <dl className="mt-3 grid grid-cols-3 gap-2 text-sm sm:grid-cols-5">
-        {metric("30 days", r.change30dPct)}
-        {metric("90 days", r.change90dPct)}
+        {metric(msg("30 days"), r.change30dPct)}
+        {metric(msg("90 days"), r.change90dPct)}
         <div>
-          <dt className="text-[11px] text-white/40">Swings</dt>
+          <dt className="text-[11px] text-white/40">{t("Swings")}</dt>
           <dd className="tabular-nums text-zinc-100">{r.volatilityPct === null ? "—" : `${r.volatilityPct}%`}</dd>
         </div>
-        {metric("Deepest dip", r.maxDrawdownPct)}
+        {metric(msg("Deepest dip"), r.maxDrawdownPct)}
         <div>
-          <dt className="text-[11px] text-white/40">Your P&amp;L</dt>
+          <dt className="text-[11px] text-white/40">{t("Your P&L")}</dt>
           <dd className={`tabular-nums ${r.unrealizedPnlCents < 0 ? "text-red-300" : "text-emerald-300"}`}>
             {formatCents(r.unrealizedPnlCents, { signed: true })}
           </dd>
         </div>
       </dl>
-      <p className="mt-3 text-[13px] leading-relaxed text-white/60">{r.note}</p>
-      {r.weightPct !== null && <p className="mt-1 text-xs text-white/40">{r.weightPct}% of your invested holdings</p>}
+      <p className="mt-3 text-[13px] leading-relaxed text-white/60">{t(r.note)}</p>
+      {r.weightPct !== null && <p className="mt-1 text-xs text-white/40">{t("{pct}% of your invested holdings", { pct: r.weightPct })}</p>}
     </li>
   );
 }

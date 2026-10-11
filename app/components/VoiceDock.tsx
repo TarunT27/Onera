@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CircleNotch, Microphone, MicrophoneSlash, Play, SpeakerHigh, SpeakerSlash, Stop, Waveform, X } from "@phosphor-icons/react";
 import type { ChatRequest, ChatResponse } from "@/lib/types";
+import { msg } from "@/lib/i18n/msg";
 import { clearfi, errorMessage, type VoiceStatusResponse } from "./api";
 import { Badge } from "./Badge";
 import { ErrorBox } from "./ErrorBox";
+import { useI18n } from "./I18nContext";
 import { routeVoiceCommand } from "./voiceIntent";
 import { useVoiceRecorder, microphoneError, type StopReason } from "./useVoiceRecorder";
 
@@ -24,13 +26,13 @@ type Turn =
       error?: unknown;
     };
 
-const AGENT_NAMES = { general: "Onera assistant", drafter: "Trade drafter" } as const;
+const AGENT_NAMES = { general: msg("Onera assistant"), drafter: msg("Trade drafter") } as const;
 
 const SUGGESTIONS = [
-  "Pay Oak Street Properties $1,850 for rent",
-  "Buy $250 of NVDA in my paper account",
-  "What changed in my spending this month?",
-  "Open transfers",
+  msg("Pay Oak Street Properties $1,850 for rent"),
+  msg("Buy $250 of NVDA in my paper account"),
+  msg("What changed in my spending this month?"),
+  msg("Open transfers"),
 ];
 
 /** Matches the server's ChatRequestSchema limits. */
@@ -41,11 +43,11 @@ const SPEAK_KEY = "onera.voice.speak";
 const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 
 const PILL_LABEL: Record<Phase, string> = {
-  idle: "Talk to Onera",
-  listening: "Listening · tap to send",
-  transcribing: "Transcribing…",
-  thinking: "Working…",
-  speaking: "Speaking · tap to talk",
+  idle: msg("Talk to Onera"),
+  listening: msg("Listening · tap to send"),
+  transcribing: msg("Transcribing…"),
+  thinking: msg("Working…"),
+  speaking: msg("Speaking · tap to talk"),
 };
 
 /** Full visible voice history as a chat request: answered turns plus the new command. */
@@ -68,6 +70,7 @@ function toRequest(turns: Turn[], command: string, agent: "general" | "drafter")
  * navigate and can ask for proposals, but approving stays a tap on the card.
  */
 export function VoiceDock() {
+  const { t } = useI18n();
   const router = useRouter();
   const [status, setStatus] = useState<VoiceStatusResponse | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -106,7 +109,7 @@ export function VoiceDock() {
     clearfi
       .voiceStatus()
       .then(setStatus)
-      .catch((err) => setStatusError(errorMessage(err)));
+      .catch((err) => setStatusError(errorMessage(err, t)));
     try {
       const stored = window.localStorage.getItem(SPEAK_KEY);
       if (stored !== null) {
@@ -152,10 +155,10 @@ export function VoiceDock() {
     } catch (err) {
       if (mine !== token.current) return;
       if (err instanceof DOMException && err.name === "NotAllowedError") setTapToPlay(true);
-      else setNotice(`Couldn't play the spoken reply: ${errorMessage(err)}`);
+      else setNotice(t("Couldn't play the spoken reply: {error}", { error: errorMessage(err, t) }));
       enter("idle");
     }
-  }, [enter]);
+  }, [enter, t]);
 
   const say = useCallback(async (text: string, mine: number) => {
     if (!speakRef.current || !text.trim()) {
@@ -173,10 +176,10 @@ export function VoiceDock() {
       await playCurrent(mine);
     } catch (err) {
       if (mine !== token.current) return;
-      setNotice(`Couldn't voice the reply: ${errorMessage(err)}`);
+      setNotice(t("Couldn't voice the reply: {error}", { error: errorMessage(err, t) }));
       enter("idle");
     }
-  }, [enter, playCurrent, stopAudio]);
+  }, [enter, playCurrent, stopAudio, t]);
 
   const runCommand = useCallback(async (command: string, mine: number) => {
     const route = routeVoiceCommand(command);
@@ -185,7 +188,7 @@ export function VoiceDock() {
     if (route.kind === "navigate") {
       updateTurns((prev) => [...prev, { id, kind: "navigate", transcript: command, label: route.label }]);
       router.push(route.href);
-      await say(`Opening ${route.label}.`, mine);
+      await say(t("Opening {label}.", { label: t(route.label) }), mine);
       return;
     }
 
@@ -202,12 +205,12 @@ export function VoiceDock() {
       if (order) router.push(`/trade?order=${encodeURIComponent(order)}`);
       else if (action) router.push(`/transfers?id=${encodeURIComponent(action)}`);
       // Keep the fallback label audible, not just visible.
-      await say(response.mode === "fallback" ? `Fallback summary. ${response.reply}` : response.reply, mine);
+      await say(response.mode === "fallback" ? t("Fallback summary. {reply}", { reply: response.reply }) : response.reply, mine);
     } catch (err) {
       updateTurns((prev) => prev.map((t) => (t.id === id && t.kind === "ask" ? { ...t, error: err } : t)));
       if (mine === token.current) enter("idle");
     }
-  }, [enter, router, say, updateTurns]);
+  }, [enter, router, say, t, updateTurns]);
 
   const finish = useCallback(async (reason: StopReason) => {
     const pending = recorder.stop();
@@ -220,17 +223,17 @@ export function VoiceDock() {
       const { text } = await clearfi.transcribe(recording.blob, recording.filename);
       if (mine !== token.current) return;
       if (!text.trim()) {
-        setNotice(reason === "no-speech" ? "I didn't hear anything. Tap the mic and try again." : "I didn't catch that. Try again.");
+        setNotice(reason === "no-speech" ? t("I didn't hear anything. Tap the mic and try again.") : t("I didn't catch that. Try again."));
         enter("idle");
         return;
       }
       await runCommand(text.trim(), mine);
     } catch (err) {
       if (mine !== token.current) return;
-      setNotice(errorMessage(err));
+      setNotice(errorMessage(err, t));
       enter("idle");
     }
-  }, [enter, recorder, runCommand]);
+  }, [enter, recorder, runCommand, t]);
 
   useEffect(() => {
     finishRef.current = (reason) => void finish(reason);
@@ -246,10 +249,10 @@ export function VoiceDock() {
       if (mine !== token.current) recorder.cancel();
     } catch (err) {
       if (mine !== token.current) return;
-      setNotice(microphoneError(err));
+      setNotice(microphoneError(err, t));
       enter("idle");
     }
-  }, [enter, recorder]);
+  }, [enter, recorder, t]);
 
   /** Plays a silent clip inside the tap, so the reply can autoplay later (Safari). */
   function unlockAudio() {
@@ -318,7 +321,7 @@ export function VoiceDock() {
 
   const configured = status?.configured === true;
   const busy = phase === "transcribing" || phase === "thinking";
-  const pillLabel = !status && !statusError ? "Voice" : configured ? PILL_LABEL[phase] : "Voice off";
+  const pillLabel = !status && !statusError ? t("Voice") : configured ? t(PILL_LABEL[phase]) : t("Voice off");
   const OrbIcon =
     !configured ? MicrophoneSlash
     : phase === "listening" ? Stop
@@ -329,26 +332,26 @@ export function VoiceDock() {
   return (
     <>
       {open && (
-        <section className="voice-panel glass" role="dialog" aria-label="Voice assistant">
+        <section className="voice-panel glass" role="dialog" aria-label={t("Voice assistant")}>
           <header className="voice-head">
             <span className="squircle assistant-mark">
               <Waveform size={16} weight="bold" aria-hidden />
             </span>
             <div className="voice-title">
-              <h2>Talk to Onera</h2>
-              <p>{configured ? `ElevenLabs ${status.sttModel} · ${status.ttsModel}` : "Voice by ElevenLabs"}</p>
+              <h2>{t("Talk to Onera")}</h2>
+              <p>{configured ? t("ElevenLabs {stt} · {tts}", { stt: status.sttModel, tts: status.ttsModel }) : t("Voice by ElevenLabs")}</p>
             </div>
             <button
               type="button"
               className="voice-icon-btn"
               onClick={toggleSpeak}
               aria-pressed={speakReplies}
-              title={speakReplies ? "Replies are read aloud" : "Replies are muted"}
-              aria-label="Read replies aloud"
+              title={speakReplies ? t("Replies are read aloud") : t("Replies are muted")}
+              aria-label={t("Read replies aloud")}
             >
               {speakReplies ? <SpeakerHigh size={16} aria-hidden /> : <SpeakerSlash size={16} aria-hidden />}
             </button>
-            <button type="button" className="voice-icon-btn" onClick={close} aria-label="Close voice assistant">
+            <button type="button" className="voice-icon-btn" onClick={close} aria-label={t("Close voice assistant")}>
               <X size={16} aria-hidden />
             </button>
           </header>
@@ -357,17 +360,17 @@ export function VoiceDock() {
             {!configured ? (
               <div className="voice-setup">
                 <p>
-                  <strong>Voice is off.</strong>{" "}
-                  {statusError ?? "Add your ElevenLabs key to .env.local and restart the dev server:"}
+                  <strong>{t("Voice is off.")}</strong>{" "}
+                  {statusError ?? t("Add your ElevenLabs key to .env.local and restart the dev server:")}
                 </p>
                 {!statusError && <code>ELEVENLABS_API_KEY=your-key</code>}
               </div>
             ) : turns.length === 0 && phase === "idle" ? (
               <div className="assistant-empty voice-empty">
-                <p>Tap the mic and say what you need. Or try one:</p>
+                <p>{t("Tap the mic and say what you need. Or try one:")}</p>
                 {SUGGESTIONS.map((s) => (
                   <button key={s} type="button" className="suggestion" onClick={() => runSuggestion(s)}>
-                    “{s}”
+                    “{t(s)}”
                   </button>
                 ))}
               </div>
@@ -380,19 +383,19 @@ export function VoiceDock() {
                 <span className="knob">
                   <Play size={14} weight="fill" aria-hidden />
                 </span>
-                Play the reply
+                {t("Play the reply")}
               </button>
             )}
           </div>
 
           <p className="voice-status" role="status" aria-live="polite">
-            {phase === "listening" && "Listening… pause when you're done, or tap to send."}
-            {phase === "transcribing" && "Transcribing with ElevenLabs…"}
-            {phase === "thinking" && "Onera is reading your data and calling tools…"}
-            {phase === "speaking" && "Speaking… tap the mic to interrupt."}
+            {phase === "listening" && t("Listening… pause when you're done, or tap to send.")}
+            {phase === "transcribing" && t("Transcribing with ElevenLabs…")}
+            {phase === "thinking" && t("Onera is reading your data and calling tools…")}
+            {phase === "speaking" && t("Speaking… tap the mic to interrupt.")}
           </p>
           <p className="voice-foot">
-            Voice can draft transfers and paper orders. Only you can approve them, with a tap on the card.
+            {t("Voice can draft transfers and paper orders. Only you can approve them, with a tap on the card.")}
           </p>
         </section>
       )}
@@ -403,7 +406,7 @@ export function VoiceDock() {
         data-phase={configured ? phase : "off"}
         onClick={onOrb}
         aria-expanded={open}
-        aria-label={configured ? PILL_LABEL[phase] : "Voice assistant (not configured)"}
+        aria-label={configured ? t(PILL_LABEL[phase]) : t("Voice assistant (not configured)")}
         disabled={busy}
       >
         <span className="voice-orb" ref={orbRef}>
@@ -416,28 +419,30 @@ export function VoiceDock() {
 }
 
 function TurnView({ turn, onNavigate }: { turn: Turn; onNavigate: () => void }) {
+  const { t, tr } = useI18n();
   return (
     <>
       <p className="bubble user voice-said">
-        <Microphone size={12} weight="bold" aria-label="Spoken" />
+        <Microphone size={12} weight="bold" aria-label={t("Spoken")} />
         {turn.transcript}
       </p>
       {turn.kind === "navigate" ? (
         <div className="bubble assistant">
-          <span className="bubble-agent">Navigation · no assistant call</span>
-          <p>Opening {turn.label}.</p>
+          <span className="bubble-agent">{t("Navigation · no assistant call")}</span>
+          <p>{t("Opening {label}.", { label: t(turn.label) })}</p>
         </div>
       ) : turn.error !== undefined ? (
         <div className="voice-error">
-          <ErrorBox error={turn.error} title="The assistant request failed" />
+          <ErrorBox error={turn.error} title={t("The assistant request failed")} />
           <p>
-            A tool call may have completed before the response was lost. Check{" "}
-            <Link href="/transfers" onClick={onNavigate}>Transfers</Link> before repeating an action request.
+            {tr("A tool call may have completed before the response was lost. Check {link} before repeating an action request.", {
+              link: <Link href="/transfers" onClick={onNavigate}>{t("Transfers")}</Link>,
+            })}
           </p>
         </div>
       ) : !turn.response ? (
         <div className="bubble assistant typing" role="status">
-          <span className="sr-only">The {AGENT_NAMES[turn.agent].toLowerCase()} is working…</span>
+          <span className="sr-only">{t("The {agent} is working…", { agent: t(AGENT_NAMES[turn.agent]).toLowerCase() })}</span>
           <i />
           <i />
           <i />
@@ -445,22 +450,22 @@ function TurnView({ turn, onNavigate }: { turn: Turn; onNavigate: () => void }) 
       ) : (
         <div className="bubble assistant">
           <span className="bubble-agent">
-            {AGENT_NAMES[turn.agent]}
-            {turn.response.mode === "fallback" && <Badge tone="amber">Fallback · no model</Badge>}
+            {t(AGENT_NAMES[turn.agent])}
+            {turn.response.mode === "fallback" && <Badge tone="amber">{t("Fallback · no model")}</Badge>}
           </span>
-          <p>{turn.response.reply || "(no reply text)"}</p>
-          {turn.response.notice && <p className="bubble-notice">{turn.response.notice}</p>}
+          <p>{turn.response.reply || t("(no reply text)")}</p>
+          {turn.response.notice && <p className="bubble-notice">{t(turn.response.notice)}</p>}
           {turn.response.trace.length > 0 && (
-            <p className="bubble-tools">Used {[...new Set(turn.response.trace.map((t) => t.tool))].join(" · ")}</p>
+            <p className="bubble-tools">{t("Used {tools}", { tools: [...new Set(turn.response.trace.map((step) => step.tool))].join(" · ") })}</p>
           )}
           {turn.response.proposedActionIds.map((id) => (
             <Link key={id} href={`/transfers?id=${encodeURIComponent(id)}`} className="pill small bubble-review" onClick={onNavigate}>
-              Review transfer
+              {t("Review transfer")}
             </Link>
           ))}
           {(turn.response.proposedOrderIds ?? []).map((id) => (
             <Link key={id} href={`/trade?order=${encodeURIComponent(id)}`} className="pill small bubble-review" onClick={onNavigate}>
-              Review order
+              {t("Review order")}
             </Link>
           ))}
         </div>

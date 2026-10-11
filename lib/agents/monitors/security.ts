@@ -11,6 +11,7 @@ import { recipientStatus, type TransferAction } from "@/lib/types";
 import type { AgentHandler } from "../context";
 import { PermanentJobError } from "../errors";
 import type { InsightSeverity } from "../types";
+import { msg, tpl } from "@/lib/i18n/msg";
 import { median, usd } from "./format";
 
 const DAY_MS = 86_400_000;
@@ -53,17 +54,27 @@ export const securityReview: AgentHandler = (ctx) => {
     signals.push({
       code: "RECIPIENT_CHANGED",
       severity: "critical",
-      text:
-        `${name}'s bank details changed after they were last verified (now v${recipient.version}, verified ` +
-        `v${recipient.verifiedVersion})` +
-        (prev ? `: ${prev.institution} ••${prev.accountMask} → ${recipient.details.institution} ••${recipient.details.accountMask}` : "") +
-        `. Changed payment instructions are a common fraud pattern; confirm on a known phone number before verifying.`,
+      text: prev
+        ? tpl(
+            "{name}'s bank details changed after they were last verified (now v{version}, verified v{verified}): " +
+              "{before} → {after}. Changed payment instructions are a common fraud pattern; confirm on a known phone number before verifying.",
+            {
+              name, version: recipient.version, verified: String(recipient.verifiedVersion),
+              before: `${prev.institution} ••${prev.accountMask}`,
+              after: `${recipient.details.institution} ••${recipient.details.accountMask}`,
+            },
+          )
+        : tpl(
+            "{name}'s bank details changed after they were last verified (now v{version}, verified v{verified}). " +
+              "Changed payment instructions are a common fraud pattern; confirm on a known phone number before verifying.",
+            { name, version: recipient.version, verified: String(recipient.verifiedVersion) },
+          ),
     });
   } else if (status === "unverified") {
     signals.push({
       code: "RECIPIENT_UNVERIFIED",
       severity: "warning",
-      text: `${name}'s bank details have never been verified out of band.`,
+      text: tpl("{name}'s bank details have never been verified out of band.", { name }),
     });
   }
 
@@ -72,7 +83,7 @@ export const securityReview: AgentHandler = (ctx) => {
     signals.push({
       code: "FIRST_TIME_RECIPIENT",
       severity: "warning",
-      text: `This is the first transfer to ${name} through Onera.`,
+      text: tpl("This is the first transfer to {name} through Onera.", { name }),
     });
   }
 
@@ -95,9 +106,13 @@ export const securityReview: AgentHandler = (ctx) => {
       signals.push({
         code: "AMOUNT_ABOVE_TYPICAL",
         severity: "warning",
-        text:
-          `${usd(action.amountCents)} is about ${Math.round(action.amountCents / Math.max(typicalCents, 1))}× your ` +
-          `typical transfer of ${usd(typicalCents)} (median of ${samples.length} in the last ${SECURITY_RULES.historyDays} days).`,
+        text: tpl(
+          "{amount} is about {times}× your typical transfer of {typical} (median of {count} in the last {days} days).",
+          {
+            amount: usd(action.amountCents), times: Math.round(action.amountCents / Math.max(typicalCents, 1)),
+            typical: usd(typicalCents), count: samples.length, days: SECURITY_RULES.historyDays,
+          },
+        ),
       });
     }
   }
@@ -106,34 +121,47 @@ export const securityReview: AgentHandler = (ctx) => {
     signals.push({
       code: "ASSISTANT_PROPOSED_EXTERNAL",
       severity: "warning",
-      text: `The assistant drafted this transfer to an external recipient. Check that you asked for it.`,
+      text: msg("The assistant drafted this transfer to an external recipient. Check that you asked for it."),
     });
   }
 
   if (signals.length === 0) {
-    return { summary: `No risk signals for ${action.id} (${usd(action.amountCents)} to ${name})`, auditActionId: action.id };
+    return {
+      summary: tpl("No risk signals for {actionId} ({amount} to {name})", { actionId: action.id, amount: usd(action.amountCents), name }),
+      auditActionId: action.id,
+    };
   }
 
   const severity: InsightSeverity = signals.some((s) => s.severity === "critical") ? "critical" : "warning";
   const lead = signals[0];
+  const bullets = signals.map((s) => `• ${s.text}`).join("\n");
   const headline: Record<SecuritySignalCode, string> = {
-    RECIPIENT_CHANGED: "recipient details changed since verification",
-    RECIPIENT_UNVERIFIED: "recipient never verified",
-    FIRST_TIME_RECIPIENT: "first transfer to this recipient",
-    AMOUNT_ABOVE_TYPICAL: "amount far above your usual transfers",
-    ASSISTANT_PROPOSED_EXTERNAL: "drafted by the assistant",
+    RECIPIENT_CHANGED: msg("recipient details changed since verification"),
+    RECIPIENT_UNVERIFIED: msg("recipient never verified"),
+    FIRST_TIME_RECIPIENT: msg("first transfer to this recipient"),
+    AMOUNT_ABOVE_TYPICAL: msg("amount far above your usual transfers"),
+    ASSISTANT_PROPOSED_EXTERNAL: msg("drafted by the assistant"),
   };
 
   ctx.insights.upsert({
     type: "transfer_security_review",
     severity,
-    title: `Review ${usd(action.amountCents)} transfer to ${name}: ${headline[lead.code]}`,
-    body:
-      signals.map((s) => `• ${s.text}`).join("\n") +
-      `\n\nAdvisory only: the security sentinel cannot hold, release, approve or execute transfers. ` +
-      `Policy checks and your exact-version approval still apply (current state: ${action.state}` +
-      (action.holdReasons.length ? `, held for ${action.holdReasons.join(", ")}` : "") +
-      `). Deterministic rules on synthetic data.`,
+    title: tpl("Review {amount} transfer to {name}: {headline}", {
+      amount: usd(action.amountCents), name, headline: headline[lead.code],
+    }),
+    body: action.holdReasons.length
+      ? tpl(
+          "{signals}\n\nAdvisory only: the security sentinel cannot hold, release, approve or execute transfers. " +
+            "Policy checks and your exact-version approval still apply (current state: {state}, held for {reasons}). " +
+            "Deterministic rules on synthetic data.",
+          { signals: bullets, state: action.state, reasons: action.holdReasons.join(", ") },
+        )
+      : tpl(
+          "{signals}\n\nAdvisory only: the security sentinel cannot hold, release, approve or execute transfers. " +
+            "Policy checks and your exact-version approval still apply (current state: {state}). " +
+            "Deterministic rules on synthetic data.",
+          { signals: bullets, state: action.state },
+        ),
     evidence: {
       actionIds: [action.id, ...pastActions.map((a) => a.id)],
       transactionIds: pastLegs.map((t) => t.id),

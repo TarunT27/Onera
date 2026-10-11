@@ -26,6 +26,7 @@ import {
   type Quote,
   type QuoteSource,
 } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 /** Quotes older than this are treated as unavailable. */
 export const QUOTE_MAX_AGE_MS = 60_000;
@@ -107,7 +108,7 @@ export function marketStatusFor(db: DB | undefined, now: Date): MarketStatus {
   const row = db?.prepare("SELECT value FROM market_data_state WHERE key = 'clock'").get() as
     { value: string } | undefined;
   if (!row) {
-    return { status: "closed", label: "US market status unknown", source: "alpaca_iex", nextOpen: null, nextClose: null };
+    return { status: "closed", label: msg("US market status unknown"), source: "alpaca_iex", nextOpen: null, nextClose: null };
   }
   const clock = JSON.parse(row.value) as AlpacaClock;
   // The cached clock can be up to a minute old: derive open/closed from its boundaries at `now`.
@@ -115,7 +116,7 @@ export function marketStatusFor(db: DB | undefined, now: Date): MarketStatus {
   const open = clock.is_open ? t < new Date(clock.next_close).getTime() : t >= new Date(clock.next_open).getTime();
   return {
     status: open ? "open" : "closed",
-    label: open ? "US market open" : "US market closed — orders queue for the next open",
+    label: open ? msg("US market open") : msg("US market closed — orders queue for the next open"),
     source: "alpaca_iex",
     nextOpen: clock.next_open,
     nextClose: clock.next_close,

@@ -8,6 +8,7 @@ import { Card, EmptyState, Loading } from "../components/Card";
 import { BankLogo } from "../components/BankLogo";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatDateTime } from "../components/format";
+import { useT } from "../components/I18nContext";
 import { Money } from "../components/Money";
 import { shortInstitution, shortRecipientName } from "./accountLabels";
 
@@ -31,28 +32,29 @@ export function ActionList({
   onNew?: () => void;
   onRefresh: () => void;
 }) {
+  const t = useT();
   const accountById = new Map((accounts ?? []).map((a) => [a.id, a]));
   return (
     <Card
-      title="Recent transfers"
+      title={t("Recent transfers")}
       action={
         <div className="flex items-center gap-1">
           {onNew && (
             <Button size="sm" variant="secondary" onClick={onNew}>
-              <Plus size={14} weight="bold" aria-hidden /> New transfer
+              <Plus size={14} weight="bold" aria-hidden /> {t("New transfer")}
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={onRefresh} aria-label="Refresh transfers">
+          <Button size="sm" variant="ghost" onClick={onRefresh} aria-label={t("Refresh transfers")}>
             <ArrowClockwise size={14} weight="bold" aria-hidden />
           </Button>
         </div>
       }
     >
-      <ErrorBox error={error} title="Couldn't load transfers" className="mb-3" />
+      <ErrorBox error={error} title={t("Couldn't load transfers")} className="mb-3" />
       {loading ? (
         <Loading />
       ) : error && !actions ? null : !actions || actions.length === 0 ? (
-        <EmptyState>No transfers yet. Move some money or ask the assistant to propose one.</EmptyState>
+        <EmptyState>{t("No transfers yet. Move some money or ask the assistant to propose one.")}</EmptyState>
       ) : (
         <ul className="-mx-2 space-y-0.5">
           {actions.map((a) => {
@@ -73,7 +75,7 @@ export function ActionList({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-zinc-50">{shortRecipientName(a.destination.displayName)}</span>
                     <span className="block truncate text-xs text-white/45">
-                      {source ? `from ${source.name} · ${shortInstitution(source.institution)}` : formatDateTime(a.createdAt)}
+                      {source ? `${t("from {name}", { name: source.name })} · ${shortInstitution(source.institution)}` : formatDateTime(a.createdAt)}
                       {a.memo ? ` · ${a.memo}` : ""}
                     </span>
                   </span>
@@ -81,8 +83,8 @@ export function ActionList({
                     <Money cents={a.amountCents} className="text-sm font-semibold text-zinc-50" />
                     <span className="flex items-center gap-1">
                       {a.createdBy === "assistant" && (
-                        <Badge tone="violet" title="Proposed by the Onera assistant">
-                          AI
+                        <Badge tone="violet" title={t("Proposed by the Onera assistant")}>
+                          {t("AI")}
                         </Badge>
                       )}
                       <ActionStateBadge state={a.state} />

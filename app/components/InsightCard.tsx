@@ -12,12 +12,14 @@ import { CaretDown, Info, Warning, WarningOctagon } from "@phosphor-icons/react"
 import type { AgentInsight } from "./api";
 import { AgentAvatar } from "./AgentAvatar";
 import { Badge, type BadgeTone } from "./Badge";
+import { msg } from "@/lib/i18n/msg";
+import { useT } from "./I18nContext";
 import { splitInsightBody } from "./insightText";
 
 export const SEVERITY: Record<AgentInsight["severity"], { tone: BadgeTone; label: string; Icon: typeof Info }> = {
-  critical: { tone: "red", label: "Critical", Icon: WarningOctagon },
-  warning: { tone: "amber", label: "Warning", Icon: Warning },
-  info: { tone: "blue", label: "Info", Icon: Info },
+  critical: { tone: "red", label: msg("Critical"), Icon: WarningOctagon },
+  warning: { tone: "amber", label: msg("Warning"), Icon: Warning },
+  info: { tone: "blue", label: msg("Info"), Icon: Info },
 };
 
 export function InsightCard({
@@ -41,8 +43,9 @@ export function InsightCard({
   actions?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const t = useT();
   const detailsId = useId();
-  const { lede, more } = splitInsightBody(i.body);
+  const { lede, more } = splitInsightBody(i.body, undefined, t);
   const sev = SEVERITY[i.severity] ?? SEVERITY.info;
   const hasDetails = Boolean(more) || evidenceCount > 0;
   const isNew = i.status === "new";
@@ -63,11 +66,11 @@ export function InsightCard({
             {i.severity !== "info" && (
               <Badge tone={sev.tone}>
                 <sev.Icon size={12} weight="fill" aria-hidden />
-                {sev.label}
+                {t(sev.label)}
               </Badge>
             )}
             {tags}
-            <span className={isNew ? "insight-status is-new" : "insight-status"}>{isNew ? "New" : "Seen"}</span>
+            <span className={isNew ? "insight-status is-new" : "insight-status"}>{isNew ? t("New") : t("Seen")}</span>
           </div>
         </div>
 
@@ -81,7 +84,7 @@ export function InsightCard({
             {more && <p className="insight-fine">{more}</p>}
             {evidenceCount > 0 && (
               <div className="insight-evidence">
-                <p className="insight-evidence-head">Evidence · {evidenceCount}</p>
+                <p className="insight-evidence-head">{t("Evidence")} · {evidenceCount}</p>
                 {evidence}
               </div>
             )}
@@ -97,7 +100,7 @@ export function InsightCard({
               aria-controls={open ? detailsId : undefined}
               onClick={() => setOpen((v) => !v)}
             >
-              {open ? "Hide details" : "Details"}
+              {open ? t("Hide details") : t("Details")}
               <CaretDown size={12} weight="bold" aria-hidden />
             </button>
           )}
