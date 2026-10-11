@@ -24,7 +24,7 @@ import { Button } from "../components/Button";
 import { Card, EmptyState, Loading, PageHeader } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatCents, formatDateTime, formatPct } from "../components/format";
-import { SEVERITY } from "../components/MonitoringPanel";
+import { SEVERITY } from "../components/InsightCard";
 import { useApiData } from "../components/useApiData";
 
 const POLL_MS = 30_000;

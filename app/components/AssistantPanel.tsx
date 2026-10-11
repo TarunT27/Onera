@@ -11,7 +11,7 @@ import { Badge } from "./Badge";
 import { Loading } from "./Card";
 import { ErrorBox } from "./ErrorBox";
 import { formatCents, formatDateTime } from "./format";
-import { SEVERITY } from "./MonitoringPanel";
+import { SEVERITY } from "./InsightCard";
 import { useApiData } from "./useApiData";
 
 export function AssistantPanel() {

@@ -12,7 +12,7 @@ import { Badge, type BadgeTone } from "../components/Badge";
 import { Card, EmptyState, Loading } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatDateTime, formatTime } from "../components/format";
-import { SEVERITY } from "../components/MonitoringPanel";
+import { SEVERITY } from "../components/InsightCard";
 import type { ApiData } from "../components/useApiData";
 
 const HEALTH: Record<MonitorStatus["health"], { tone: BadgeTone; dot: string }> = {
