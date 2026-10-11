@@ -104,6 +104,24 @@ describe("ElevenLabs voice I/O", () => {
   });
 });
 
+describe("POST /api/voice/speak", () => {
+  it("accepts a reply longer than any spoken limit and speaks a shortened version", async () => {
+    const fetchMock = stubElevenLabs(() => new Response(new Uint8Array([9]), { headers: { "content-type": "audio/mpeg" } }));
+    const { POST } = await import("@/app/api/voice/speak/route");
+    const reply = Array.from({ length: 1500 }, (_, i) => `Line ${i} of a very long answer.`).join("\n");
+    expect(reply.length).toBeGreaterThan(40_000);
+
+    const res = await POST(new Request("http://localhost/api/voice/speak", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: reply }),
+    }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("audio/mpeg");
+    const spoken = JSON.parse(String(fetchMock.mock.calls[0][1]!.body)).text as string;
+    expect(spoken.length).toBeLessThanOrEqual(MAX_SPOKEN_CHARS + 40);
+    expect(spoken).toMatch(/The full answer is on screen\.$/);
+  });
+});
+
 describe("speechText", () => {
   it("drops markdown, links, URLs and record IDs and ends list items as sentences", () => {
     const reply = [

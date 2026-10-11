@@ -14,6 +14,8 @@ const API = "https://api.elevenlabs.io/v1";
 export const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 /** Longer replies are cut at a sentence boundary before synthesis. The full text stays on screen. */
 export const MAX_SPOKEN_CHARS = 900;
+/** Accepted reply length: more than any chat reply (16,000 output tokens). speechText does the shortening. */
+export const MAX_SPEAK_INPUT_CHARS = 200_000;
 
 function config() {
   return {

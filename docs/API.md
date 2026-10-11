@@ -67,7 +67,7 @@ Voice is transport only. The UI transcribes speech, routes the transcript with a
 |---|---|---|---|
 | GET | `/api/voice` | — | `{ configured, provider: "ElevenLabs", sttModel, ttsModel }` (never the key) |
 | POST | `/api/voice/transcribe` | multipart form with an `audio` file (≤ 10 MB, `audio/*` or `video/webm`) | `{ text, languageCode }`. Transcribes only; nothing is acted on |
-| POST | `/api/voice/speak` | `{ text }` | `audio/mpeg`. Markdown, URLs and record IDs are stripped and long replies are cut at a sentence (`lib/voice`) |
+| POST | `/api/voice/speak` | `{ text }` (a full chat reply, ≤ 200,000 chars) | `audio/mpeg`. Markdown, URLs and record IDs are stripped and long replies are cut at a sentence (`lib/voice`) |
 
 Without a key both POSTs return `503 UNSUPPORTED`. ElevenLabs failures return `502` (or `429` for rate limits) with ElevenLabs' message.
 

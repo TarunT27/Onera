@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { handler, readJson } from "@/lib/http";
-import { synthesize } from "@/lib/voice";
+import { MAX_SPEAK_INPUT_CHARS, synthesize } from "@/lib/voice";
 
 export const maxDuration = 60;
 
-const SpeakSchema = z.object({ text: z.string().min(1).max(8000) });
+const SpeakSchema = z.object({ text: z.string().min(1).max(MAX_SPEAK_INPUT_CHARS) });
 
-/** `{ text }` → audio/mpeg. The text is cleaned up and shortened for speech first. */
+/** `{ text }` → audio/mpeg. Takes a full chat reply; it is cleaned up and shortened for speech first. */
 export const POST = handler(async (req: Request) => {
   const { text } = SpeakSchema.parse(await readJson(req));
   return new Response(await synthesize(text), {

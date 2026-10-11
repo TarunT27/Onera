@@ -8,6 +8,7 @@ import type { ChatRequest, ChatResponse } from "@/lib/types";
 import { clearfi, errorMessage, type VoiceStatusResponse } from "./api";
 import { Badge } from "./Badge";
 import { ErrorBox } from "./ErrorBox";
+import { useSession } from "./SessionContext";
 import { routeVoiceCommand } from "./voiceIntent";
 import { useVoiceRecorder, microphoneError, type StopReason } from "./useVoiceRecorder";
 
@@ -89,6 +90,9 @@ export function VoiceDock() {
   const orbRef = useRef<HTMLSpanElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const finishRef = useRef<(reason: StopReason) => void>(() => {});
+  /** The demo user this conversation belongs to. Another tab can switch the session cookie. */
+  const owner = useRef<string | null>(null);
+  const sessionUserId = useSession().data?.user.id;
 
   const recorder = useVoiceRecorder({ levelTarget: orbRef, onAutoStop: (reason) => finishRef.current(reason) });
 
@@ -138,6 +142,17 @@ export function VoiceDock() {
   }, [recorder, stopAudio, enter]);
 
   useEffect(() => () => stopAudio(), [stopAudio]);
+
+  // A user switch in another tab must not leave the previous user's replies on screen.
+  useEffect(() => {
+    if (!sessionUserId) return;
+    if (owner.current !== null && owner.current !== sessionUserId) {
+      cancel();
+      updateTurns(() => []);
+      setNotice(null);
+    }
+    owner.current = sessionUserId;
+  }, [sessionUserId, cancel, updateTurns]);
 
   const playCurrent = useCallback(async (mine: number) => {
     const el = audio.current;
@@ -189,11 +204,16 @@ export function VoiceDock() {
       return;
     }
 
-    const request = toRequest(turnsRef.current, command, route.agent);
     updateTurns((prev) => [...prev, { id, kind: "ask", transcript: command, agent: route.agent }]);
     enter("thinking");
     try {
-      const response = await clearfi.chat(request);
+      // The server answers for whoever the cookie names now, which may have changed in another
+      // tab before this one refreshed. Never send a previous user's conversation along.
+      const { user } = await clearfi.getSession();
+      if (owner.current !== null && owner.current !== user.id) updateTurns((prev) => prev.filter((t) => t.id === id));
+      owner.current = user.id;
+      const history = turnsRef.current.filter((t) => t.id !== id);
+      const response = await clearfi.chat(toRequest(history, command, route.agent));
       updateTurns((prev) => prev.map((t) => (t.id === id && t.kind === "ask" ? { ...t, response } : t)));
       if (mine !== token.current) return;
       // Bring the newest proposal on screen. Approval is still a tap on its card.

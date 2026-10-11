@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 export interface Recording {
   blob: Blob;
@@ -147,5 +147,5 @@ export function useVoiceRecorder({
 
   useEffect(() => () => cancel(), [cancel]);
 
-  return { start, stop, cancel };
+  return useMemo(() => ({ start, stop, cancel }), [start, stop, cancel]);
 }
