@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { UserControls } from "@/lib/types";
 import { clearfi, paths, type AgentsResponse, type AuditResponse, type ControlsResponse } from "../components/api";
+import { AgentAvatar } from "../components/AgentAvatar";
 import { AuditList } from "../components/AuditList";
 import { Badge } from "../components/Badge";
 import { Button, inputClass, labelClass } from "../components/Button";
@@ -409,9 +410,14 @@ function AgentPermissionsCard() {
                   const writes = Object.entries(p.writes).filter(([, v]) => v).map(([k]) => SCOPE_LABELS[k] ?? k);
                   return (
                     <tr key={p.agentId}>
-                      <th scope="row" className="min-w-44 font-medium">
-                        {p.name}
-                        {def && <span className="mt-0.5 block text-xs font-normal text-zinc-400">{def.trigger}</span>}
+                      <th scope="row" className="min-w-52 font-medium">
+                        <span className="flex items-start gap-2.5">
+                          <AgentAvatar agentId={p.agentId} size={28} />
+                          <span>
+                            {p.name}
+                            {def && <span className="mt-0.5 block text-xs font-normal text-zinc-400">{def.trigger}</span>}
+                          </span>
+                        </span>
                       </th>
                       <td className="min-w-32">{reads.join(", ") || "—"}</td>
                       <td className="min-w-32">{writes.join(", ") || "—"}</td>

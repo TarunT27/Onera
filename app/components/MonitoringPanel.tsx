@@ -8,7 +8,7 @@
  */
 import Link from "next/link";
 import { useState } from "react";
-import { Info, ShieldCheck, Warning, WarningOctagon } from "@phosphor-icons/react";
+import { ShieldCheck } from "@phosphor-icons/react";
 import type { Account, Transaction, TransferAction } from "@/lib/types";
 import {
   clearfi,
@@ -18,21 +18,20 @@ import {
   type AgentsResponse,
   type TransactionsResponse,
 } from "./api";
-import { Badge, type BadgeTone } from "./Badge";
+import { AgentAvatar } from "./AgentAvatar";
+import { SyntheticLabel } from "./Badge";
 import { Button } from "./Button";
 import { Loading } from "./Card";
 import { ErrorBox } from "./ErrorBox";
+import { InsightCard } from "./InsightCard";
 import { useApiData } from "./useApiData";
 import { formatTxnDate } from "./format";
 import { formatCents } from "@/lib/finance/money";
 
 export const MONITORING_ADVISORY = "Advisory — agents can't approve or move money";
 
-export const SEVERITY: Record<AgentInsight["severity"], { tone: BadgeTone; label: string; Icon: typeof Info }> = {
-  critical: { tone: "red", label: "Critical", Icon: WarningOctagon },
-  warning: { tone: "amber", label: "Warning", Icon: Warning },
-  info: { tone: "blue", label: "Info", Icon: Info },
-};
+/** "threat_monitor" → "Threat monitor", until the registry has loaded. */
+const fallbackName = (id: string) => id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, " ");
 
 export function MonitoringPanel({
   accounts = [],
@@ -51,11 +50,19 @@ export function MonitoringPanel({
   const [runSummary, setRunSummary] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [filter, setFilter] = useState<string | null>(null);
 
-  const agentName = (id: string) => agents.data?.agents.find((a) => a.id === id)?.name ?? id;
+  const agentName = (id: string) => agents.data?.agents.find((a) => a.id === id)?.name ?? fallbackName(id);
   const txnById = new Map<string, Transaction>((txns.data?.transactions ?? []).map((t) => [t.id, t]));
   const list = insights.data?.insights ?? [];
   const newCount = list.filter((i) => i.status === "new").length;
+
+  // One chip per agent with findings, in order of first appearance.
+  const byAgent = new Map<string, number>();
+  for (const i of list) byAgent.set(i.agentId, (byAgent.get(i.agentId) ?? 0) + 1);
+  const active = filter && byAgent.has(filter) ? filter : null;
+  const shown = active ? list.filter((i) => i.agentId === active) : list;
+  const roster = agents.data?.agents ?? [];
 
   async function runAgents() {
     setRunning(true);
@@ -98,10 +105,17 @@ export function MonitoringPanel({
     <section className="surface monitoring-panel" aria-labelledby="monitoring-heading">
       <header className="surface-head monitoring-head">
         <div className="min-w-0">
-          <h2 id="monitoring-heading">AI monitoring</h2>
+          <div className="monitoring-title-row">
+            <h2 id="monitoring-heading">AI monitoring</h2>
+            {newCount > 0 && <span className="monitoring-count">{newCount} new</span>}
+          </div>
           <p className="monitoring-advisory">
-            <ShieldCheck size={17} weight="fill" aria-hidden />
+            <ShieldCheck size={16} weight="fill" aria-hidden />
             {MONITORING_ADVISORY}
+          </p>
+          <p className="monitoring-meta">
+            <SyntheticLabel />
+            Rule-based checks · no model
           </p>
         </div>
         <button type="button" className="pill small" onClick={() => void runAgents()} disabled={running}>
@@ -109,10 +123,6 @@ export function MonitoringPanel({
         </button>
       </header>
       <div className="insight-body">
-        <p className="row-meta !mt-0 mb-4">
-          Deterministic rules over your synthetic data; no model is called. Findings cite the records behind them.
-          {newCount > 0 && ` ${newCount} new.`}
-        </p>
         {runSummary && (
           <p role="status" className="monitoring-status">
             {runSummary}
@@ -128,33 +138,48 @@ export function MonitoringPanel({
         {insights.loading && !insights.data ? (
           <Loading label="Loading agent insights…" />
         ) : list.length === 0 ? (
-          <p className="monitoring-empty">
-            No open findings. Run the monitoring agents to review your synthetic accounts.
-          </p>
+          <div className="monitoring-empty">
+            {roster.length > 0 && (
+              <span className="agent-stack" aria-hidden>
+                {roster.map((a) => (
+                  <AgentAvatar key={a.id} agentId={a.id} size={28} />
+                ))}
+              </span>
+            )}
+            <p>No open findings. Run the monitoring agents to review your synthetic accounts.</p>
+          </div>
         ) : (
-          <ul className="monitoring-list" aria-label="Agent insights">
-            {list.map((i) => {
-              const sev = SEVERITY[i.severity] ?? SEVERITY.info;
-              const busy = busyId === i.id;
-              return (
-                <li key={i.id} className={`monitoring-item sev-${i.severity}`}>
-                  <article aria-labelledby={`insight-${i.id}`}>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge tone={sev.tone}>
-                        <sev.Icon size={13} weight="fill" aria-hidden />
-                        {sev.label}
-                      </Badge>
-                      {i.status === "new" ? <Badge tone="brand">New</Badge> : <Badge tone="gray">Seen</Badge>}
-                      <span className="text-xs text-zinc-400">{agentName(i.agentId)}</span>
-                    </div>
-                    <h3 id={`insight-${i.id}`} className="monitoring-title">
-                      {i.title}
-                    </h3>
-                    <p className="monitoring-body">{i.body}</p>
-                    <Evidence insight={i} txnById={txnById} accounts={accounts} actions={actions} />
-                    <div className="mt-3 flex flex-wrap gap-2">
+          <>
+            {byAgent.size > 1 && (
+              <div className="agent-filter" role="group" aria-label="Filter findings by agent">
+                <button type="button" aria-pressed={active === null} onClick={() => setFilter(null)}>
+                  All <span className="agent-filter-count">{list.length}</span>
+                </button>
+                {[...byAgent].map(([id, n]) => (
+                  <button key={id} type="button" aria-pressed={active === id} onClick={() => setFilter(id)}>
+                    <AgentAvatar agentId={id} size={20} />
+                    {agentName(id)} <span className="agent-filter-count">{n}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <ul className="monitoring-list" aria-label="Agent insights">
+              {shown.map((i) => (
+                <InsightCard
+                  key={i.id}
+                  insight={i}
+                  agentName={agentName(i.agentId)}
+                  evidenceCount={evidenceCount(i)}
+                  evidence={<Evidence insight={i} txnById={txnById} accounts={accounts} actions={actions} />}
+                  actions={
+                    <>
                       {i.status === "new" && (
-                        <Button size="sm" disabled={busyId !== null} busy={busy} onClick={() => void mark(i, "seen")}>
+                        <Button
+                          size="sm"
+                          disabled={busyId !== null}
+                          busy={busyId === i.id}
+                          onClick={() => void mark(i, "seen")}
+                        >
                           Mark seen
                         </Button>
                       )}
@@ -167,15 +192,26 @@ export function MonitoringPanel({
                       >
                         Dismiss
                       </Button>
-                    </div>
-                  </article>
-                </li>
-              );
-            })}
-          </ul>
+                    </>
+                  }
+                />
+              ))}
+            </ul>
+          </>
         )}
       </div>
     </section>
+  );
+}
+
+function evidenceCount(i: AgentInsight): number {
+  const e = i.evidence;
+  return (
+    (e.transactionIds?.length ?? 0) +
+    (e.actionIds?.length ?? 0) +
+    (e.accountIds?.length ?? 0) +
+    (e.symbols?.length ?? 0) +
+    (e.connectionIds?.length ?? 0)
   );
 }
 
@@ -196,61 +232,56 @@ function Evidence({
   const accountIds = e.accountIds ?? [];
   const symbols = e.symbols ?? [];
   const connectionIds = e.connectionIds ?? [];
-  const total = txIds.length + actionIds.length + accountIds.length + symbols.length + connectionIds.length;
-  if (total === 0) return null;
   const fallbackAccount = accountIds.length === 1 ? accountIds[0] : null;
   return (
-    <details className="monitoring-evidence">
-      <summary>Evidence ({total})</summary>
-      <ul>
-        {actionIds.map((id) => {
-          const a = actions.find((x) => x.id === id);
-          return (
-            <li key={id}>
-              <Link href={`/transfers?id=${encodeURIComponent(id)}`}>
-                {a ? `Transfer · ${formatCents(a.amountCents)} to ${a.destination.displayName}` : `Transfer ${id}`}
-              </Link>
-            </li>
-          );
-        })}
-        {txIds.map((id) => {
-          const t = txnById.get(id);
-          const accountId = t?.accountId ?? fallbackAccount;
-          const label = t
-            ? `${formatTxnDate(t.postedAt, { short: true })} · ${t.merchant ?? t.description}`
-            : `Transaction ${id}`;
-          return (
-            <li key={id}>
-              {accountId ? (
-                <Link href={`/accounts?id=${encodeURIComponent(accountId)}&view=activity`}>{label}</Link>
-              ) : (
-                <span>{label}</span>
-              )}
-              {t && <span className="tabular-nums">{formatCents(t.amountCents, t.currency)}</span>}
-            </li>
-          );
-        })}
-        {accountIds.map((id) => {
-          const acct = accounts.find((x) => x.id === id);
-          return (
-            <li key={id}>
-              <Link href={`/accounts?id=${encodeURIComponent(id)}`}>
-                {acct ? `Account · ${acct.name} ••${acct.mask}` : `Account ${id}`}
-              </Link>
-            </li>
-          );
-        })}
-        {symbols.map((s) => (
-          <li key={s}>
-            <span>Symbol · {s} (simulated price)</span>
-          </li>
-        ))}
-        {connectionIds.map((id) => (
+    <ul>
+      {actionIds.map((id) => {
+        const a = actions.find((x) => x.id === id);
+        return (
           <li key={id}>
-            <Link href="/accounts">Bank connection {id}</Link>
+            <Link href={`/transfers?id=${encodeURIComponent(id)}`}>
+              {a ? `Transfer · ${formatCents(a.amountCents)} to ${a.destination.displayName}` : `Transfer ${id}`}
+            </Link>
           </li>
-        ))}
-      </ul>
-    </details>
+        );
+      })}
+      {txIds.map((id) => {
+        const t = txnById.get(id);
+        const accountId = t?.accountId ?? fallbackAccount;
+        const label = t
+          ? `${formatTxnDate(t.postedAt, { short: true })} · ${t.merchant ?? t.description}`
+          : `Transaction ${id}`;
+        return (
+          <li key={id}>
+            {accountId ? (
+              <Link href={`/accounts?id=${encodeURIComponent(accountId)}&view=activity`}>{label}</Link>
+            ) : (
+              <span>{label}</span>
+            )}
+            {t && <span className="tabular-nums">{formatCents(t.amountCents, t.currency)}</span>}
+          </li>
+        );
+      })}
+      {accountIds.map((id) => {
+        const acct = accounts.find((x) => x.id === id);
+        return (
+          <li key={id}>
+            <Link href={`/accounts?id=${encodeURIComponent(id)}`}>
+              {acct ? `Account · ${acct.name} ••${acct.mask}` : `Account ${id}`}
+            </Link>
+          </li>
+        );
+      })}
+      {symbols.map((s) => (
+        <li key={s}>
+          <span>Symbol · {s} (simulated price)</span>
+        </li>
+      ))}
+      {connectionIds.map((id) => (
+        <li key={id}>
+          <Link href="/accounts">Bank connection {id}</Link>
+        </li>
+      ))}
+    </ul>
   );
 }
