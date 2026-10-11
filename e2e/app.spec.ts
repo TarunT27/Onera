@@ -494,7 +494,10 @@ test("trade page: propose, hold to approve and execute a paper order", async ({ 
   await page.goto("/trade");
   await expect(page.getByRole("heading", { name: "Trade", exact: true })).toBeVisible();
   await expect(page.getByText("Paper · simulated money, not in net worth").first()).toBeVisible();
-  await expect(page.getByText("Simulated prices — not real market data")).toBeVisible();
+  // Scope to the chart: a hidden streamed copy of the page can also contain the text.
+  await expect(
+    page.getByRole("region", { name: /chart$/ }).getByText("Simulated prices — not real market data"),
+  ).toBeVisible();
   await page.getByRole("button", { name: /^VTI/ }).click();
   await page.getByLabel("Amount (USD)").fill("50");
   await page.getByRole("button", { name: "Propose buy" }).click();
