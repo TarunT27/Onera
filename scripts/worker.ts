@@ -74,7 +74,10 @@ async function main(): Promise<number> {
   // A separate process gets no in-process wake-ups, so it polls on the worker interval.
   const monitor = args.once ? null : startChatSecurityMonitor(db, { pollMs: intervalMs, log: (l) => console.log(l) });
   try {
-    const result = await runWorkerLoop(db, { once: args.once, limit: args.limit, intervalMs, signal: stop.signal });
+    const result = await runWorkerLoop(db, {
+      once: args.once, limit: args.limit, intervalMs, signal: stop.signal,
+      heartbeat: { workerId: `standalone:${process.pid}`, mode: "standalone" },
+    });
     if (args.once) {
       const r = await processChatSecurityBatch(db);
       console.log(`[chatguard] processed=${r.processed} findings=${r.findingsWritten} reviewer=${r.reviewerCalls} cursor=${r.cursor}`);

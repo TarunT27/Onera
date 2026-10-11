@@ -11,6 +11,7 @@ import {
   ChartLineUp,
   ArrowCounterClockwise,
   ShieldWarning,
+  Robot,
   UsersThree,
 } from "@phosphor-icons/react";
 import { clearfi, errorMessage } from "./api";
@@ -27,6 +28,7 @@ const navigation = [
   { href: "/trade", label: "Trade", icon: ChartLineUp },
   // The Assistant tab covers the chat and the personal assistant's briefing.
   { href: "/chat", label: "Assistant", icon: ChatCircle, also: ["/briefing"] },
+  { href: "/agents", label: "Agents", icon: Robot },
   { href: "/security", label: "Security", icon: ShieldWarning },
   { href: "/control", label: "Controls", icon: SlidersHorizontal },
 ];

@@ -1,0 +1,351 @@
+/* Live agents page: worker status, animated flow map, agent cards, activity feed. */
+
+/* ─── Worker status ─── */
+.worker-status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px 20px;
+}
+.worker-dot {
+  position: relative;
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-2, #8a8f98);
+}
+.worker-status.is-live .worker-dot {
+  background: var(--positive);
+  box-shadow: 0 0 12px var(--positive);
+}
+.worker-status.is-live .worker-dot::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--positive);
+  animation: agents-ping 1.8s var(--ease) infinite;
+}
+.worker-status.is-stale .worker-dot {
+  background: var(--amber);
+  box-shadow: 0 0 10px var(--amber);
+}
+.worker-status.is-off .worker-dot {
+  background: var(--negative);
+}
+
+/* ─── Flow map ─── */
+.flow-map {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: inherit;
+}
+.flow-col {
+  fill: rgb(255 255 255 / 0.4);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.flow-edge {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.09);
+  stroke-width: 1.5;
+  transition: stroke 0.3s, opacity 0.3s;
+}
+.flow-edge.is-active {
+  stroke: var(--azure-light);
+  stroke-opacity: 0.75;
+  stroke-dasharray: 6 8;
+  animation: flow-dash 0.9s linear infinite;
+}
+.flow-edge.is-selected {
+  stroke: var(--azure-mist);
+  stroke-opacity: 0.9;
+  stroke-width: 2.25;
+}
+.flow-edge.is-dim {
+  opacity: 0.25;
+}
+.flow-packet {
+  fill: var(--azure-mist);
+  filter: drop-shadow(0 0 4px var(--azure-light));
+}
+
+.flow-node rect {
+  fill: rgb(255 255 255 / 0.04);
+  stroke: rgb(255 255 255 / 0.1);
+}
+.flow-node text {
+  fill: rgb(255 255 255 / 0.75);
+  font-size: 13.5px;
+}
+.flow-node svg {
+  color: rgb(255 255 255 / 0.55);
+}
+.flow-node.is-output rect {
+  fill: rgb(0 99 142 / 0.12);
+  stroke: rgb(140 185 204 / 0.25);
+}
+.flow-node.is-lit rect {
+  stroke: var(--azure-mist);
+  fill: rgb(0 99 142 / 0.25);
+}
+
+.flow-agent {
+  cursor: pointer;
+  outline: none;
+  transition: opacity 0.3s;
+}
+.flow-agent rect {
+  fill: rgb(22 24 28 / 0.9);
+  stroke: rgb(255 255 255 / 0.12);
+  transition: stroke 0.3s;
+}
+.flow-agent:hover rect,
+.flow-agent:focus-visible rect {
+  stroke: rgb(255 255 255 / 0.35);
+}
+.flow-agent.is-active rect {
+  stroke: var(--azure-light);
+}
+.flow-agent.is-selected rect {
+  stroke: var(--azure-mist);
+  stroke-width: 2;
+}
+.flow-agent.is-dim {
+  opacity: 0.4;
+}
+.flow-agent.state-failing rect {
+  stroke: var(--negative);
+}
+.flow-agent-icon-bg {
+  fill: rgb(255 255 255 / 0.06);
+}
+.flow-agent.is-active .flow-agent-icon-bg {
+  fill: rgb(0 99 142 / 0.55);
+}
+.flow-agent svg {
+  color: var(--azure-mist);
+}
+.flow-agent-name {
+  fill: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+.flow-agent-state {
+  fill: rgb(255 255 255 / 0.5);
+  font-size: 11.5px;
+}
+.flow-agent.state-running .flow-agent-state,
+.flow-agent.state-queued .flow-agent-state {
+  fill: var(--azure-mist);
+}
+.flow-ring {
+  fill: none;
+  stroke: var(--azure-light);
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: agents-ring 1.6s var(--ease) infinite;
+}
+
+.flow-never rect {
+  fill: rgb(255 155 147 / 0.05);
+  stroke: rgb(255 155 147 / 0.45);
+  stroke-dasharray: 5 5;
+}
+.flow-never svg {
+  color: var(--negative);
+}
+.flow-never text {
+  fill: rgb(255 155 147 / 0.7);
+  font-size: 12.5px;
+  text-decoration: line-through;
+  text-decoration-color: rgb(255 155 147 / 0.5);
+}
+.flow-never .flow-never-title {
+  fill: var(--negative);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* ─── Agent cards ─── */
+.agent-card {
+  min-width: 0;
+  padding: 18px 20px;
+  transition: box-shadow 0.3s;
+}
+.agent-card.is-active {
+  box-shadow: 0 0 0 1px rgb(140 185 204 / 0.35) inset, 0 0 28px -10px rgb(140 185 204 / 0.45);
+}
+.agent-card.is-selected {
+  box-shadow: 0 0 0 2px var(--azure-mist) inset;
+}
+.agent-card-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  border-radius: 14px;
+}
+.agent-avatar {
+  position: relative;
+  display: grid;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.06);
+  color: var(--azure-mist);
+}
+.agent-avatar.is-active {
+  background: rgb(0 99 142 / 0.55);
+}
+.agent-avatar.is-active::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--azure-light);
+  animation: agents-ping 1.6s var(--ease) infinite;
+}
+.badge-pulse {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 2px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: agents-blink 1.2s ease-in-out infinite;
+}
+.agent-now {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.035);
+}
+.run-strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 22px;
+  margin-top: 4px;
+}
+.run-bar {
+  width: 7px;
+  height: 100%;
+  border-radius: 3px;
+  background: rgb(140 185 204 / 0.55);
+}
+.run-bar.is-failed {
+  background: var(--negative);
+}
+.run-bar.is-running {
+  background: var(--positive);
+  animation: agents-blink 1s ease-in-out infinite;
+}
+.run-bar:last-child {
+  background: var(--azure-mist);
+}
+.run-bar.is-failed:last-child {
+  background: var(--negative);
+}
+.scope-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.05);
+  color: rgb(255 255 255 / 0.55);
+  font-size: 11px;
+}
+.scope-chip.is-write {
+  background: rgb(0 99 142 / 0.2);
+  color: var(--azure-mist);
+}
+
+/* ─── Activity feed ─── */
+.activity-feed {
+  display: grid;
+  gap: 2px;
+  max-height: 640px;
+  overflow-y: auto;
+}
+.activity-item {
+  display: flex;
+  gap: 10px;
+  padding: 10px 8px;
+  border-radius: 12px;
+}
+.activity-item.is-fresh {
+  animation: agents-fresh 2.4s var(--ease);
+}
+.activity-icon {
+  display: grid;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.06);
+  color: var(--azure-mist);
+}
+.activity-item.is-failed .activity-icon {
+  color: var(--negative);
+}
+
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+@keyframes agents-ping {
+  0% {
+    opacity: 0.8;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+@keyframes agents-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+@keyframes agents-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes agents-fresh {
+  0% {
+    background: rgb(140 185 204 / 0.22);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-edge.is-active,
+  .flow-ring,
+  .agent-avatar.is-active::after,
+  .worker-status.is-live .worker-dot::after,
+  .badge-pulse,
+  .run-bar.is-running,
+  .activity-item.is-fresh {
+    animation: none;
+  }
+}

@@ -33,6 +33,8 @@ export function startBackgroundServices(db: DB, log: (line: string) => void = (l
   void runWorkerLoop(db, {
     intervalMs,
     signal: stopWorker.signal,
+    // Lets the Agents tab show monitoring as live, stale or offline (lib/agents/health.ts).
+    heartbeat: { workerId: `in-process:${process.pid}`, mode: "in-process" },
     // Quiet unless something actually ran.
     log: (line) => {
       if (!/processed=0 /.test(line)) log(line);

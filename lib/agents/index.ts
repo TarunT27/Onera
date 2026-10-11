@@ -31,4 +31,6 @@ export {
 export { getInsight, listInsights, parseInsightStatus, setInsightStatus } from "./insights";
 export { getLatestBriefing, type LatestBriefing } from "./briefing";
 export { lastRunByAgent, listRuns } from "./runs";
+export { agentsLive, type AgentLive, type AgentLiveState, type AgentsLive, type Backlog } from "./live";
+export { workerHealth, WORKER_STALE_AFTER_MS, type WorkerHealth, type WorkerHeartbeat } from "./health";
 export { ScopeViolationError, PermanentJobError } from "./errors";

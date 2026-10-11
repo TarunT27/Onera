@@ -30,6 +30,7 @@ import type {
   AgentDefinition,
   AgentRun,
   Briefing,
+  AgentsLive,
   Insight,
   PermissionRow,
   RunReport,
@@ -237,6 +238,7 @@ export interface ChatSecurityResponse {
   findings: ChatSecurityFinding[];
   events: ChatSecurityEvent[];
 }
+export type AgentsLiveResponse = AgentsLive;
 export interface ExecuteResponse {
   action: TransferAction;
   receipt: ExecutionReceipt;
@@ -273,6 +275,7 @@ export const paths = {
   agentInsights: "/api/agents/insights",
   briefing: "/api/agents/briefing",
   chatSecurity: "/api/security/chat",
+  agentsLive: "/api/agents/live",
   family: "/api/family",
 };
 
