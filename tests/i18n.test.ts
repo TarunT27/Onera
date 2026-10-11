@@ -63,3 +63,41 @@ describe("translations are complete", () => {
     });
   }
 });
+
+describe("sentences built on the server", () => {
+  const dict = {
+    "{merchant}: {visits} visits in {days} days adds up to about {amount} a year":
+      "{merchant}: {visits} visitas en {days} días suman unos {amount} al año",
+    "{n} accounts": { one: "{n} cuenta", other: "{n} cuentas" },
+  };
+  it("finds the template a finished sentence came from", () => {
+    expect(translate(dict, "Daily Grind Coffee: 7 visits in 30 days adds up to about $633.76 a year")).toBe(
+      "Daily Grind Coffee: 7 visitas en 30 días suman unos $633.76 al año",
+    );
+  });
+  it("leaves unknown sentences alone", () => {
+    expect(translate(dict, "Something else entirely")).toBe("Something else entirely");
+  });
+});
+
+describe("sentences with translated pieces", () => {
+  const dict = {
+    "{what} What you can do: {advice}": "{what} Qué puede hacer: {advice}",
+    "Review the transfer": "Revise la transferencia",
+    "{n} probes of other records": "{n} intentos con registros ajenos",
+  };
+  it("translates the pieces inside a bundled sentence", () => {
+    expect(translate(dict, "4 probes of other records What you can do: Review the transfer")).toBe(
+      "4 intentos con registros ajenos Qué puede hacer: Revise la transferencia",
+    );
+  });
+});
+
+describe("multi-line server text", () => {
+  it("translates bullets and paragraphs line by line", () => {
+    const dict = { "Probing other records": "Sondeo de registros ajenos", "Advisory only. It never moves money.": "Solo orientativo. Nunca mueve dinero." };
+    expect(translate(dict, "• Probing other records\n\nAdvisory only. It never moves money.")).toBe(
+      "• Sondeo de registros ajenos\n\nSolo orientativo. Nunca mueve dinero.",
+    );
+  });
+});

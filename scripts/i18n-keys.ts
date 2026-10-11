@@ -1,7 +1,7 @@
 /**
  * Finds every translatable message in the source by reading the code, so the
  * dictionaries can be checked for gaps. Recognised calls:
- *   t("…")  tr("…", {…})  msg("…")       → key is the first argument
+ *   t("…")  tr("…", {…})  msg("…")  tpl("…", {…})  → key is the first argument
  *   tp(n, "one", "other")                → key is "other" (third argument)
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -40,7 +40,7 @@ export function collectKeys(root = process.cwd()): SourceKey[] {
   for (const base of ROOTS) {
     for (const file of walk(join(root, base))) {
       const text = readFileSync(file, "utf8");
-      if (!/\b(t|tr|tp|msg)\(/.test(text)) continue;
+      if (!/\b(t|tr|tp|msg|tpl)\(/.test(text)) continue;
       const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
       const visit = (node: ts.Node) => {
         if (ts.isCallExpression(node)) {
@@ -51,7 +51,7 @@ export function collectKeys(root = process.cwd()): SourceKey[] {
               : "";
           const line = source.getLineAndCharacterOfPosition(node.getStart()).line + 1;
           const rel = file.slice(root.length + 1);
-          if (callee === "t" || callee === "tr" || callee === "msg") {
+          if (callee === "t" || callee === "tr" || callee === "msg" || callee === "tpl") {
             const key = literal(node.arguments[0]);
             if (key) found.push({ key, plural: false, file: rel, line });
           } else if (callee === "tp") {

@@ -14,6 +14,7 @@ import { isSpending } from "@/lib/finance/spending";
 import type { Transaction } from "@/lib/types";
 import type { AgentHandler } from "../context";
 import { median, monthKey, titleCase, usd } from "./format";
+import { tpl } from "@/lib/i18n/msg";
 
 const DAY_MS = 86_400_000;
 
@@ -82,13 +83,18 @@ export const spendingReview: AgentHandler = (ctx) => {
         ctx.insights.upsert({
           type: "spending_spike",
           severity: ratio >= R.spikeWarningRatio || increase >= R.spikeWarningIncreaseCents ? "warning" : "info",
-          title: `${titleCase(category)} spending up ${pct}% vs your trailing average`,
-          body:
-            `You spent ${usd(currentCents)} on ${category} in the last ${R.windowDays} days, versus an average of ` +
-            `${usd(averageCents)} per ${R.windowDays} days over the previous ${covered * R.windowDays} days. ` +
-            `Internal transfers between your own accounts are excluded and foreign-currency amounts are converted ` +
-            `at the demo FX rate. Deterministic rule on synthetic data: at least ${R.spikeRatio}× and ` +
-            `${usd(R.spikeMinIncreaseCents)} above the trailing average.`,
+          title: tpl("{category} spending up {pct}% vs your trailing average", { category: titleCase(category), pct }),
+          body: tpl(
+            "You spent {current} on {category} in the last {days} days, versus an average of " +
+              "{average} per {days} days over the previous {baselineDays} days. " +
+              "Internal transfers between your own accounts are excluded and foreign-currency amounts are converted " +
+              "at the demo FX rate. Deterministic rule on synthetic data: at least {ratio}× and " +
+              "{minIncrease} above the trailing average.",
+            {
+              current: usd(currentCents), category, days: R.windowDays, average: usd(averageCents),
+              baselineDays: covered * R.windowDays, ratio: R.spikeRatio, minIncrease: usd(R.spikeMinIncreaseCents),
+            },
+          ),
           evidence: { transactionIds: current.map((i) => i.t.id), category, currentCents },
           dedupeKey: `spike:${category}:${monthKey(ctx.now)}`,
         });
@@ -106,12 +112,17 @@ export const spendingReview: AgentHandler = (ctx) => {
       ctx.insights.upsert({
         type: "large_transaction",
         severity: "warning",
-        title: `Unusually large ${category} charge: ${usd(i.usdCents)} at ${where}`,
-        body:
-          `This charge is about ${Math.round(i.usdCents / Math.max(typical, 1))}× your typical ${category} charge of ` +
-          `${usd(typical)} (median of ${history.length} earlier charges). If you don't recognise it, contact your bank. ` +
-          `Deterministic rule on synthetic data: at least ${R.largeTxMultiple}× the category median and ` +
-          `${usd(R.largeTxMinCents)} or more.`,
+        title: tpl("Unusually large {category} charge: {amount} at {where}", { category, amount: usd(i.usdCents), where }),
+        body: tpl(
+          "This charge is about {times}× your typical {category} charge of " +
+            "{typical} (median of {count} earlier charges). If you don't recognise it, contact your bank. " +
+            "Deterministic rule on synthetic data: at least {multiple}× the category median and " +
+            "{minAmount} or more.",
+          {
+            times: Math.round(i.usdCents / Math.max(typical, 1)), category, typical: usd(typical), count: history.length,
+            multiple: R.largeTxMultiple, minAmount: usd(R.largeTxMinCents),
+          },
+        ),
         evidence: { transactionIds: [i.t.id], category, amountCents: i.usdCents },
         dedupeKey: `large_tx:${i.t.id}`,
       });
@@ -120,7 +131,9 @@ export const spendingReview: AgentHandler = (ctx) => {
   }
 
   return {
-    summary: `${spikes} category spike(s) and ${large} unusually large transaction(s) in the last ${R.windowDays} days`,
+    summary: tpl("{spikes} category spike(s) and {large} unusually large transaction(s) in the last {days} days", {
+      spikes, large, days: R.windowDays,
+    }),
     data: { spikes, largeTransactions: large, baselineWindows: covered, transactionsReviewed: items.length },
   };
 };

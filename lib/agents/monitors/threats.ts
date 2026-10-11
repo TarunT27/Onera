@@ -17,7 +17,7 @@ import { findInjectionMarkers, injectionMarkerLabel } from "@/lib/security/injec
 import type { AuditEvent } from "@/lib/types";
 import type { AgentHandler } from "../context";
 import type { InsightSeverity } from "../types";
-import { msg } from "@/lib/i18n/msg";
+import { msg, tpl } from "@/lib/i18n/msg";
 
 const MIN = 60_000;
 
@@ -104,7 +104,7 @@ function clock(e: AuditEvent): string {
 function span(events: AuditEvent[]): string {
   const a = clock(events[0]);
   const b = clock(events[events.length - 1]);
-  return a === b ? `at ${a}` : `between ${a} and ${b}`;
+  return a === b ? tpl("at {time}", { time: a }) : tpl("between {from} and {to}", { from: a, to: b });
 }
 
 function cite(events: AuditEvent[]) {
@@ -115,10 +115,8 @@ function cite(events: AuditEvent[]) {
 
 function list(xs: string[], max = 4): string {
   const shown = xs.slice(0, max).join(", ");
-  return xs.length > max ? `${shown} and ${xs.length - max} more` : shown;
+  return xs.length > max ? tpl("{shown} and {count} more", { shown, count: xs.length - max }) : shown;
 }
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** Transfer action ID in a refused request path such as /api/actions/<id>/approve. */
 function actionIdFromPath(path: unknown): string | undefined {
@@ -137,11 +135,12 @@ function crossUserProbe(events: AuditEvent[]): ThreatSignal[] {
     .map((c) => ({
       code: "CROSS_USER_PROBE",
       severity: c.length >= R.critical ? "critical" : "warning",
-      title: `${c.length} requests for unavailable records`,
-      text:
-        `${plural(c.length, "request")} ${span(c)} asked for accounts, recipients or actions that don't exist ` +
-        `or belong to someone else (${list(uniq(c.map((e) => str(e.detail.path) ?? "?")))}). ` +
-        `Each one was refused as "not found", and no other user's data was returned.`,
+      title: tpl("{count} requests for unavailable records", { count: c.length }),
+      // A cluster has at least `warning` (3) events, so the plural form always applies.
+      text: tpl(
+        "{count} requests {span} asked for accounts, recipients or actions that don't exist or belong to someone else ({paths}). Each one was refused as \"not found\", and no other user's data was returned.",
+        { count: c.length, span: span(c), paths: list(uniq(c.map((e) => str(e.detail.path) ?? "?"))) },
+      ),
       advice: msg("If this wasn't you, sign out other sessions and review recent activity."),
       ...cite(c),
     }));
@@ -159,10 +158,17 @@ function unapprovedExecution(events: AuditEvent[]): ThreatSignal[] {
       return {
         code: "UNAPPROVED_EXECUTION",
         severity: c.length >= R.critical ? "critical" : "warning",
-        title: c.length === 1 ? msg("Execution attempted without approval") : `${c.length} executions attempted without approval`,
+        title: c.length === 1 ? msg("Execution attempted without approval") : tpl("{count} executions attempted without approval", { count: c.length }),
         text:
-          `${plural(c.length, "execution request")} ${span(c)} targeted transfers or orders that were not approved ` +
-          `(${reasons.join(", ")}). The server refused every one; no money moved.`,
+          c.length === 1
+            ? tpl(
+                "1 execution request {span} targeted transfers or orders that were not approved ({reasons}). The server refused every one; no money moved.",
+                { span: span(c), reasons: reasons.join(", ") },
+              )
+            : tpl(
+                "{count} execution requests {span} targeted transfers or orders that were not approved ({reasons}). The server refused every one; no money moved.",
+                { count: c.length, span: span(c), reasons: reasons.join(", ") },
+              ),
         advice: msg("The app never offers Execute before you approve, so repeated attempts suggest a script or direct API calls."),
         ...cite(c),
       };
@@ -191,8 +197,15 @@ function staleApprovalReplay(events: AuditEvent[]): ThreatSignal[] {
         severity: repeated ? "critical" : "warning",
         title: repeated ? msg("Repeated use of an outdated approval") : msg("An approval no longer matched its transfer"),
         text:
-          `${plural(c.length, "attempt")} ${span(c)} used an approval or version that no longer matched the current ` +
-          `transfer details. The approval was invalidated and nothing executed.`,
+          c.length === 1
+            ? tpl(
+                "1 attempt {span} used an approval or version that no longer matched the current transfer details. The approval was invalidated and nothing executed.",
+                { span: span(c) },
+              )
+            : tpl(
+                "{count} attempts {span} used an approval or version that no longer matched the current transfer details. The approval was invalidated and nothing executed.",
+                { count: c.length, span: span(c) },
+              ),
         advice: msg("Re-check the recipient and amount, then approve the current version only if you still want it."),
         ...cite(c),
       };
@@ -202,6 +215,31 @@ function staleApprovalReplay(events: AuditEvent[]): ThreatSignal[] {
 const SWAP_FOLLOW_UPS = new Set([
   "action.proposed", "action.approved", "action.execute_refused", "action.approval_invalidated", "action.executed",
 ]);
+
+/** Whole-sentence variants (one step vs several, executed vs not) so each is translatable as written. */
+function swapText(recipientId: string, at: string, steps: number, types: string, executed: boolean): string {
+  const minutes = THREAT_RULES.recipientSwap.withinMs / MIN;
+  if (steps === 1) {
+    return executed
+      ? tpl(
+          "Recipient {id}'s details changed at {time}, and 1 transfer step to that recipient followed within {minutes} minutes ({types}). Changed payment instructions just before a payment are a common fraud pattern. A transfer to the changed details executed.",
+          { id: recipientId, time: at, minutes, types },
+        )
+      : tpl(
+          "Recipient {id}'s details changed at {time}, and 1 transfer step to that recipient followed within {minutes} minutes ({types}). Changed payment instructions just before a payment are a common fraud pattern. No transfer to the changed details executed.",
+          { id: recipientId, time: at, minutes, types },
+        );
+  }
+  return executed
+    ? tpl(
+        "Recipient {id}'s details changed at {time}, and {count} transfer steps to that recipient followed within {minutes} minutes ({types}). Changed payment instructions just before a payment are a common fraud pattern. A transfer to the changed details executed.",
+        { id: recipientId, time: at, count: steps, minutes, types },
+      )
+    : tpl(
+        "Recipient {id}'s details changed at {time}, and {count} transfer steps to that recipient followed within {minutes} minutes ({types}). Changed payment instructions just before a payment are a common fraud pattern. No transfer to the changed details executed.",
+        { id: recipientId, time: at, count: steps, minutes, types },
+      );
+}
 
 function recipientSwap(events: AuditEvent[], lookups: ThreatLookups): ThreatSignal[] {
   const R = THREAT_RULES.recipientSwap;
@@ -221,11 +259,7 @@ function recipientSwap(events: AuditEvent[], lookups: ThreatLookups): ThreatSign
       code: "RECIPIENT_SWAP",
       severity: "critical",
       title: msg("Recipient bank details changed right before a transfer"),
-      text:
-        `Recipient ${recipientId}'s details changed at ${clock(change)}, and ${plural(follow.length, "transfer step")} ` +
-        `to that recipient followed within ${R.withinMs / MIN} minutes (${list(uniq(follow.map((e) => e.eventType)))}). ` +
-        `Changed payment instructions just before a payment are a common fraud pattern.` +
-        (executed ? " A transfer to the changed details executed." : " No transfer to the changed details executed."),
+      text: swapText(recipientId, clock(change), follow.length, list(uniq(follow.map((e) => e.eventType))), executed),
       advice: msg("Confirm the new details on a phone number you already trust before verifying or approving."),
       ...cite(cluster),
     });
@@ -244,10 +278,14 @@ function replayExecution(events: AuditEvent[]): ThreatSignal[] {
       .map((c): ThreatSignal => ({
         code: "REPLAY_EXECUTION",
         severity: "warning",
-        title: `Completed ${c[0].eventType.startsWith("order.") ? "order" : "transfer"} re-submitted ${c.length} times`,
-        text:
-          `${plural(c.length, "repeat execution request")} ${span(c)} targeted ${c[0].actionId}, which had already ` +
-          `completed. Each returned the existing receipt; nothing executed twice.`,
+        title: c[0].eventType.startsWith("order.")
+          ? tpl("Completed order re-submitted {count} times", { count: c.length })
+          : tpl("Completed transfer re-submitted {count} times", { count: c.length }),
+        // A cluster has at least `warning` (2) events, so the plural form always applies.
+        text: tpl(
+          "{count} repeat execution requests {span} targeted {target}, which had already completed. Each returned the existing receipt; nothing executed twice.",
+          { count: c.length, span: span(c), target: String(c[0].actionId) },
+        ),
         advice: msg("Repeated submissions can be a stuck client or a replay attempt. No action is needed if this was you."),
         ...cite(c),
       })),
@@ -270,10 +308,12 @@ function limitProbing(events: AuditEvent[]): ThreatSignal[] {
     .map(({ c, attempts }) => ({
       code: "LIMIT_PROBING",
       severity: "warning",
-      title: `${attempts.length} transfer attempts held at your limits`,
-      text:
-        `${plural(attempts.length, "transfer version")} ${span(c)} were held for exceeding the per-transfer or daily ` +
-        `limit. Trying amounts against a limit is a common way to find out how much can be moved.`,
+      title: tpl("{count} transfer attempts held at your limits", { count: attempts.length }),
+      // At least `warning` (3) attempts, so the plural form always applies.
+      text: tpl(
+        "{count} transfer versions {span} were held for exceeding the per-transfer or daily limit. Trying amounts against a limit is a common way to find out how much can be moved.",
+        { count: attempts.length, span: span(c) },
+      ),
       advice: msg("Leave your limits as they are unless you meant to change them yourself."),
       ...cite(c),
     }));
@@ -301,14 +341,19 @@ function controlsThenSpend(events: AuditEvent[]): ThreatSignal[] {
         (e.eventType === "action.approved" || e.eventType === "order.approved"),
     );
     if (approvals.length === 0) continue;
-    const what = change.eventType === "controls.resumed" ? "Transfers were resumed" : "A limit was raised";
+    const resumed = change.eventType === "controls.resumed";
+    const vars = { time: clock(change), count: approvals.length, minutes: R.withinMs / MIN };
     out.push({
       code: "CONTROLS_LOOSENED_THEN_SPEND",
       severity: "warning",
-      title: `${what} shortly before an approval`,
-      text:
-        `${what} at ${clock(change)}, then ${plural(approvals.length, "approval")} followed within ` +
-        `${R.withinMs / MIN} minutes. Loosening controls right before moving money is worth a second look.`,
+      title: resumed ? msg("Transfers were resumed shortly before an approval") : msg("A limit was raised shortly before an approval"),
+      text: resumed
+        ? approvals.length === 1
+          ? tpl("Transfers were resumed at {time}, then 1 approval followed within {minutes} minutes. Loosening controls right before moving money is worth a second look.", vars)
+          : tpl("Transfers were resumed at {time}, then {count} approvals followed within {minutes} minutes. Loosening controls right before moving money is worth a second look.", vars)
+        : approvals.length === 1
+          ? tpl("A limit was raised at {time}, then 1 approval followed within {minutes} minutes. Loosening controls right before moving money is worth a second look.", vars)
+          : tpl("A limit was raised at {time}, then {count} approvals followed within {minutes} minutes. Loosening controls right before moving money is worth a second look.", vars),
       advice: msg("If you didn't change your controls, pause transfers and review the approved items."),
       ...cite([change, ...approvals]),
     });
@@ -319,6 +364,37 @@ function controlsThenSpend(events: AuditEvent[]): ThreatSignal[] {
 function isInjection(e: AuditEvent): boolean {
   if (e.eventType === "assistant.untrusted_instructions") return true;
   return e.eventType === "assistant.prompt" && findInjectionMarkers(str(e.detail.text) ?? "").length > 0;
+}
+
+/** Whole-sentence variants (one vs several messages, with or without untrusted sources, proposal or none). */
+function injectionText(p: { count: number; span: string; markers: string; sources: string | null; proposals: number }): string {
+  const vars = { count: p.count, span: p.span, markers: p.markers, sources: p.sources ?? "", n: p.proposals };
+  if (p.count === 1) {
+    if (p.sources === null) {
+      return p.proposals === 0
+        ? tpl("1 message or document {span} tried to instruct the assistant ({markers}). The assistant drafted no proposal in response.", vars)
+        : p.proposals === 1
+          ? tpl("1 message or document {span} tried to instruct the assistant ({markers}). The assistant then drafted 1 proposal; it still needs your exact-version approval and policy checks.", vars)
+          : tpl("1 message or document {span} tried to instruct the assistant ({markers}). The assistant then drafted {n} proposals; it still needs your exact-version approval and policy checks.", vars);
+    }
+    return p.proposals === 0
+      ? tpl("1 message or document {span} tried to instruct the assistant ({markers}), including untrusted content from {sources}. The assistant drafted no proposal in response.", vars)
+      : p.proposals === 1
+        ? tpl("1 message or document {span} tried to instruct the assistant ({markers}), including untrusted content from {sources}. The assistant then drafted 1 proposal; it still needs your exact-version approval and policy checks.", vars)
+        : tpl("1 message or document {span} tried to instruct the assistant ({markers}), including untrusted content from {sources}. The assistant then drafted {n} proposals; it still needs your exact-version approval and policy checks.", vars);
+  }
+  if (p.sources === null) {
+    return p.proposals === 0
+      ? tpl("{count} message or documents {span} tried to instruct the assistant ({markers}). The assistant drafted no proposal in response.", vars)
+      : p.proposals === 1
+        ? tpl("{count} message or documents {span} tried to instruct the assistant ({markers}). The assistant then drafted 1 proposal; it still needs your exact-version approval and policy checks.", vars)
+        : tpl("{count} message or documents {span} tried to instruct the assistant ({markers}). The assistant then drafted {n} proposals; it still needs your exact-version approval and policy checks.", vars);
+  }
+  return p.proposals === 0
+    ? tpl("{count} message or documents {span} tried to instruct the assistant ({markers}), including untrusted content from {sources}. The assistant drafted no proposal in response.", vars)
+    : p.proposals === 1
+      ? tpl("{count} message or documents {span} tried to instruct the assistant ({markers}), including untrusted content from {sources}. The assistant then drafted 1 proposal; it still needs your exact-version approval and policy checks.", vars)
+      : tpl("{count} message or documents {span} tried to instruct the assistant ({markers}), including untrusted content from {sources}. The assistant then drafted {n} proposals; it still needs your exact-version approval and policy checks.", vars);
 }
 
 function promptInjection(events: AuditEvent[]): ThreatSignal[] {
@@ -346,12 +422,13 @@ function promptInjection(events: AuditEvent[]): ThreatSignal[] {
       code: "PROMPT_INJECTION",
       severity: proposals.length > 0 ? "critical" : "warning",
       title: proposals.length > 0 ? msg("Injected instructions followed by an assistant proposal") : msg("Prompt-injection attempt"),
-      text:
-        `${plural(c.length, "message or document")} ${span(c)} tried to instruct the assistant ` +
-        `(${list(markers.map(injectionMarkerLabel))})` + (sources.length ? `, including untrusted content from ${list(sources)}` : "") + `. ` +
-        (proposals.length > 0
-          ? `The assistant then drafted ${plural(proposals.length, "proposal")}; it still needs your exact-version approval and policy checks.`
-          : `The assistant drafted no proposal in response.`),
+      text: injectionText({
+        count: c.length,
+        span: span(c),
+        markers: list(markers.map(injectionMarkerLabel)),
+        sources: sources.length ? list(sources) : null,
+        proposals: proposals.length,
+      }),
       advice: msg("Review any assistant proposal carefully. Text in documents or messages can never approve or execute anything."),
       ...cite([...c, ...proposals].sort((a, b) => a.id - b.id)),
     };
@@ -359,6 +436,14 @@ function promptInjection(events: AuditEvent[]): ThreatSignal[] {
 }
 
 const PRIVILEGE_REFUSALS = new Set(["Unknown tool", "Refused: not available to this agent"]);
+
+function privilegeText(tools: string, c: AuditEvent[]): string {
+  const a = clock(c[0]);
+  const b = clock(c[c.length - 1]);
+  return a === b
+    ? tpl("The assistant requested {tools} at {time}, which it is not allowed to use. The tool layer refused every call.", { tools, time: a })
+    : tpl("The assistant requested {tools} between {from} and {to}, which it is not allowed to use. The tool layer refused every call.", { tools, from: a, to: b });
+}
 
 function privilegeAttempt(events: AuditEvent[]): ThreatSignal[] {
   const R = THREAT_RULES.privilege;
@@ -370,16 +455,27 @@ function privilegeAttempt(events: AuditEvent[]): ThreatSignal[] {
     .map((c) => ({
       code: "ASSISTANT_PRIVILEGE_ATTEMPT",
       severity: c.length >= R.critical ? "critical" : "warning",
-      title: c.length === 1 ? msg("Assistant asked for a tool it doesn't have") : `Assistant asked for unavailable tools ${c.length} times`,
-      text:
-        `The assistant requested ${list(uniq(c.map((e) => str(e.detail.tool) ?? "?")))} ${span(c)}, which it is not ` +
-        `allowed to use. The tool layer refused every call.`,
+      title: c.length === 1 ? msg("Assistant asked for a tool it doesn't have") : tpl("Assistant asked for unavailable tools {count} times", { count: c.length }),
+      text: privilegeText(list(uniq(c.map((e) => str(e.detail.tool) ?? "?"))), c),
       advice: msg("This often follows a prompt-injection attempt. Check the conversation that triggered it."),
       ...cite(c),
     }));
 }
 
 const FAILURE_EVENTS = new Set(["action.failed", "order.failed", "agent.job_dead", "agent.scope_violation"]);
+
+function failureText(events: string, c: AuditEvent[], scope: boolean): string {
+  const a = clock(c[0]);
+  const b = clock(c[c.length - 1]);
+  if (a === b) {
+    return scope
+      ? tpl("{events} at {time}. The agent's out-of-scope read was blocked and its run failed.", { events, time: a })
+      : tpl("{events} at {time}. Failed simulated operations roll back completely; no partial debit or credit was made.", { events, time: a });
+  }
+  return scope
+    ? tpl("{events} between {from} and {to}. The agent's out-of-scope read was blocked and its run failed.", { events, from: a, to: b })
+    : tpl("{events} between {from} and {to}. Failed simulated operations roll back completely; no partial debit or credit was made.", { events, from: a, to: b });
+}
 
 function executionFailure(events: AuditEvent[]): ThreatSignal[] {
   const R = THREAT_RULES.failure;
@@ -388,12 +484,12 @@ function executionFailure(events: AuditEvent[]): ThreatSignal[] {
     return {
       code: "EXECUTION_FAILURE",
       severity: scope ? "critical" : "warning",
-      title: scope ? msg("A background agent tried to read outside its scope") : `${plural(c.length, "operation")} failed`,
-      text:
-        `${list(uniq(c.map((e) => e.eventType)))} ${span(c)}. ` +
-        (scope
-          ? "The agent's out-of-scope read was blocked and its run failed."
-          : "Failed simulated operations roll back completely; no partial debit or credit was made."),
+      title: scope
+        ? msg("A background agent tried to read outside its scope")
+        : c.length === 1
+          ? msg("1 operation failed")
+          : tpl("{count} operations failed", { count: c.length }),
+      text: failureText(list(uniq(c.map((e) => e.eventType))), c, scope),
       advice: msg("Check the affected items' status before retrying."),
       ...cite(c),
     };
@@ -407,8 +503,9 @@ function transferVelocity(events: AuditEvent[]): ThreatSignal[] {
     .map((c) => ({
       code: "TRANSFER_VELOCITY",
       severity: "warning",
-      title: `${c.length} transfers executed in quick succession`,
-      text: `${plural(c.length, "transfer")} executed ${span(c)}, faster than typical activity.`,
+      title: tpl("{count} transfers executed in quick succession", { count: c.length }),
+      // At least `warning` (5) transfers, so the plural form always applies.
+      text: tpl("{count} transfers executed {span}, faster than typical activity.", { count: c.length, span: span(c) }),
       advice: msg("If you didn't make these, pause transfers and review the receipts."),
       ...cite(c),
     }));
@@ -460,10 +557,13 @@ export const threatSweep: AgentHandler = (ctx) => {
       type: "security_threat",
       severity: s.severity,
       title: s.title,
-      body:
-        `${s.text}\n\nWhat you can do: ${s.advice}\n\n` +
-        `Advisory only: the threat monitor cannot pause, hold, approve or execute anything. ` +
-        `Rule-based check of synthetic activity; not a guarantee that every attack is detected.`,
+      body: tpl("{text}\n\nWhat you can do: {advice}\n\n{disclaimer}", {
+        text: s.text,
+        advice: s.advice,
+        disclaimer: msg(
+          "Advisory only: the threat monitor cannot pause, hold, approve or execute anything. Rule-based check of synthetic activity; not a guarantee that every attack is detected.",
+        ),
+      }),
       evidence: {
         signal: s.code,
         auditEventIds: s.auditEventIds,
@@ -477,8 +577,14 @@ export const threatSweep: AgentHandler = (ctx) => {
   const codes = uniq(signals.map((s) => s.code));
   return {
     summary: signals.length
-      ? `${plural(signals.length, "threat signal")}: ${codes.join(", ")} (${events.length} events reviewed)`
-      : `No threat signals in ${events.length} audit events`,
+      ? signals.length === 1
+        ? tpl("1 threat signal: {codes} ({events} events reviewed)", { codes: codes.join(", "), events: events.length })
+        : tpl("{count} threat signals: {codes} ({events} events reviewed)", {
+            count: signals.length,
+            codes: codes.join(", "),
+            events: events.length,
+          })
+      : tpl("No threat signals in {count} audit events", { count: events.length }),
     data: { signals: codes, eventsReviewed: events.length },
   };
 };

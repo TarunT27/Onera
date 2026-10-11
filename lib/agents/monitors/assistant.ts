@@ -32,7 +32,7 @@ import type {
   BriefingTip,
 } from "../types";
 import { median, monthKey, usd } from "./format";
-import { msg } from "@/lib/i18n/msg";
+import { msg, tpl } from "@/lib/i18n/msg";
 
 const DAY_MS = 86_400_000;
 
@@ -64,7 +64,6 @@ const DISCLAIMER =
 const daysBetween = (a: string, b: Date) => (b.getTime() - Date.parse(a)) / DAY_MS;
 const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
 const merchantKey = (t: Transaction) => (t.merchant ?? t.description).trim().toLowerCase();
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 function stdev(xs: number[]): number {
   if (xs.length < 2) return 0;
@@ -157,10 +156,16 @@ export const assistantBriefing: AgentHandler = (ctx) => {
       id: "recurring:total",
       kind: "save",
       severity: "info",
-      title: `${plural(recurring.length, "recurring charge")}: ${usd(monthly)} a month (${usd(monthly * 12)} a year)`,
-      body:
-        `${recurring.map((r) => `${r.merchant} ${usd(r.monthlyCents)}`).join(", ")}. ` +
-        `Cancelling one you rarely use saves its full yearly cost. Onera never cancels anything for you.`,
+      // recurring.length >= 2 here, so the noun is always plural.
+      title: tpl("{count} recurring charges: {monthly} a month ({yearly} a year)", {
+        count: recurring.length,
+        monthly: usd(monthly),
+        yearly: usd(monthly * 12),
+      }),
+      body: tpl(
+        "{list}. Cancelling one you rarely use saves its full yearly cost. Onera never cancels anything for you.",
+        { list: recurring.map((r) => `${r.merchant} ${usd(r.monthlyCents)}`).join(", ") },
+      ),
       annualSavingsCents: null,
       evidence: { transactionIds: recurring.map((r) => r.latest.id), monthlyCents: monthly },
       persist: false,
@@ -172,11 +177,17 @@ export const assistantBriefing: AgentHandler = (ctx) => {
       id: `price_increase:${inc.merchant.toLowerCase()}`,
       kind: "save",
       severity: inc.increasePct >= 25 ? "warning" : "info",
-      title: `${inc.merchant} now costs ${usd(inc.increaseCents * 12)} more a year`,
-      body:
-        `The latest charge rose from ${usd(inc.previousAmountCents)} to ${usd(inc.currentAmountCents)} ` +
-        `(+${inc.increasePct}%). Switching to a cheaper plan or cancelling would save about ` +
-        `${usd(inc.increaseCents * 12)} a year compared with keeping it.`,
+      title: tpl("{merchant} now costs {yearly} more a year", { merchant: inc.merchant, yearly: usd(inc.increaseCents * 12) }),
+      body: tpl(
+        "The latest charge rose from {previous} to {current} (+{pct}%). Switching to a cheaper plan or cancelling would save about " +
+          "{yearly} a year compared with keeping it.",
+        {
+          previous: usd(inc.previousAmountCents),
+          current: usd(inc.currentAmountCents),
+          pct: inc.increasePct,
+          yearly: usd(inc.increaseCents * 12),
+        },
+      ),
       annualSavingsCents: inc.increaseCents * 12,
       evidence: { transactionIds: inc.evidenceTransactionIds, accountIds: [inc.accountId], merchant: inc.merchant },
       // The subscription monitor already raises its own alert for this.
@@ -209,10 +220,24 @@ export const assistantBriefing: AgentHandler = (ctx) => {
       id: `habit:${merchantKey(visits[0])}`,
       kind: "save",
       severity: "info",
-      title: `${merchant}: ${plural(visits.length, "visit")} in ${R.habit.windowDays} days adds up to about ${usd(annual)} a year`,
-      body:
-        `You spent ${usd(total)} at ${merchant} in the last ${R.habit.windowDays} days (typical ticket ` +
-        `${usd(median(visits.map((t) => -toUsd(t))))}). Cutting it by half would save about ${usd(saving)} a year.`,
+      // minVisits is 4, so the noun is always plural.
+      title: tpl("{merchant}: {visits} visits in {days} days adds up to about {amount} a year", {
+        merchant,
+        visits: visits.length,
+        days: R.habit.windowDays,
+        amount: usd(annual),
+      }),
+      body: tpl(
+        "You spent {total} at {merchant} in the last {days} days (typical ticket " +
+          "{ticket}). Cutting it by half would save about {saving} a year.",
+        {
+          total: usd(total),
+          merchant,
+          days: R.habit.windowDays,
+          ticket: usd(median(visits.map((t) => -toUsd(t)))),
+          saving: usd(saving),
+        },
+      ),
       annualSavingsCents: saving,
       evidence: { transactionIds: visits.map((t) => t.id), merchant, month: monthKey(now) },
     });
@@ -236,10 +261,15 @@ export const assistantBriefing: AgentHandler = (ctx) => {
         id: `duplicate:${b.id}`,
         kind: "spending",
         severity: "warning",
-        title: `Possible duplicate charge: ${usd(-toUsd(b))} at ${b.merchant ?? b.description}`,
-        body:
-          `Two identical charges posted ${a.postedAt.slice(0, 10)} and ${b.postedAt.slice(0, 10)}. If you only made ` +
-          `one purchase, ask the merchant or your bank to refund the second.`,
+        title: tpl("Possible duplicate charge: {amount} at {merchant}", {
+          amount: usd(-toUsd(b)),
+          merchant: b.merchant ?? b.description,
+        }),
+        body: tpl(
+          "Two identical charges posted {first} and {second}. If you only made " +
+            "one purchase, ask the merchant or your bank to refund the second.",
+          { first: a.postedAt.slice(0, 10), second: b.postedAt.slice(0, 10) },
+        ),
         annualSavingsCents: null,
         oneTimeCents: -toUsd(b),
         evidence: { transactionIds: [a.id, b.id], accountIds: [b.accountId] },
@@ -255,8 +285,17 @@ export const assistantBriefing: AgentHandler = (ctx) => {
       id: "fees",
       kind: "save",
       severity: "warning",
-      title: `${usd(total)} in fees over ${windowDays} days`,
-      body: `${plural(fees.length, "charge")} look like bank or card fees (about ${usd(annual)} a year at this rate). Many can be avoided or waived on request.`,
+      title: tpl("{amount} in fees over {days} days", { amount: usd(total), days: windowDays }),
+      body:
+        fees.length === 1
+          ? tpl(
+              "{count} charge look like bank or card fees (about {annual} a year at this rate). Many can be avoided or waived on request.",
+              { count: fees.length, annual: usd(annual) },
+            )
+          : tpl(
+              "{count} charges look like bank or card fees (about {annual} a year at this rate). Many can be avoided or waived on request.",
+              { count: fees.length, annual: usd(annual) },
+            ),
       annualSavingsCents: annual,
       evidence: { transactionIds: fees.map((t) => t.id) },
     });
@@ -267,10 +306,12 @@ export const assistantBriefing: AgentHandler = (ctx) => {
       id: `overspend:${monthKey(now)}`,
       kind: "spending",
       severity: "warning",
-      title: `Spending is ${usd(monthlySpending - monthlyIncome)} a month above income`,
-      body:
-        `Over the last ${windowDays} days you averaged ${usd(monthlySpending)} a month in spending against ` +
-        `${usd(monthlyIncome)} of income. Moves between your own accounts are excluded.`,
+      title: tpl("Spending is {amount} a month above income", { amount: usd(monthlySpending - monthlyIncome) }),
+      body: tpl(
+        "Over the last {days} days you averaged {spending} a month in spending against " +
+          "{income} of income. Moves between your own accounts are excluded.",
+        { days: windowDays, spending: usd(monthlySpending), income: usd(monthlyIncome) },
+      ),
       annualSavingsCents: null,
       evidence: { transactionIds: [], monthlySpendingCents: monthlySpending, monthlyIncomeCents: monthlyIncome },
     });
@@ -283,10 +324,12 @@ export const assistantBriefing: AgentHandler = (ctx) => {
       id: "housing_share",
       kind: "spending",
       severity: "info",
-      title: `Housing takes ${pct(housingMonthly, monthlyIncome)}% of your income`,
-      body:
-        `About ${usd(housingMonthly)} a month against ${usd(monthlyIncome)} of income. A common rule of thumb is to ` +
-        `keep housing near ${R.housingSharePct}%.`,
+      title: tpl("Housing takes {pct}% of your income", { pct: pct(housingMonthly, monthlyIncome) }),
+      body: tpl(
+        "About {housing} a month against {income} of income. A common rule of thumb is to " +
+          "keep housing near {share}%.",
+        { housing: usd(housingMonthly), income: usd(monthlyIncome), share: R.housingSharePct },
+      ),
       annualSavingsCents: null,
       evidence: { transactionIds: spending.filter((t) => t.category === "housing").map((t) => t.id) },
       persist: false,
@@ -312,12 +355,19 @@ export const assistantBriefing: AgentHandler = (ctx) => {
       id: `idle_cash:${a.id}`,
       kind: "save",
       severity: "info",
-      title: `About ${usd(excess)} in ${a.name} is more than you usually need`,
-      body:
-        `About ${R.idleCash.bufferMonths} months of spending is enough to keep in ${a.name}; the rest could sit in ` +
-        `${savingsAccounts[0].name}` +
-        (earn ? `, earning roughly ${usd(earn)} a year at the rate your savings paid recently.` : ".") +
-        ` You'd make that transfer yourself; the assistant can't.`,
+      title: tpl("About {amount} in {account} is more than you usually need", { amount: usd(excess), account: a.name }),
+      body: earn
+        ? tpl(
+            "About {months} months of spending is enough to keep in {account}; the rest could sit in " +
+              "{savings}, earning roughly {earn} a year at the rate your savings paid recently. " +
+              "You'd make that transfer yourself; the assistant can't.",
+            { months: R.idleCash.bufferMonths, account: a.name, savings: savingsAccounts[0].name, earn: usd(earn) },
+          )
+        : tpl(
+            "About {months} months of spending is enough to keep in {account}; the rest could sit in " +
+              "{savings}. You'd make that transfer yourself; the assistant can't.",
+            { months: R.idleCash.bufferMonths, account: a.name, savings: savingsAccounts[0].name },
+          ),
       annualSavingsCents: earn,
       evidence: { accountIds: [a.id, savingsAccounts[0].id], excessCents: excess },
     });
@@ -329,7 +379,12 @@ export const assistantBriefing: AgentHandler = (ctx) => {
       id: "emergency_fund",
       kind: "save",
       severity: "warning",
-      title: months < 1 ? msg("Savings cover less than a month of spending") : `Savings cover about ${months} month${months === 1 ? "" : "s"} of spending`,
+      title:
+        months < 1
+          ? msg("Savings cover less than a month of spending")
+          : months === 1
+            ? tpl("Savings cover about {months} month of spending", { months })
+            : tpl("Savings cover about {months} months of spending", { months }),
       body: msg("Three to six months of spending is a common cushion for emergencies. Your briefing shows the current figures."),
       annualSavingsCents: null,
       evidence: { accountIds: savingsAccounts.map((a) => a.id), months },
@@ -343,10 +398,11 @@ export const assistantBriefing: AgentHandler = (ctx) => {
       id: `card_balance:${card.id}`,
       kind: "save",
       severity: "info",
-      title: `${usd(owed)} owed on ${card.name}`,
-      body:
-        `Your savings could cover this balance. Card interest usually costs far more than savings earn, so paying it ` +
-        `in full avoids interest.`,
+      title: tpl("{amount} owed on {card}", { amount: usd(owed), card: card.name }),
+      body: msg(
+        "Your savings could cover this balance. Card interest usually costs far more than savings earn, so paying it " +
+          "in full avoids interest.",
+      ),
       annualSavingsCents: null,
       evidence: { accountIds: [card.id] },
       persist: false,
@@ -387,11 +443,19 @@ export const assistantBriefing: AgentHandler = (ctx) => {
         id: `sector:${topSector.toLowerCase()}`,
         kind: "invest",
         severity: topPct >= R.sector.criticalPct ? "warning" : "info",
-        title: `${topSector} is ${topPct}% of your invested money`,
+        title: tpl("{sector} is {pct}% of your invested money", { sector: topSector, pct: topPct }),
         body:
-          `${[...top.symbols].join(", ")} make up ${usd(top.cents)} of ${usd(investedTotal)} in holdings` +
-          (stocksPct >= R.singleStocksPct ? `, and ${stocksPct}% of everything is in individual stocks rather than funds` : "") +
-          `. A large share in one area makes results depend on it. Simulated prices; general information only.`,
+          stocksPct >= R.singleStocksPct
+            ? tpl(
+                "{symbols} make up {value} of {total} in holdings, and {stocksPct}% of everything is in individual stocks rather than funds" +
+                  ". A large share in one area makes results depend on it. Simulated prices; general information only.",
+                { symbols: [...top.symbols].join(", "), value: usd(top.cents), total: usd(investedTotal), stocksPct },
+              )
+            : tpl(
+                "{symbols} make up {value} of {total} in holdings" +
+                  ". A large share in one area makes results depend on it. Simulated prices; general information only.",
+                { symbols: [...top.symbols].join(", "), value: usd(top.cents), total: usd(investedTotal) },
+              ),
         annualSavingsCents: null,
         evidence: { accountIds: [...top.accounts], symbols: [...top.symbols] },
       });
@@ -400,8 +464,11 @@ export const assistantBriefing: AgentHandler = (ctx) => {
         id: "single_stocks",
         kind: "invest",
         severity: "info",
-        title: `${stocksPct}% of your invested money is in individual stocks`,
-        body: `${stocks.map((p) => p.symbol).join(", ")} are single companies; funds spread money across many. Simulated prices; general information only.`,
+        title: tpl("{pct}% of your invested money is in individual stocks", { pct: stocksPct }),
+        body: tpl(
+          "{symbols} are single companies; funds spread money across many. Simulated prices; general information only.",
+          { symbols: stocks.map((p) => p.symbol).join(", ") },
+        ),
         annualSavingsCents: null,
         evidence: { accountIds: [...new Set(stocks.map((p) => p.accountId))], symbols: stocks.map((p) => p.symbol) },
       });
@@ -445,11 +512,46 @@ export const assistantBriefing: AgentHandler = (ctx) => {
     const notable =
       (change30 !== null && Math.abs(change30) >= R.research.notableMovePct) ||
       (maxDrawdown !== null && maxDrawdown <= R.research.notableDrawdownPct);
-    const kind = inst ? (inst.type === "etf" ? `${inst.sector ?? "diversified"} fund` : `${inst.sector ?? "single"} stock`) : "holding";
-    const moves = [
-      change30 !== null ? `${change30 >= 0 ? "up" : "down"} ${Math.abs(change30)}% over 30 days` : null,
-      change90 !== null ? `${change90 >= 0 ? "up" : "down"} ${Math.abs(change90)}% over ${closes.length - 1} days` : null,
-    ].filter(Boolean).join(" and ");
+    const kind = !inst
+      ? msg("holding")
+      : inst.type === "etf"
+        ? inst.sector != null ? tpl("{sector} fund", { sector: inst.sector }) : msg("diversified fund")
+        : inst.sector != null ? tpl("{sector} stock", { sector: inst.sector }) : msg("single stock");
+    const days90 = closes.length - 1;
+    // change30 is only set when change90 is too (it needs more history), so these cover every case.
+    const moves =
+      change90 === null
+        ? msg("without enough price history")
+        : change30 === null
+          ? change90 >= 0
+            ? tpl("up {p90}% over {days} days", { p90: Math.abs(change90), days: days90 })
+            : tpl("down {p90}% over {days} days", { p90: Math.abs(change90), days: days90 })
+          : change30 >= 0
+            ? change90 >= 0
+              ? tpl("up {p30}% over 30 days and up {p90}% over {days} days", { p30: Math.abs(change30), p90: Math.abs(change90), days: days90 })
+              : tpl("up {p30}% over 30 days and down {p90}% over {days} days", { p30: Math.abs(change30), p90: Math.abs(change90), days: days90 })
+            : change90 >= 0
+              ? tpl("down {p30}% over 30 days and up {p90}% over {days} days", { p30: Math.abs(change30), p90: Math.abs(change90), days: days90 })
+              : tpl("down {p30}% over 30 days and down {p90}% over {days} days", { p30: Math.abs(change30), p90: Math.abs(change90), days: days90 });
+    const name = inst?.name ?? symbol;
+    const dip = maxDrawdown !== null && maxDrawdown < 0 ? Math.abs(maxDrawdown) : null;
+    const describe =
+      volatility !== null
+        ? dip !== null
+          ? tpl("{name} ({kind}) is {moves} at simulated prices, with about {vol}% annualized swings and a deepest dip of {dip}%.", { name, kind, moves, vol: volatility, dip })
+          : tpl("{name} ({kind}) is {moves} at simulated prices, with about {vol}% annualized swings.", { name, kind, moves, vol: volatility })
+        : dip !== null
+          ? tpl("{name} ({kind}) is {moves} at simulated prices and a deepest dip of {dip}%.", { name, kind, moves, dip })
+          : tpl("{name} ({kind}) is {moves} at simulated prices.", { name, kind, moves });
+    const pnlAmount = usd(Math.abs(h.pnl));
+    const position =
+      h.pnl >= 0
+        ? h.paperOnly
+          ? tpl("up {amount} versus what you paid (paper money).", { amount: pnlAmount })
+          : tpl("up {amount} versus what you paid.", { amount: pnlAmount })
+        : h.paperOnly
+          ? tpl("down {amount} versus what you paid (paper money).", { amount: pnlAmount })
+          : tpl("down {amount} versus what you paid.", { amount: pnlAmount });
     research.push({
       symbol,
       name: inst?.name ?? symbol,
@@ -465,12 +567,7 @@ export const assistantBriefing: AgentHandler = (ctx) => {
       volatilityPct: volatility,
       maxDrawdownPct: maxDrawdown,
       notable,
-      note:
-        `${inst?.name ?? symbol} (${kind}) is ${moves || "without enough price history"} at simulated prices` +
-        (volatility !== null ? `, with about ${volatility}% annualized swings` : "") +
-        (maxDrawdown !== null && maxDrawdown < 0 ? ` and a deepest dip of ${Math.abs(maxDrawdown)}%` : "") +
-        `. Your position is ${h.pnl >= 0 ? "up" : "down"} ${usd(Math.abs(h.pnl))} versus what you paid` +
-        (h.paperOnly ? " (paper money)." : "."),
+      note: tpl("{describe} Your position is {position}", { describe, position }),
     });
   }
   research.sort((a, b) => Number(b.notable) - Number(a.notable) || b.marketValueCents - a.marketValueCents);
@@ -488,16 +585,16 @@ export const assistantBriefing: AgentHandler = (ctx) => {
   // ---------------------------------------------------------------------------
   const attention: BriefingAttentionItem[] = [];
   for (const a of ctx.read.actions.list({ states: ["AWAITING_APPROVAL", "HELD", "APPROVED"], limit: 20 })) {
-    const what = `${usd(a.amountCents)} to ${a.destination.displayName}`;
+    const what = tpl("{amount} to {destination}", { amount: usd(a.amountCents), destination: a.destination.displayName });
     const href = `/transfers?id=${encodeURIComponent(a.id)}`;
     if (a.state === "AWAITING_APPROVAL") {
-      attention.push({ id: `approval:${a.id}`, kind: "approval", title: `${what} is waiting for your approval`,
+      attention.push({ id: `approval:${a.id}`, kind: "approval", title: tpl("{what} is waiting for your approval", { what }),
         detail: msg("Review the exact details on the transfer card before approving."), href, evidence: { actionIds: [a.id] } });
     } else if (a.state === "HELD") {
-      attention.push({ id: `held:${a.id}`, kind: "held", title: `${what} is on hold`,
-        detail: `Held for ${a.holdReasons.join(", ") || "a policy check"}.`, href, evidence: { actionIds: [a.id] } });
+      attention.push({ id: `held:${a.id}`, kind: "held", title: tpl("{what} is on hold", { what }),
+        detail: a.holdReasons.length > 0 ? tpl("Held for {reasons}.", { reasons: a.holdReasons.join(", ") }) : msg("Held for a policy check."), href, evidence: { actionIds: [a.id] } });
     } else {
-      attention.push({ id: `approved:${a.id}`, kind: "approved", title: `${what} is approved but not executed`,
+      attention.push({ id: `approved:${a.id}`, kind: "approved", title: tpl("{what} is approved but not executed", { what }),
         detail: msg("Execute it from the transfer card, or edit it to withdraw the approval."), href, evidence: { actionIds: [a.id] } });
     }
   }
@@ -506,7 +603,10 @@ export const assistantBriefing: AgentHandler = (ctx) => {
     attention.push({
       id: `connection:${c.id}`,
       kind: "connection",
-      title: `${c.institutionName} ${c.status === "login_required" ? "needs you to sign in again" : "couldn't sync"}`,
+      title:
+        c.status === "login_required"
+          ? tpl("{institution} needs you to sign in again", { institution: c.institutionName })
+          : tpl("{institution} couldn't sync", { institution: c.institutionName }),
       detail: c.lastError ?? msg("Reconnect it from the Accounts page (simulated connection)."),
       href: "/accounts",
       evidence: { connectionIds: [c.id] },
@@ -538,10 +638,23 @@ export const assistantBriefing: AgentHandler = (ctx) => {
     .sort((a, b) => sevRank[a.severity] - sevRank[b.severity] || kindRank[a.kind] - kindRank[b.kind] ||
       (b.annualSavingsCents ?? 0) - (a.annualSavingsCents ?? 0));
 
+  const notableCount = research.filter((r) => r.notable).length;
   const parts = [
-    potential > 0 ? `You could save about ${usd(potential)} a year` : `${plural(ordered.length, "tip")} for you`,
-    attention.length > 0 ? `${plural(attention.length, "thing")} need${attention.length === 1 ? "s" : ""} your attention` : null,
-    research.some((r) => r.notable) ? `${plural(research.filter((r) => r.notable).length, "holding")} moved notably` : null,
+    potential > 0
+      ? tpl("You could save about {amount} a year", { amount: usd(potential) })
+      : ordered.length === 1
+        ? tpl("{count} tip for you", { count: ordered.length })
+        : tpl("{count} tips for you", { count: ordered.length }),
+    attention.length === 0
+      ? null
+      : attention.length === 1
+        ? tpl("{count} thing needs your attention", { count: attention.length })
+        : tpl("{count} things need your attention", { count: attention.length }),
+    notableCount === 0
+      ? null
+      : notableCount === 1
+        ? tpl("{count} holding moved notably", { count: notableCount })
+        : tpl("{count} holdings moved notably", { count: notableCount }),
   ].filter(Boolean);
 
   const briefing: Briefing = {
@@ -559,9 +672,23 @@ export const assistantBriefing: AgentHandler = (ctx) => {
   };
 
   return {
-    summary:
-      `${plural(ordered.length, "tip")} (${usd(potential)}/yr potential), ${plural(research.length, "research note")}, ` +
-      `${plural(attention.length, "attention item")}`,
+    summary: summary(ordered.length, usd(potential), research.length, attention.length),
     data: { briefing },
   };
 };
+
+/** The run summary; one whole sentence per singular/plural combination so each can be translated. */
+function summary(tips: number, potential: string, notes: number, items: number): string {
+  const v = { tips, potential, notes, items };
+  const variants = [
+    tpl("{tips} tips ({potential}/yr potential), {notes} research notes, {items} attention items", v),
+    tpl("{tips} tips ({potential}/yr potential), {notes} research notes, {items} attention item", v),
+    tpl("{tips} tips ({potential}/yr potential), {notes} research note, {items} attention items", v),
+    tpl("{tips} tips ({potential}/yr potential), {notes} research note, {items} attention item", v),
+    tpl("{tips} tip ({potential}/yr potential), {notes} research notes, {items} attention items", v),
+    tpl("{tips} tip ({potential}/yr potential), {notes} research notes, {items} attention item", v),
+    tpl("{tips} tip ({potential}/yr potential), {notes} research note, {items} attention items", v),
+    tpl("{tips} tip ({potential}/yr potential), {notes} research note, {items} attention item", v),
+  ];
+  return variants[(tips === 1 ? 4 : 0) + (notes === 1 ? 2 : 0) + (items === 1 ? 1 : 0)];
+}
