@@ -18,6 +18,7 @@ import {
   Plugs,
   Receipt,
   Repeat,
+  Sparkle,
   ArrowsLeftRight,
   ShieldCheck,
   UserList,
@@ -73,6 +74,12 @@ const AGENT_UI: Record<AgentLive["id"], { icon: Icon; does: string; verb: string
     does: "Refreshes healthy simulated bank connections every 15 minutes and queues reviews when new data arrives.",
     verb: "Syncing bank data",
     when: "Every 15 minutes",
+  },
+  personal_assistant: {
+    icon: Sparkle,
+    does: "Prepares your briefing: where you could save, spending that looks too high or doesn't add up, notes on your holdings, and transfers or connections that need you. Observation only, not financial advice.",
+    verb: "Preparing your briefing",
+    when: "Every 30 minutes, and on demand",
   },
 };
 
@@ -169,7 +176,7 @@ export function AgentsClient() {
     <div className="space-y-6">
       <PageHeader
         title="Agents"
-        description="Six background agents watch your synthetic accounts. Each one reads only what it needs and can only write findings. Watch them work live."
+        description="Seven background agents watch your synthetic accounts. Each one reads only what it needs and can only write findings. Watch them work live."
         action={
           <Button onClick={() => void runAll()} busy={running}>
             Run all agents now
