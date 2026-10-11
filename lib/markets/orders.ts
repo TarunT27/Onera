@@ -22,7 +22,7 @@ import type { DB } from "@/lib/db";
 import { badRequest, conflict, notFound } from "@/lib/errors";
 import { ApproveSchema, type Account, type UserId } from "@/lib/types";
 import { orderApprovalHash, type ApprovableOrder } from "./approval";
-import { findInstrument } from "./instruments";
+import { instrumentFor } from "./assets";
 import { quoteFor, quoteSource } from "./marketdata";
 import { priceBoundFor } from "./math";
 import { evaluateOrderPolicy, type MandateTerms, type OrderTerms } from "./policy";
@@ -134,7 +134,7 @@ function policyFor(db: DB, userId: UserId, terms: OrderTerms, quote: Quote | nul
   const policy = evaluateOrderPolicy({
     order: terms,
     account,
-    instrument: findInstrument(terms.symbol),
+    instrument: instrumentFor(db, terms.symbol),
     quote,
     heldQuantityMicros: heldQuantityMicros(db, userId, terms.accountId, terms.symbol),
     paused: getControls(db, userId).paused,

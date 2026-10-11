@@ -13,6 +13,7 @@
  */
 import type { DB } from "@/lib/db";
 import { alpacaConfigured, getClock, getDailyBars, getSnapshots, type AlpacaClock } from "./alpaca";
+import { instrumentFor } from "./assets";
 import { catalogInstruments, findInstrument, normalizeSymbol } from "./instruments";
 import { decimalToCents } from "./math";
 import { MAX_HISTORY_DAYS, simulateHistory, simulateQuote } from "./simulator";
@@ -85,7 +86,7 @@ export function quoteFor(db: DB | undefined, symbol: string, now: Date): Quote |
 export function historyFor(db: DB | undefined, symbol: string, days: number, now: Date): PriceHistory | null {
   if (quoteSource() === "simulated") return simulateHistory(symbol, days, now);
   const sym = normalizeSymbol(symbol);
-  if (!findInstrument(sym) || !db) return null;
+  if (!db || !instrumentFor(db, sym)) return null;
   const n = Math.min(Math.max(Math.floor(days), 1), MAX_HISTORY_DAYS);
   const since = new Date(now.getTime() - n * DAY_MS).toISOString().slice(0, 10);
   const rows = db
@@ -158,7 +159,7 @@ export function refreshQuotes(db: DB, opts: { force?: boolean; extra?: string[] 
     const fresh = rows.filter((r) => now - new Date(r.fetched_at).getTime() < QUOTE_REFRESH_MS);
     if (fresh.length === symbols.length) return Promise.resolve();
   }
-  return once(db, "quotes", async () => {
+  return once(db, `quotes:${symbols.join(",")}`, async () => {
     const snapshots = await getSnapshots(symbols);
     const now = new Date();
     db.transaction(() => {
@@ -180,16 +181,27 @@ export function cacheBrokerPrice(db: DB, symbol: string, priceCents: number, pre
   if (priceCents > 0 && prevCloseCents > 0) upsertQuote(db, normalizeSymbol(symbol), priceCents, prevCloseCents, now.toISOString(), now);
 }
 
-/** Daily bars for the catalog, about once an hour. */
-export function refreshBars(db: DB, opts: { force?: boolean } = {}): Promise<void> {
-  if (quoteSource() === "simulated") return Promise.resolve();
-  const state = db.prepare("SELECT fetched_at FROM market_data_state WHERE key = 'bars'").get() as
-    { fetched_at: string } | undefined;
-  if (!opts.force && state && Date.now() - new Date(state.fetched_at).getTime() < BARS_REFRESH_MS) {
-    return Promise.resolve();
-  }
-  return once(db, "bars", async () => {
-    const symbols = catalogInstruments().map((i) => i.symbol);
+/**
+ * Daily bars, about once an hour: the catalog as one batch (state key "bars"), plus any
+ * `extra` symbols (searched or watched), each tracked under "bars:<SYMBOL>".
+ */
+export async function refreshBars(db: DB, opts: { force?: boolean; extra?: string[] } = {}): Promise<void> {
+  if (quoteSource() === "simulated") return;
+  const stale = (key: string) => {
+    const state = db.prepare("SELECT fetched_at FROM market_data_state WHERE key = ?").get(key) as
+      { fetched_at: string } | undefined;
+    return opts.force || !state || Date.now() - new Date(state.fetched_at).getTime() >= BARS_REFRESH_MS;
+  };
+  const extras = [...new Set((opts.extra ?? []).map(normalizeSymbol))]
+    .filter((s) => !findInstrument(s) && stale(`bars:${s}`));
+  await Promise.all([
+    stale("bars") ? fetchBars(db, catalogInstruments().map((i) => i.symbol), ["bars"]) : null,
+    extras.length ? fetchBars(db, extras, extras.map((s) => `bars:${s}`)) : null,
+  ]);
+}
+
+function fetchBars(db: DB, symbols: string[], stateKeys: string[]): Promise<void> {
+  return once(db, `bars:${symbols.join(",")}`, async () => {
     const start = new Date(Date.now() - (MAX_HISTORY_DAYS + 7) * DAY_MS);
     const bars = await getDailyBars(symbols, start);
     const now = new Date().toISOString();
@@ -204,10 +216,11 @@ export function refreshBars(db: DB, opts: { force?: boolean } = {}): Promise<voi
           if (cents > 0) ins.run(normalizeSymbol(symbol), b.t.slice(0, 10), cents);
         }
       }
-      db.prepare(
-        `INSERT INTO market_data_state (key, value, fetched_at) VALUES ('bars', '{}', ?)
+      const mark = db.prepare(
+        `INSERT INTO market_data_state (key, value, fetched_at) VALUES (?, '{}', ?)
          ON CONFLICT (key) DO UPDATE SET fetched_at = excluded.fetched_at`,
-      ).run(now);
+      );
+      for (const key of stateKeys) mark.run(key, now);
     })();
   });
 }
