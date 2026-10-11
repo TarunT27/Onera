@@ -5,6 +5,7 @@
  */
 import type { AgentHandler } from "../context";
 import { usd } from "./format";
+import { msg } from "@/lib/i18n/msg";
 
 export const subscriptionReview: AgentHandler = (ctx) => {
   const findings = ctx.read.transactions.subscriptionIncreases();
@@ -30,7 +31,7 @@ export const subscriptionReview: AgentHandler = (ctx) => {
   return {
     summary: findings.length
       ? `${findings.length} subscription price increase(s): ${findings.map((f) => f.merchant).join(", ")}`
-      : "No subscription price increases",
+      : msg("No subscription price increases"),
     data: { increases: findings.length },
   };
 };

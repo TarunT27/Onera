@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
 import { getSessionUserId } from "@/lib/session";
 import type { ApiError, ApiErrorCode } from "@/lib/types";
+import { msg } from "@/lib/i18n/msg";
 
 export function errorResponse(err: unknown): NextResponse<ApiError> {
   if (err instanceof ServiceError) {
@@ -15,12 +16,12 @@ export function errorResponse(err: unknown): NextResponse<ApiError> {
   }
   if (err instanceof ZodError) {
     return NextResponse.json(
-      { error: { code: "BAD_REQUEST", message: "Invalid request", details: err.issues } },
+      { error: { code: "BAD_REQUEST", message: msg("Invalid request"), details: err.issues } },
       { status: 400 },
     );
   }
   console.error("[clearfi] unhandled error", err);
-  return NextResponse.json({ error: { code: "INTERNAL", message: "Internal error" } }, { status: 500 });
+  return NextResponse.json({ error: { code: "INTERNAL", message: msg("Internal error") } }, { status: 500 });
 }
 
 /** Refusals the threat monitor reads from the audit log (lib/agents/monitors/threats.ts). */
@@ -65,6 +66,6 @@ export async function readJson(req: Request): Promise<unknown> {
   try {
     return JSON.parse(text);
   } catch {
-    throw new ServiceError("BAD_REQUEST", "Body must be valid JSON", 400);
+    throw new ServiceError("BAD_REQUEST", msg("Body must be valid JSON"), 400);
   }
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import { identityT, type Translate } from "@/lib/i18n/translate";
+import { msg } from "@/lib/i18n/msg";
 
 export interface Recording {
   blob: Blob;
@@ -32,14 +34,14 @@ function extensionFor(type: string): string {
 }
 
 /** Plain-language message for getUserMedia and MediaRecorder failures. */
-export function microphoneError(err: unknown): string {
+export function microphoneError(err: unknown, t: Translate = identityT): string {
   const name = err instanceof DOMException ? err.name : "";
   if (name === "NotAllowedError" || name === "SecurityError") {
-    return "Microphone access is blocked. Allow it for this site in your browser, then try again.";
+    return t("Microphone access is blocked. Allow it for this site in your browser, then try again.");
   }
-  if (name === "NotFoundError" || name === "OverconstrainedError") return "No microphone was found.";
-  if (name === "NotReadableError") return "The microphone is in use by another app.";
-  return err instanceof Error ? err.message : "The microphone could not be started.";
+  if (name === "NotFoundError" || name === "OverconstrainedError") return t("No microphone was found.");
+  if (name === "NotReadableError") return t("The microphone is in use by another app.");
+  return err instanceof Error ? t(err.message) : t("The microphone could not be started.");
 }
 
 /**
@@ -79,7 +81,7 @@ export function useVoiceRecorder({
   const start = useCallback(async () => {
     if (session.current) return;
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      throw new Error("Voice needs a browser with microphone recording, on https or localhost.");
+      throw new Error(msg("Voice needs a browser with microphone recording, on https or localhost."));
     }
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },

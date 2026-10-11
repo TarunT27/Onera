@@ -32,6 +32,7 @@ import type {
   BriefingTip,
 } from "../types";
 import { median, monthKey, usd } from "./format";
+import { msg } from "@/lib/i18n/msg";
 
 const DAY_MS = 86_400_000;
 
@@ -57,8 +58,8 @@ export const ASSISTANT_RULES = {
 } as const;
 
 const DISCLAIMER =
-  "Prepared automatically by deterministic rules over synthetic data and simulated prices. General information, " +
-  "not financial, tax or investment advice. Your assistant can't move money, propose, approve or trade.";
+  msg("Prepared automatically by deterministic rules over synthetic data and simulated prices. General information, " +
+  "not financial, tax or investment advice. Your assistant can't move money, propose, approve or trade.");
 
 const daysBetween = (a: string, b: Date) => (b.getTime() - Date.parse(a)) / DAY_MS;
 const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
@@ -328,8 +329,8 @@ export const assistantBriefing: AgentHandler = (ctx) => {
       id: "emergency_fund",
       kind: "save",
       severity: "warning",
-      title: months < 1 ? "Savings cover less than a month of spending" : `Savings cover about ${months} month${months === 1 ? "" : "s"} of spending`,
-      body: "Three to six months of spending is a common cushion for emergencies. Your briefing shows the current figures.",
+      title: months < 1 ? msg("Savings cover less than a month of spending") : `Savings cover about ${months} month${months === 1 ? "" : "s"} of spending`,
+      body: msg("Three to six months of spending is a common cushion for emergencies. Your briefing shows the current figures."),
       annualSavingsCents: null,
       evidence: { accountIds: savingsAccounts.map((a) => a.id), months },
     });
@@ -491,13 +492,13 @@ export const assistantBriefing: AgentHandler = (ctx) => {
     const href = `/transfers?id=${encodeURIComponent(a.id)}`;
     if (a.state === "AWAITING_APPROVAL") {
       attention.push({ id: `approval:${a.id}`, kind: "approval", title: `${what} is waiting for your approval`,
-        detail: "Review the exact details on the transfer card before approving.", href, evidence: { actionIds: [a.id] } });
+        detail: msg("Review the exact details on the transfer card before approving."), href, evidence: { actionIds: [a.id] } });
     } else if (a.state === "HELD") {
       attention.push({ id: `held:${a.id}`, kind: "held", title: `${what} is on hold`,
         detail: `Held for ${a.holdReasons.join(", ") || "a policy check"}.`, href, evidence: { actionIds: [a.id] } });
     } else {
       attention.push({ id: `approved:${a.id}`, kind: "approved", title: `${what} is approved but not executed`,
-        detail: "Execute it from the transfer card, or edit it to withdraw the approval.", href, evidence: { actionIds: [a.id] } });
+        detail: msg("Execute it from the transfer card, or edit it to withdraw the approval."), href, evidence: { actionIds: [a.id] } });
     }
   }
   for (const c of ctx.read.connections.list()) {
@@ -506,7 +507,7 @@ export const assistantBriefing: AgentHandler = (ctx) => {
       id: `connection:${c.id}`,
       kind: "connection",
       title: `${c.institutionName} ${c.status === "login_required" ? "needs you to sign in again" : "couldn't sync"}`,
-      detail: c.lastError ?? "Reconnect it from the Accounts page (simulated connection).",
+      detail: c.lastError ?? msg("Reconnect it from the Accounts page (simulated connection)."),
       href: "/accounts",
       evidence: { connectionIds: [c.id] },
     });

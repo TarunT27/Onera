@@ -12,12 +12,14 @@ import {
   type RecipientsResponse,
 } from "../components/api";
 import { PageHeader } from "../components/Card";
+import { useT } from "../components/I18nContext";
 import { useApiData } from "../components/useApiData";
 import { ActionDetail } from "./ActionDetail";
 import { ActionList } from "./ActionList";
 import { NewTransferForm } from "./NewTransferForm";
 
 export function TransfersClient() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedId = searchParams.get("id");
@@ -60,17 +62,17 @@ export function TransfersClient() {
   return (
     <div>
       <PageHeader
-        title="Transfers"
-        description="Review and approve every transfer. Onera checks your limits before sending. All transfers here are simulated."
+        title={t("Transfers")}
+        description={t("Review and approve every transfer. Onera checks your limits before sending. All transfers here are simulated.")}
       />
 
       {paused && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200">
           <span>
-            <strong>Transfers are paused.</strong> Even approved transfers can’t be sent until you resume.
+            <strong>{t("Transfers are paused.")}</strong> {t("Even approved transfers can’t be sent until you resume.")}
           </span>
           <Link href="/control" className="font-medium underline underline-offset-2">
-            Open Control
+            {t("Open Control")}
           </Link>
         </div>
       )}
@@ -83,8 +85,8 @@ export function TransfersClient() {
           ) : (
             <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
               <div>
-                <p className="font-medium text-zinc-700 dark:text-zinc-300">Select a transfer to review</p>
-                <p className="mt-1">Review the recipient, safety checks and demo receipt here.</p>
+                <p className="font-medium text-zinc-700 dark:text-zinc-300">{t("Select a transfer to review")}</p>
+                <p className="mt-1">{t("Review the recipient, safety checks and demo receipt here.")}</p>
               </div>
             </div>
           )}

@@ -3,6 +3,7 @@
  * settings and this month's spend decide; nothing else does.
  */
 import type { CardCategory, CardStatus, DeclineReason } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 export interface PurchaseRuleInput {
   status: CardStatus;
@@ -24,8 +25,8 @@ export function decidePurchase(p: PurchaseRuleInput): DeclineReason | null {
 }
 
 export const DECLINE_COPY: Record<DeclineReason, string> = {
-  CARD_FROZEN: "Card is frozen",
-  CATEGORY_BLOCKED: "Category blocked",
-  OVER_PURCHASE_LIMIT: "Over per-purchase limit",
-  OVER_MONTHLY_LIMIT: "Over monthly limit",
+  CARD_FROZEN: msg("Card is frozen"),
+  CATEGORY_BLOCKED: msg("Category blocked"),
+  OVER_PURCHASE_LIMIT: msg("Over per-purchase limit"),
+  OVER_MONTHLY_LIMIT: msg("Over monthly limit"),
 };

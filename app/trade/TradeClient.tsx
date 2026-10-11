@@ -15,6 +15,8 @@ import { PaperLabel } from "../components/Badge";
 import { Loading } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatCents } from "../components/format";
+import { useT } from "../components/I18nContext";
+import { msg } from "@/lib/i18n/msg";
 import { useApiData } from "../components/useApiData";
 import { OrderReview, OrderStateBadge, creatorLabel, orderTitle } from "./OrderReview";
 import { OrderTicket } from "./OrderTicket";
@@ -23,10 +25,10 @@ import { TradeAssistant } from "./TradeAssistant";
 import { formatShares } from "./shares";
 
 const RANGES = [
-  { label: "1W", days: 7, desc: "past week" },
-  { label: "1M", days: 30, desc: "past month" },
-  { label: "3M", days: 90, desc: "past 3 months" },
-  { label: "1Y", days: 365, desc: "past year" },
+  { label: "1W", days: 7, desc: msg("past week") },
+  { label: "1M", days: 30, desc: msg("past month") },
+  { label: "3M", days: 90, desc: msg("past 3 months") },
+  { label: "1Y", days: 365, desc: msg("past year") },
 ] as const;
 
 interface InstrumentsResponse {
@@ -53,6 +55,7 @@ function Price({ cents }: { cents: number }) {
 }
 
 export function TradeClient() {
+  const t = useT();
   const [symbol, setSymbol] = useState("NVDA");
   const [range, setRange] = useState(1);
   const [selected, setSelected] = useState<PaperOrder | null>(null);
@@ -71,8 +74,8 @@ export function TradeClient() {
   // Simulated quotes move every minute; keep the watchlist fresh.
   const reloadQuotes = quotes.reload;
   useEffect(() => {
-    const t = setInterval(() => void reloadQuotes(), 30_000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => void reloadQuotes(), 30_000);
+    return () => clearInterval(timer);
   }, [reloadQuotes]);
 
   const paper = portfolio.data?.portfolio.accounts.find((a) => a.paper && a.tradable) ?? null;
@@ -126,15 +129,15 @@ export function TradeClient() {
     <div className="trade">
       <div className="trade-head rise" style={{ ["--i" as string]: 0 }}>
         <div>
-          <p className="eyebrow">{paper ? `${paper.name} · ••${paper.mask}` : "Paper trading"}</p>
-          <h1>Trade</h1>
+          <p className="eyebrow">{paper ? `${paper.name} · ••${paper.mask}` : t("Paper trading")}</p>
+          <h1>{t("Trade")}</h1>
         </div>
         <div className="trade-chips">
           <PaperLabel />
-          <span className="chip">{instruments.data?.market.label ?? "Simulated market"}</span>
+          <span className="chip">{t(instruments.data?.market.label ?? "Simulated market")}</span>
           {paper && (
             <span className="chip">
-              <span className="chip-dim">Buying power</span> {formatCents(paper.cashCents)}
+              <span className="chip-dim">{t("Buying power")}</span> {formatCents(paper.cashCents)}
             </span>
           )}
         </div>
@@ -142,20 +145,20 @@ export function TradeClient() {
 
       {controls.data?.paused && (
         <p className="trade-paused" role="status">
-          Execution is paused in Controls. New orders will be held until you resume.
+          {t("Execution is paused in Controls. New orders will be held until you resume.")}
         </p>
       )}
       <ErrorBox error={openError} onDismiss={() => setOpenError(null)} />
 
       <div className="trade-grid">
-        <section className="watchlist glass rise" style={{ ["--i" as string]: 1 }} aria-label="Watchlist">
+        <section className="watchlist glass rise" style={{ ["--i" as string]: 1 }} aria-label={t("Watchlist")}>
           <header>
-            <h2>Watchlist</h2>
-            <span className="row-meta">{quotes.data?.quotes.length ?? "…"} symbols</span>
+            <h2>{t("Watchlist")}</h2>
+            <span className="row-meta">{t("{count} symbols", { count: quotes.data?.quotes.length ?? "…" })}</span>
           </header>
-          <ErrorBox error={quotes.error} title="Couldn't load quotes" onRetry={() => void quotes.reload()} />
+          <ErrorBox error={quotes.error} title={t("Couldn't load quotes")} onRetry={() => void quotes.reload()} />
           {quotes.loading && !quotes.data ? (
-            <Loading label="Loading quotes…" />
+            <Loading label={t("Loading quotes…")} />
           ) : (
             <ul>
               {quotes.data?.quotes.map((q) => {
@@ -188,11 +191,11 @@ export function TradeClient() {
         </section>
 
         <div className="trade-main">
-          <section className="tile glass chart-card rise" style={{ ["--i" as string]: 2 }} aria-label={`${symbol} chart`}>
+          <section className="tile glass chart-card rise" style={{ ["--i" as string]: 2 }} aria-label={t("{symbol} chart", { symbol })}>
             <header className="chart-head">
               <div>
                 <p className="row-meta">
-                  {instrument ? `${instrument.name} · ${instrument.type === "etf" ? "ETF" : "Stock"}` : symbol}
+                  {instrument ? `${instrument.name} · ${instrument.type === "etf" ? t("ETF") : t("Stock")}` : symbol}
                 </p>
                 <p className="chart-price">
                   <span className="chart-big">{last ? <Price cents={last} /> : "—"}</span>
@@ -201,10 +204,10 @@ export function TradeClient() {
                     {formatCents(Math.abs(change))} ({changePct >= 0 ? "+" : ""}
                     {changePct.toFixed(2)}%)
                   </span>
-                  <span className="row-meta">{RANGES[range].desc}</span>
+                  <span className="row-meta">{t(RANGES[range].desc)}</span>
                 </p>
               </div>
-              <div className="seg range-seg" role="radiogroup" aria-label="Chart range" style={{ ["--n" as string]: RANGES.length, ["--idx" as string]: range }}>
+              <div className="seg range-seg" role="radiogroup" aria-label={t("Chart range")} style={{ ["--n" as string]: RANGES.length, ["--idx" as string]: range }}>
                 <span className="seg-lens" aria-hidden />
                 {RANGES.map((r, i) => (
                   <button key={r.label} type="button" role="radio" aria-checked={range === i} onClick={() => setRange(i)}>
@@ -213,19 +216,19 @@ export function TradeClient() {
                 ))}
               </div>
             </header>
-            <ErrorBox error={history.error} title="Couldn't load the chart" onRetry={() => void history.reload()} />
+            <ErrorBox error={history.error} title={t("Couldn't load the chart")} onRetry={() => void history.reload()} />
             {points.length > 0 ? (
               <PriceChart
                 points={points}
                 rising={change >= 0}
-                label={`Simulated ${symbol} price over the ${RANGES[range].desc}`}
+                label={t("Simulated {symbol} price over the {range}", { symbol, range: t(RANGES[range].desc) })}
               />
             ) : (
               <div className="trade-chart">
-                <Loading label="Loading chart…" />
+                <Loading label={t("Loading chart…")} />
               </div>
             )}
-            <p className="chart-foot">{history.data?.history.disclaimer ?? "Simulated prices — not real market data"}</p>
+            <p className="chart-foot">{t(history.data?.history.disclaimer ?? "Simulated prices — not real market data")}</p>
           </section>
 
           <div className="trade-lower" ref={lowerRef}>
@@ -239,21 +242,21 @@ export function TradeClient() {
             {selected ? (
               <OrderReview order={selected} onChange={onOrderChange} onClose={() => setSelected(null)} />
             ) : (
-              <section className="tile glass positions" aria-label="Positions and orders">
+              <section className="tile glass positions" aria-label={t("Positions and orders")}>
                 <header className="ticket-head">
-                  <h2>Positions</h2>
-                  {paper && <span className="row-meta">Paper value {formatCents(paper.totalCents)}</span>}
+                  <h2>{t("Positions")}</h2>
+                  {paper && <span className="row-meta">{t("Paper value {amount}", { amount: formatCents(paper.totalCents) })}</span>}
                 </header>
                 <ErrorBox error={portfolio.error} onRetry={() => void portfolio.reload()} />
-                {paper && paper.positions.length === 0 && <p className="row-meta">No paper positions yet.</p>}
+                {paper && paper.positions.length === 0 && <p className="row-meta">{t("No paper positions yet.")}</p>}
                 <ul className="position-list">
                   {paper?.positions.map((p) => (
                     <li key={p.symbol}>
                       <button type="button" className="position-row" onClick={() => setSymbol(p.symbol)}>
                         <span className="squircle ticker">{p.symbol}</span>
                         <span className="position-body">
-                          <strong>{formatShares(p.quantityMicros)} sh</strong>
-                          <small>{p.weightPct.toFixed(1)}% of paper portfolio</small>
+                          <strong>{t("{shares} sh", { shares: formatShares(p.quantityMicros) })}</strong>
+                          <small>{t("{pct}% of paper portfolio", { pct: p.weightPct.toFixed(1) })}</small>
                         </span>
                         <span className="position-value">
                           <strong>{formatCents(p.marketValueCents)}</strong>
@@ -266,14 +269,14 @@ export function TradeClient() {
                     </li>
                   ))}
                 </ul>
-                <h3 className="orders-title">Orders</h3>
-                {orders.data?.orders.length === 0 && <p className="row-meta">No orders yet.</p>}
+                <h3 className="orders-title">{t("Orders")}</h3>
+                {orders.data?.orders.length === 0 && <p className="row-meta">{t("No orders yet.")}</p>}
                 <ul className="order-list">
                   {orders.data?.orders.map((o) => (
                     <li key={o.id}>
                       <button type="button" className="order-row" onClick={() => void openOrder(o.id)}>
-                        <span>{orderTitle(o)}</span>
-                        <small>{creatorLabel(o)}</small>
+                        <span>{orderTitle(o, t)}</span>
+                        <small>{creatorLabel(o, t)}</small>
                         <OrderStateBadge state={o.state} />
                       </button>
                     </li>

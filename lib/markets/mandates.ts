@@ -23,6 +23,7 @@ import { toMandate, type MandateRow } from "./rows";
 import { AGENT_ID_PATTERN, CreateMandateSchema, MandateOrderSchema } from "./schemas";
 import { assertTradable, loadMandateRow, loadOwnedAccount, mandateUsedTodayCents } from "./store";
 import type { Mandate, MandateOrderResult } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 export const MAX_MANDATE_DAYS = 90;
 const DAY_MS = 86_400_000;
@@ -55,7 +56,7 @@ export function createMandate(db: DB, userId: UserId, input: unknown): Mandate {
   if (unknown.length > 0) throw badRequest(`Unsupported symbols: ${unknown.join(", ")}`);
 
   const expires = new Date(data.expiresAt);
-  if (expires.getTime() <= now.getTime()) throw badRequest("expiresAt must be in the future");
+  if (expires.getTime() <= now.getTime()) throw badRequest(msg("expiresAt must be in the future"));
   if (expires.getTime() > now.getTime() + MAX_MANDATE_DAYS * DAY_MS) {
     throw badRequest(`Mandates expire within ${MAX_MANDATE_DAYS} days`);
   }
@@ -116,7 +117,7 @@ export function proposeMandateOrder(
   agentId: string,
   input: unknown,
 ): MandateOrderResult {
-  if (!AGENT_ID_PATTERN.test(agentId)) throw badRequest("Invalid agentId");
+  if (!AGENT_ID_PATTERN.test(agentId)) throw badRequest(msg("Invalid agentId"));
   const data = MandateOrderSchema.parse(input);
   const mandate = loadMandateRow(db, userId, mandateId);
   if (!mandate) throw notFound("Mandate");

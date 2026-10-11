@@ -5,6 +5,7 @@
  * Money is always integer cents plus an explicit currency. Never use floats
  * for amounts.
  */
+import { LOCALE_CODES } from "@/lib/i18n/languages";
 import { z } from "zod";
 
 export const DEMO_USER_IDS = ["alice", "bob"] as const;
@@ -315,6 +316,8 @@ export const ChatRequestSchema = z.object({
   conversationId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).optional(),
   /** "voice" when the last message was spoken (ElevenLabs transcript). Shapes reply style only; grants nothing. */
   source: z.enum(["text", "voice"]).optional(),
+  /** UI language from Settings. Only picks the language the reply is written in; grants nothing. */
+  locale: z.enum(LOCALE_CODES).optional(),
   messages: z
     .array(
       z.object({

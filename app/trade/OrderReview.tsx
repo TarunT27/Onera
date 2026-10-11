@@ -7,31 +7,39 @@ import { api } from "../components/api";
 import { Badge } from "../components/Badge";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatCents } from "../components/format";
+import { useT } from "../components/I18nContext";
+import { msg } from "@/lib/i18n/msg";
+import { identityT, type Translate } from "@/lib/i18n/translate";
 import { HoldButton } from "./HoldButton";
 import { formatShares } from "./shares";
 
 const STATE_LABEL: Record<PaperOrder["state"], { label: string; tone: "gray" | "red" | "blue" | "indigo" | "green" }> = {
-  PROPOSED: { label: "Proposed", tone: "gray" },
-  HELD: { label: "Held", tone: "red" },
-  AWAITING_APPROVAL: { label: "Awaiting your approval", tone: "blue" },
-  APPROVED: { label: "Approved", tone: "indigo" },
-  EXECUTED: { label: "Executed", tone: "green" },
-  FAILED: { label: "Failed", tone: "red" },
+  PROPOSED: { label: msg("Proposed"), tone: "gray" },
+  HELD: { label: msg("Held"), tone: "red" },
+  AWAITING_APPROVAL: { label: msg("Awaiting your approval"), tone: "blue" },
+  APPROVED: { label: msg("Approved"), tone: "indigo" },
+  EXECUTED: { label: msg("Executed"), tone: "green" },
+  FAILED: { label: msg("Failed"), tone: "red" },
 };
 
-export function orderTitle(o: PaperOrder): string {
-  const verb = o.side === "buy" ? "Buy" : "Sell";
-  if (o.notionalCents !== null) return `${verb} ${formatCents(o.notionalCents)} of ${o.symbol}`;
-  return `${verb} ${formatShares(o.quantityMicros ?? 0)} sh ${o.symbol}`;
+export function orderTitle(o: PaperOrder, t: Translate = identityT): string {
+  const buy = o.side === "buy";
+  if (o.notionalCents !== null) {
+    const vars = { amount: formatCents(o.notionalCents), symbol: o.symbol };
+    return buy ? t("Buy {amount} of {symbol}", vars) : t("Sell {amount} of {symbol}", vars);
+  }
+  const vars = { shares: formatShares(o.quantityMicros ?? 0), symbol: o.symbol };
+  return buy ? t("Buy {shares} sh {symbol}", vars) : t("Sell {shares} sh {symbol}", vars);
 }
 
-export function creatorLabel(o: PaperOrder): string {
-  return o.createdBy === "assistant" ? "Trade drafter" : o.createdBy === "user" ? "You" : "Agent (mandate)";
+export function creatorLabel(o: PaperOrder, t: Translate = identityT): string {
+  return o.createdBy === "assistant" ? t("Trade drafter") : o.createdBy === "user" ? t("You") : t("Agent (mandate)");
 }
 
 export function OrderStateBadge({ state }: { state: PaperOrder["state"] }) {
+  const t = useT();
   const s = STATE_LABEL[state];
-  return <Badge tone={s.tone}>{s.label}</Badge>;
+  return <Badge tone={s.tone}>{t(s.label)}</Badge>;
 }
 
 /** Review one paper order: policy checks, hold-to-approve the exact version, then execute. */
@@ -44,6 +52,7 @@ export function OrderReview({
   onChange: (order: PaperOrder) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState<"approve" | "execute" | "evaluate" | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [duplicate, setDuplicate] = useState(false);
@@ -80,38 +89,38 @@ export function OrderReview({
   const bound = order.priceBoundCents;
   const fill = order.fill;
   return (
-    <section className="tile glass review" aria-label="Order review">
+    <section className="tile glass review" aria-label={t("Order review")}>
       <header className="review-head">
-        <Badge tone="violet">{creatorLabel(order)}</Badge>
+        <Badge tone="violet">{creatorLabel(order, t)}</Badge>
         <OrderStateBadge state={order.state} />
         <span className="review-version">v{order.version}</span>
-        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close order review">
+        <button type="button" className="icon-btn" onClick={onClose} aria-label={t("Close order review")}>
           <X size={16} aria-hidden />
         </button>
       </header>
 
-      <h2 className="review-title">{orderTitle(order)}</h2>
+      <h2 className="review-title">{orderTitle(order, t)}</h2>
       <p className="row-meta">
         {bound !== null
           ? order.side === "buy"
-            ? `Fills only at or below ${formatCents(bound)} per share`
-            : `Fills only at or above ${formatCents(bound)} per share`
-          : "No price lock yet"}
-        {order.quotePriceCents !== null ? ` · quoted ${formatCents(order.quotePriceCents)}` : ""}
+            ? t("Fills only at or below {price} per share", { price: formatCents(bound) })
+            : t("Fills only at or above {price} per share", { price: formatCents(bound) })
+          : t("No price lock yet")}
+        {order.quotePriceCents !== null ? ` · ${t("quoted {price}", { price: formatCents(order.quotePriceCents) })}` : ""}
       </p>
 
       {order.policy && (
-        <ul className="review-checks" aria-label="Policy checks">
+        <ul className="review-checks" aria-label={t("Policy checks")}>
           {order.policy.checks.map((c) => (
             <li key={c.id} className={c.passed ? undefined : "failed"}>
               {c.passed ? (
-                <CheckCircle size={18} weight="fill" aria-label="Passed" />
+                <CheckCircle size={18} weight="fill" aria-label={t("Passed")} />
               ) : (
-                <XCircle size={18} weight="fill" aria-label="Failed" />
+                <XCircle size={18} weight="fill" aria-label={t("Failed")} />
               )}
               <span>
-                <strong>{c.label}</strong>
-                <small>{c.detail}</small>
+                <strong>{t(c.label)}</strong>
+                <small>{t(c.detail)}</small>
               </span>
             </li>
           ))}
@@ -121,7 +130,7 @@ export function OrderReview({
       {order.state !== "EXECUTED" && order.state !== "FAILED" && (
         <p className="review-lock">
           <LockSimple size={16} aria-hidden />
-          Approval binds to version {order.version}. Any edit clears it, and execution re-checks every rule first.
+          {t("Approval binds to version {version}. Any edit clears it, and execution re-checks every rule first.", { version: order.version })}
         </p>
       )}
 
@@ -129,32 +138,34 @@ export function OrderReview({
 
       {order.state === "AWAITING_APPROVAL" && (
         <HoldButton
-          label={`Hold to approve version ${order.version}`}
-          busyLabel="Approving…"
+          label={t("Hold to approve version {version}", { version: order.version })}
+          busyLabel={t("Approving…")}
           busy={busy === "approve"}
           onConfirm={() => void run("approve")}
         />
       )}
       {order.state === "APPROVED" && (
         <button type="button" className="pill review-execute" disabled={busy !== null} onClick={() => void run("execute")}>
-          {busy === "execute" ? "Executing…" : "Execute paper order"}
+          {busy === "execute" ? t("Executing…") : t("Execute paper order")}
         </button>
       )}
       {order.state === "HELD" && (
         <button type="button" className="pill secondary review-execute" disabled={busy !== null} onClick={() => void run("evaluate")}>
-          {busy === "evaluate" ? "Re-checking…" : "Re-check at current price"}
+          {busy === "evaluate" ? t("Re-checking…") : t("Re-check at current price")}
         </button>
       )}
       {fill && (
         <div className="review-fill" role="status">
-          <strong>Executed · simulated fill{duplicate ? " (already executed)" : ""}</strong>
+          <strong>{t("Executed · simulated fill")}{duplicate ? ` ${t("(already executed)")}` : ""}</strong>
           <span>
-            {fill.side === "buy" ? "Bought" : "Sold"} {formatShares(fill.quantityMicros)} sh {fill.symbol} at{" "}
-            {formatCents(fill.priceCents)} for {formatCents(fill.grossCents)}. Paper money only, not counted in net worth.
+            {fill.side === "buy"
+              ? t("Bought {shares} sh {symbol} at {price} for {gross}.", { shares: formatShares(fill.quantityMicros), symbol: fill.symbol, price: formatCents(fill.priceCents), gross: formatCents(fill.grossCents) })
+              : t("Sold {shares} sh {symbol} at {price} for {gross}.", { shares: formatShares(fill.quantityMicros), symbol: fill.symbol, price: formatCents(fill.priceCents), gross: formatCents(fill.grossCents) })}{" "}
+            {t("Paper money only, not counted in net worth.")}
           </span>
         </div>
       )}
-      {order.state === "FAILED" && order.failureReason && <p className="ticket-error">{order.failureReason}</p>}
+      {order.state === "FAILED" && order.failureReason && <p className="ticket-error">{t(order.failureReason)}</p>}
     </section>
   );
 }

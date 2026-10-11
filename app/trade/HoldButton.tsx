@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useT } from "../components/I18nContext";
 
 const HOLD_MS = 1200;
 
@@ -21,6 +22,7 @@ export function HoldButton({
   disabled?: boolean;
   onConfirm: () => void;
 }) {
+  const t = useT();
   const [holding, setHolding] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -65,9 +67,9 @@ export function HoldButton({
       onContextMenu={(e) => e.preventDefault()}
     >
       <span className="hold-fill" aria-hidden />
-      <span className="hold-label">{busy ? busyLabel : holding ? "Keep holding…" : label}</span>
+      <span className="hold-label">{busy ? busyLabel : holding ? t("Keep holding…") : label}</span>
       <span id="hold-hint" className="sr-only">
-        Press and hold for about one second to confirm.
+        {t("Press and hold for about one second to confirm.")}
       </span>
     </button>
   );

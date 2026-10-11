@@ -7,7 +7,15 @@ import { HoldReasonChip, RecipientStatusBadge, ActionStateBadge } from "../compo
 import { Button, inputClass, labelClass } from "../components/Button";
 import { Card, Loading } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
+import { useT } from "../components/I18nContext";
 import { formatCents, mask, parseDollarsToCents } from "../components/format";
+import { msg } from "@/lib/i18n/msg";
+
+const STATUS_LOWER: Record<string, string> = {
+  verified: msg("verified"),
+  changed: msg("changed"),
+  unverified: msg("unverified"),
+};
 
 export function NewTransferForm({
   accounts,
@@ -32,6 +40,7 @@ export function NewTransferForm({
   onRetryRecipients: () => void;
   onCreated: (action: TransferAction) => void;
 }) {
+  const t = useT();
   const sources = useMemo(() => (accounts ?? []).filter((a) => a.capabilities.includes("transfer_source")), [accounts]);
 
   const [sourceId, setSourceId] = useState("");
@@ -69,14 +78,14 @@ export function NewTransferForm({
     e.preventDefault();
     setError(null);
     setCreated(null);
-    const parsed = parseDollarsToCents(amount);
+    const parsed = parseDollarsToCents(amount, { t });
     if (!parsed.ok) {
       setAmountError(parsed.error);
       return;
     }
     setAmountError(null);
     if (!sourceId || !recipientId || !validDestination) {
-      setError(new Error("Choose a source account and a recipient."));
+      setError(new Error(t("Choose a source account and a recipient.")));
       return;
     }
     setSubmitting(true);
@@ -103,43 +112,43 @@ export function NewTransferForm({
   const unavailable = (accounts === null && !!accountsError) || (recipients === null && !!recipientsError);
   const proposalDisabledReason =
     sources.length === 0
-      ? "No linked account can send transfers."
+      ? t("No linked account can send transfers.")
       : (recipients?.length ?? 0) === 0
-        ? "No saved recipient is available for this demo user."
+        ? t("No saved recipient is available for this demo user.")
         : !recipientId
-          ? "Choose a recipient to create a proposal."
+          ? t("Choose a recipient to create a proposal.")
           : !validDestination
-            ? "The source and destination accounts must be different."
+            ? t("The source and destination accounts must be different.")
             : null;
 
   return (
-    <Card title="New transfer" subtitle="Create a request to review. Nothing moves until you approve it. Demo money only.">
-      <ErrorBox error={accountsError} title="Couldn't load accounts" className="mb-3" onRetry={onRetryAccounts} />
-      <ErrorBox error={recipientsError} title="Couldn't load recipients" className="mb-3" onRetry={onRetryRecipients} />
+    <Card title={t("New transfer")} subtitle={t("Create a request to review. Nothing moves until you approve it. Demo money only.")}>
+      <ErrorBox error={accountsError} title={t("Couldn't load accounts")} className="mb-3" onRetry={onRetryAccounts} />
+      <ErrorBox error={recipientsError} title={t("Couldn't load recipients")} className="mb-3" onRetry={onRetryRecipients} />
       {loading ? (
-        <Loading label="Loading transfer options…" />
+        <Loading label={t("Loading transfer options…")} />
       ) : unavailable ? null : (
         <form onSubmit={submit} className="space-y-4" noValidate>
           <div>
             <label htmlFor="tf-source" className={labelClass}>
-              From
+              {t("From")}
             </label>
             <select id="tf-source" name="sourceAccountId" className={inputClass} value={sourceId} onChange={(e) => changeSource(e.target.value)} required>
-              {sources.length === 0 && <option value="">No accounts can send transfers</option>}
+              {sources.length === 0 && <option value="">{t("No accounts can send transfers")}</option>}
               {sources.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.name} {mask(a.mask)} — {formatCents(a.availableCents)} available
+                  {t("{account} — {amount} available", { account: `${a.name} ${mask(a.mask)}`, amount: formatCents(a.availableCents) })}
                 </option>
               ))}
             </select>
             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Only accounts that can send demo transfers are shown.
+              {t("Only accounts that can send demo transfers are shown.")}
             </p>
           </div>
 
           <div>
             <label htmlFor="tf-recipient" className={labelClass}>
-              To
+              {t("To")}
             </label>
             <select
               id="tf-recipient"
@@ -149,19 +158,19 @@ export function NewTransferForm({
               onChange={(e) => setRecipientId(e.target.value)}
               required
             >
-              <option value="">{recipients?.length === 0 ? "No recipients available" : "Choose a recipient…"}</option>
+              <option value="">{recipients?.length === 0 ? t("No recipients available") : t("Choose a recipient…")}</option>
               {(recipients ?? []).map((r) => {
                 const sameAsSource = r.kind === "own_account" && r.accountId !== null && r.accountId === sourceId;
                 return (
                   <option key={r.id} value={r.id} disabled={sameAsSource}>
-                    {r.displayName} ({r.status}){sameAsSource ? " — same as source" : ""}
+                    {r.displayName} ({t(STATUS_LOWER[r.status] ?? r.status)}){sameAsSource ? ` — ${t("same as source")}` : ""}
                   </option>
                 );
               })}
             </select>
             {recipients?.length === 0 && (
               <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                No saved recipients are available for this demo user.
+                {t("No saved recipients are available for this demo user.")}
               </p>
             )}
             {recipient && (
@@ -169,16 +178,16 @@ export function NewTransferForm({
                 <RecipientStatusBadge status={recipient.status} />
                 <span>
                   {recipient.details.institution} {mask(recipient.details.accountMask)}
-                  {recipient.details.routingMask ? ` · routing ${mask(recipient.details.routingMask)}` : ""}
+                  {recipient.details.routingMask ? ` · ${t("routing {mask}", { mask: mask(recipient.details.routingMask) })}` : ""}
                 </span>
-                {recipient.kind === "own_account" && <span className="text-zinc-400">· your account</span>}
+                {recipient.kind === "own_account" && <span className="text-zinc-400">· {t("your account")}</span>}
               </div>
             )}
             {recipient && recipient.status !== "verified" && (
               <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">
                 {recipient.status === "changed"
-                  ? "This recipient's bank details changed since you verified them — Onera will hold the transfer."
-                  : "This recipient hasn't been verified — Onera will hold the transfer until you verify."}
+                  ? t("This recipient's bank details changed since you verified them — Onera will hold the transfer.")
+                  : t("This recipient hasn't been verified — Onera will hold the transfer until you verify.")}
               </p>
             )}
           </div>
@@ -186,7 +195,7 @@ export function NewTransferForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="tf-amount" className={labelClass}>
-                Amount (USD)
+                {t("Amount (USD)")}
               </label>
               <div className="relative">
                 <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-zinc-500">$</span>
@@ -196,7 +205,7 @@ export function NewTransferForm({
                   className={`${inputClass} pl-7 tabular-nums`}
                   inputMode="decimal"
                   autoComplete="off"
-                  placeholder="1,250.00…"
+                  placeholder={t("1,250.00…")}
                   value={amount}
                   onChange={(e) => {
                     setAmount(e.target.value);
@@ -213,13 +222,13 @@ export function NewTransferForm({
               )}
               {source && !amountError && (
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                  Available: <span className="tabular-nums">{formatCents(source.availableCents)}</span>
+                  {t("Available:")} <span className="tabular-nums">{formatCents(source.availableCents)}</span>
                 </p>
               )}
             </div>
             <div>
               <label htmlFor="tf-memo" className={labelClass}>
-                Memo <span className="font-normal text-zinc-400">(optional)</span>
+                {t("Memo")} <span className="font-normal text-zinc-400">({t("optional")})</span>
               </label>
               <input
                 id="tf-memo"
@@ -227,27 +236,27 @@ export function NewTransferForm({
                 className={inputClass}
                 maxLength={140}
                 autoComplete="off"
-                placeholder="October rent…"
+                placeholder={t("October rent…")}
                 value={memo}
                 onChange={(e) => setMemo(e.target.value)}
               />
             </div>
           </div>
 
-          <ErrorBox error={error} title="Transfer not created" />
+          <ErrorBox error={error} title={t("Transfer not created")} />
 
           {created && (
             <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-800/50">
               <div className="flex flex-wrap items-center gap-2">
-                <span>Proposal created and checked:</span>
+                <span>{t("Proposal created and checked:")}</span>
                 <ActionStateBadge state={created.state} />
                 {created.holdReasons.map((r) => (
                   <HoldReasonChip key={r} reason={r} />
                 ))}
               </div>
-              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Review it in the panel{" "}
-                <span className="lg:hidden">above</span>
-                <span className="hidden lg:inline">on the right</span>.
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                <span className="lg:hidden">{t("Review it in the panel above.")}</span>
+                <span className="hidden lg:inline">{t("Review it in the panel on the right.")}</span>
               </p>
             </div>
           )}
@@ -260,7 +269,7 @@ export function NewTransferForm({
             aria-describedby={proposalDisabledReason ? "tf-submit-help" : undefined}
             className="w-full sm:w-auto"
           >
-            Create transfer proposal
+            {t("Create transfer proposal")}
           </Button>
           {proposalDisabledReason && (
             <p id="tf-submit-help" className="text-xs text-zinc-500 dark:text-zinc-400">

@@ -49,6 +49,7 @@ import { listConnectionAccounts, listConnections } from "@/lib/providers";
 import { detectSubscriptionIncreases } from "@/lib/finance/subscriptions";
 import { recipientStatus, type ToolTraceEntry, type UserId } from "@/lib/types";
 import { getResearchDocument, listResearchDocuments } from "./research";
+import { msg } from "@/lib/i18n/msg";
 
 const DAY_MS = 86_400_000;
 const MAX_QUOTE_SYMBOLS = 10;
@@ -343,22 +344,22 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
     sec.toolCalls++;
     if (sec.toolCalls > MAX_TOOL_CALLS_PER_TURN) {
       return refuse("TOOL_BUDGET_EXCEEDED", { error: `Tool-call budget of ${MAX_TOOL_CALLS_PER_TURN} per turn reached` },
-        "Refused: tool budget exceeded", { limit: MAX_TOOL_CALLS_PER_TURN });
+        msg("Refused: tool budget exceeded"), { limit: MAX_TOOL_CALLS_PER_TURN });
     }
   }
   const sensitive = findSensitiveData([name, ...stringsIn(input)].join("\n"));
   if (sensitive.length > 0) {
     return refuse("SENSITIVE_DATA", { error: "Tool input contains data that must never be used or stored" },
-      "Rejected: sensitive data in tool input", { sensitive });
+      msg("Rejected: sensitive data in tool input"), { sensitive });
   }
-  if (!Object.hasOwn(Inputs, name)) return refuse("UNKNOWN_TOOL", { error: `Unknown tool ${safeName}` }, "Unknown tool");
+  if (!Object.hasOwn(Inputs, name)) return refuse("UNKNOWN_TOOL", { error: `Unknown tool ${safeName}` }, msg("Unknown tool"));
   if (ctx.allowedTools && !ctx.allowedTools.has(name)) {
     return refuse("NOT_ALLOWED_FOR_AGENT", { error: `Tool ${safeName} is not available to this agent` },
-      "Refused: not available to this agent");
+      msg("Refused: not available to this agent"));
   }
   const parsed = Inputs[name as ToolName].safeParse(input);
   if (!parsed.success) {
-    return refuse("INVALID_INPUT", { error: "Invalid input", issues: parsed.error.issues }, "Rejected: invalid input",
+    return refuse("INVALID_INPUT", { error: "Invalid input", issues: parsed.error.issues }, msg("Rejected: invalid input"),
       { issues: parsed.error.issues.length });
   }
   record("tool_request", "allow");
@@ -394,12 +395,12 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
       case "get_research_document": {
         const p = parsed.data as z.infer<typeof Inputs.get_research_document>;
         if (!p.document_id) {
-          return finish(true, { documents: listResearchDocuments() }, "Listed research documents");
+          return finish(true, { documents: listResearchDocuments() }, msg("Listed research documents"));
         }
         const doc = getResearchDocument(p.document_id);
         if (!doc) {
           record("tool_result", "deny", ["NOT_FOUND"], { signals: { code: "NOT_FOUND" } });
-          return finish(false, { error: "Document not found" }, "Document not found");
+          return finish(false, { error: "Document not found" }, msg("Document not found"));
         }
         // Label embedded instructions for the threat monitor. Detection only: the content is returned unchanged
         // and the markers never feed policy or tool permissions.
@@ -572,7 +573,7 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
     }
     if (err instanceof ZodError) {
       record("tool_result", "deny", ["INVALID_INPUT"], { signals: { issues: err.issues.length } });
-      return finish(false, { error: "Invalid input", issues: err.issues }, "Rejected: invalid input");
+      return finish(false, { error: "Invalid input", issues: err.issues }, msg("Rejected: invalid input"));
     }
     throw err;
   }

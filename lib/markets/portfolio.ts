@@ -11,6 +11,7 @@ import { isTradableAccount } from "./policy";
 import type { PositionRow } from "./rows";
 import { simulateQuote } from "./simulator";
 import { SIMULATED_PRICES_DISCLAIMER, type Portfolio, type PortfolioAccount, type Position } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 export function computePortfolio(db: DB, userId: UserId, now: Date): Portfolio {
   const accounts = (db
@@ -57,7 +58,7 @@ export function computePortfolio(db: DB, userId: UserId, now: Date): Portfolio {
       mask: a.mask,
       tradable: isTradableAccount(a),
       paper: a.paper,
-      label: a.paper ? "Paper trading (simulated)" : "Imported holdings (view-only)",
+      label: a.paper ? msg("Paper trading (simulated)") : msg("Imported holdings (view-only)"),
       cashCents: a.balanceCents,
       positionsValueCents,
       totalCents: a.balanceCents + positionsValueCents,

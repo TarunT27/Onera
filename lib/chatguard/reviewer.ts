@@ -13,6 +13,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import type { EventStage } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 export type ReviewVerdict = "benign" | "suspicious" | "unclear";
 
@@ -76,7 +77,7 @@ export function reviewerFromEnv(): Reviewer | null {
       { timeout: REVIEWER_TIMEOUT_MS, maxRetries: 0 },
     );
     if (response.stop_reason === "refusal" || !response.parsed_output) {
-      return { verdict: "unclear", rationale: "The reviewer did not return a verdict." };
+      return { verdict: "unclear", rationale: msg("The reviewer did not return a verdict.") };
     }
     return { verdict: response.parsed_output.verdict, rationale: response.parsed_output.rationale.slice(0, 300) };
   };

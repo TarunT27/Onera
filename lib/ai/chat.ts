@@ -40,6 +40,7 @@ import {
 } from "@/lib/chatguard";
 import type { DB } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
+import { DEFAULT_LOCALE, languageOf } from "@/lib/i18n/languages";
 import { getOrder } from "@/lib/markets";
 import { findInjectionMarkers, looksLikeQuotedOrEducational } from "@/lib/security/injection";
 import { redact } from "@/lib/security/redact";
@@ -48,6 +49,7 @@ import { assistantAgent, type AssistantAgent } from "./agents";
 import { fallbackReply } from "./fallback";
 import { SYSTEM_PROMPT } from "./prompt";
 import { runTool, TOOL_DEFINITIONS, type ToolContext, type ToolSecurityContext } from "./tools";
+import { msg } from "@/lib/i18n/msg";
 
 export const MODEL = process.env.CLEARFI_MODEL || "claude-opus-5-5";
 const MAX_TURNS = 8;
@@ -63,14 +65,20 @@ let serverFallbackEnabled = process.env.CLEARFI_SERVER_FALLBACK === "true";
 export const VOICE_BRIEF =
   "The user is speaking to you and will hear your reply read aloud. Answer in one to three short spoken sentences: no lists, markdown or record IDs (the app shows the details and tool trace on screen).";
 
-async function createMessage(messages: BetaMessageParam[], agent: AssistantAgent, voice: boolean): Promise<BetaMessage> {
+/** Style only: the reply language follows the UI language. Tool names, record IDs and amounts stay as they are. */
+export function languageBrief(locale: ChatRequest["locale"]): string {
+  if (!locale || locale === DEFAULT_LOCALE) return "";
+  return ` Write your reply in ${languageOf(locale).english}. Keep record IDs, tool names and currency amounts exactly as given.`;
+}
+
+async function createMessage(messages: BetaMessageParam[], agent: AssistantAgent, voice: boolean, locale?: ChatRequest["locale"]): Promise<BetaMessage> {
   const params = {
     model: MODEL,
     max_tokens: 16000,
     system: [
       // The shared prompt stays first and cached; the agent brief follows it.
       { type: "text" as const, text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" as const } },
-      { type: "text" as const, text: `Selected agent: ${agent.name}. ${agent.brief}${voice ? ` ${VOICE_BRIEF}` : ""}` },
+      { type: "text" as const, text: `Selected agent: ${agent.name}. ${agent.brief}${voice ? ` ${VOICE_BRIEF}` : ""}${languageBrief(locale)}` },
     ],
     tools: TOOL_DEFINITIONS.filter((t) => agent.tools.includes(t.name)),
     messages,
@@ -245,7 +253,7 @@ export async function runChat(db: DB, userId: UserId, request: ChatRequest): Pro
   };
 
   if (process.env.CLEARFI_AI_MODE === "fallback") {
-    const fallback = fallbackReply(db, userId, request, "Fallback mode is forced by CLEARFI_AI_MODE.");
+    const fallback = fallbackReply(db, userId, request, msg("Fallback mode is forced by CLEARFI_AI_MODE."));
     writeAudit(db, {
       userId,
       actor: "assistant",
@@ -264,7 +272,7 @@ export async function runChat(db: DB, userId: UserId, request: ChatRequest): Pro
   let response: BetaMessage | null = null;
   try {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      response = await createMessage(messages, agent, source === "voice");
+      response = await createMessage(messages, agent, source === "voice", request.locale);
 
       if (response.stop_reason === "refusal") break;
       if (response.stop_reason === "pause_turn") {
@@ -285,12 +293,12 @@ export async function runChat(db: DB, userId: UserId, request: ChatRequest): Pro
     }
   } catch (err) {
     const reason =
-      err instanceof Anthropic.AuthenticationError ? "No valid Claude API credentials are configured."
-      : err instanceof Anthropic.RateLimitError ? "The Claude API rate limit was reached."
-      : err instanceof Anthropic.APIConnectionError ? "The Claude API could not be reached."
+      err instanceof Anthropic.AuthenticationError ? msg("No valid Claude API credentials are configured.")
+      : err instanceof Anthropic.RateLimitError ? msg("The Claude API rate limit was reached.")
+      : err instanceof Anthropic.APIConnectionError ? msg("The Claude API could not be reached.")
       : err instanceof Anthropic.APIError ? `Claude API error ${err.status ?? ""}`.trim() + "."
       : err instanceof Error && /api key|apiKey|authToken|credentials/i.test(err.message)
-        ? "No Claude API credentials are configured."
+        ? msg("No Claude API credentials are configured.")
       : null;
     if (!reason) throw err;
     console.warn("[clearfi] chat falling back:", err instanceof Error ? err.message : err);
@@ -322,8 +330,8 @@ export async function runChat(db: DB, userId: UserId, request: ChatRequest): Pro
     tryRecordEvent(db, { ...event, stage: "output", outcome: "observe", reasons: ["MODEL_REFUSAL"] });
   }
   const reply =
-    response?.stop_reason === "refusal" ? "I can't help with that request."
-    : text || "I wasn't able to finish that request within the tool-call limit. Please try a narrower question.";
+    response?.stop_reason === "refusal" ? msg("I can't help with that request.")
+    : text || msg("I wasn't able to finish that request within the tool-call limit. Please try a narrower question.");
 
   const proposedOrderIds = ctx.proposedOrderIds ?? [];
   const released = finish({

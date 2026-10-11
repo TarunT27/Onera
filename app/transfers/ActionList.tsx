@@ -7,6 +7,7 @@ import { Card, EmptyState, Loading } from "../components/Card";
 import { BankLogo } from "../components/BankLogo";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatDateTime, mask } from "../components/format";
+import { useT } from "../components/I18nContext";
 import { Money } from "../components/Money";
 
 export function ActionList({
@@ -24,21 +25,22 @@ export function ActionList({
   onSelect: (id: string) => void;
   onRefresh: () => void;
 }) {
+  const t = useT();
   return (
     <Card
-      title="Your transfers"
-      subtitle="Created by you or proposed by the assistant"
+      title={t("Your transfers")}
+      subtitle={t("Created by you or proposed by the assistant")}
       action={
         <Button size="sm" variant="ghost" onClick={onRefresh}>
-          ↻ Refresh
+          ↻ {t("Refresh")}
         </Button>
       }
     >
-      <ErrorBox error={error} title="Couldn't load transfers" className="mb-3" />
+      <ErrorBox error={error} title={t("Couldn't load transfers")} className="mb-3" />
       {loading ? (
         <Loading />
       ) : error && !actions ? null : !actions || actions.length === 0 ? (
-        <EmptyState>No transfers yet. Create one above or ask the assistant to propose one.</EmptyState>
+        <EmptyState>{t("No transfers yet. Create one above or ask the assistant to propose one.")}</EmptyState>
       ) : (
         <ul className="space-y-2">
           {actions.map((a) => {

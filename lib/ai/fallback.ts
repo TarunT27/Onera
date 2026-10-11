@@ -9,6 +9,7 @@ import { formatCents } from "@/lib/finance/money";
 import { spendingSummary } from "@/lib/finance/spending";
 import { detectSubscriptionIncreases } from "@/lib/finance/subscriptions";
 import type { ChatRequest, ChatResponse, ToolTraceEntry, UserId } from "@/lib/types";
+import { msg } from "@/lib/i18n/msg";
 
 export function fallbackReply(
   db: DB,
@@ -39,12 +40,12 @@ export function fallbackReply(
 
   if (wantsTrade) {
     lines.push(
-      "The assistant model is unavailable, so I can't draft that paper order. You can place it yourself with the order ticket on the Trade page; the same policy checks and approval apply.",
+      msg("The assistant model is unavailable, so I can't draft that paper order. You can place it yourself with the order ticket on the Trade page; the same policy checks and approval apply."),
     );
   } else if (wantsTransfer) {
     if (existingProposalIds.length === 0) {
       lines.push(
-        "The assistant model is unavailable, so I can't draft that transfer for you. You can create it yourself on the Transfers page; the same policy checks and approval apply.",
+        msg("The assistant model is unavailable, so I can't draft that transfer for you. You can create it yourself on the Transfers page; the same policy checks and approval apply."),
       );
     }
   } else {

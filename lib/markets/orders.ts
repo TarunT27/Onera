@@ -36,12 +36,13 @@ import {
   readTradingControls,
 } from "./store";
 import type { OrderCreator, OrderPolicyResult, OrderState, PaperOrder, Quote } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 const EVALUABLE: OrderState[] = ["PROPOSED", "HELD", "AWAITING_APPROVAL"];
 const EDITABLE: OrderState[] = ["PROPOSED", "HELD", "AWAITING_APPROVAL", "APPROVED"];
 
 /** 409 for an order whose state (or version) changed under us. */
-export function stateConflict(message = "The order changed while it was being updated. Reload it and try again.") {
+export function stateConflict(message: string = msg("The order changed while it was being updated. Reload it and try again.")) {
   return conflict("INVALID_STATE", message);
 }
 
@@ -206,7 +207,7 @@ function authorizeByMandate(db: DB, userId: UserId, row: OrderRow, now: Date): v
        approved_by = ?, updated_at = ?
      WHERE id = ? AND user_id = ? AND state = 'AWAITING_APPROVAL' AND version = ? AND mandate_id IS NOT NULL`,
   ).run(hash, row.version, ts, approvedBy, ts, row.id, userId, row.version);
-  if (claimed.changes !== 1) throw stateConflict("The order changed during mandate authorization");
+  if (claimed.changes !== 1) throw stateConflict(msg("The order changed during mandate authorization"));
   writeAudit(db, { userId, actor: "system", eventType: "order.mandate_authorized", actionId: row.id,
     detail: { version: row.version, mandateId: row.mandate_id, proposedBy: row.created_by, approvedBy,
       approvalHashPrefix: hash.slice(0, 12), paper: true } });
@@ -228,7 +229,7 @@ export function createOrderInternal(
 ): PaperOrder {
   const now = new Date();
   assertCreator(createdBy);
-  if (mandateId !== null && !createdBy.startsWith("agent:")) throw badRequest("Only agent orders can carry a mandate");
+  if (mandateId !== null && !createdBy.startsWith("agent:")) throw badRequest(msg("Only agent orders can carry a mandate"));
   const data = CreateOrderSchema.parse(input);
   assertTradable(loadOwnedAccount(db, userId, data.accountId));
 
@@ -277,7 +278,7 @@ export function editOrder(db: DB, userId: UserId, orderId: string, input: unknow
     let notionalCents = row.notional_cents;
     if (patch.quantityMicros !== undefined) { quantityMicros = patch.quantityMicros; notionalCents = null; }
     if (patch.notionalCents !== undefined) { notionalCents = patch.notionalCents; quantityMicros = null; }
-    if (side === "sell" && quantityMicros === null) throw badRequest("Sell orders are sized by quantityMicros");
+    if (side === "sell" && quantityMicros === null) throw badRequest(msg("Sell orders are sized by quantityMicros"));
 
     const edited = db.prepare(
       `UPDATE orders SET state = 'PROPOSED', version = version + 1, account_id = ?, symbol = ?, side = ?,
@@ -331,7 +332,7 @@ export function approveOrder(db: DB, userId: UserId, orderId: string, input: unk
     const { policy } = runOrderPolicy(db, userId, row, now);
     if (policy.decision === "HOLD") {
       applyOrderEvaluation(db, userId, row, "system", now, { bumpOnReprice: true });
-      return { error: conflict("POLICY_HOLD", "Policy checks no longer pass; the order was re-evaluated",
+      return { error: conflict("POLICY_HOLD", msg("Policy checks no longer pass; the order was re-evaluated"),
         { reasons: policy.reasons }) };
     }
     const hash = orderApprovalHash(approvableOrder(row));

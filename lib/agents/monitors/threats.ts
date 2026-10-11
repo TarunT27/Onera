@@ -17,6 +17,7 @@ import { findInjectionMarkers, injectionMarkerLabel } from "@/lib/security/injec
 import type { AuditEvent } from "@/lib/types";
 import type { AgentHandler } from "../context";
 import type { InsightSeverity } from "../types";
+import { msg } from "@/lib/i18n/msg";
 
 const MIN = 60_000;
 
@@ -141,7 +142,7 @@ function crossUserProbe(events: AuditEvent[]): ThreatSignal[] {
         `${plural(c.length, "request")} ${span(c)} asked for accounts, recipients or actions that don't exist ` +
         `or belong to someone else (${list(uniq(c.map((e) => str(e.detail.path) ?? "?")))}). ` +
         `Each one was refused as "not found", and no other user's data was returned.`,
-      advice: "If this wasn't you, sign out other sessions and review recent activity.",
+      advice: msg("If this wasn't you, sign out other sessions and review recent activity."),
       ...cite(c),
     }));
 }
@@ -158,11 +159,11 @@ function unapprovedExecution(events: AuditEvent[]): ThreatSignal[] {
       return {
         code: "UNAPPROVED_EXECUTION",
         severity: c.length >= R.critical ? "critical" : "warning",
-        title: c.length === 1 ? "Execution attempted without approval" : `${c.length} executions attempted without approval`,
+        title: c.length === 1 ? msg("Execution attempted without approval") : `${c.length} executions attempted without approval`,
         text:
           `${plural(c.length, "execution request")} ${span(c)} targeted transfers or orders that were not approved ` +
           `(${reasons.join(", ")}). The server refused every one; no money moved.`,
-        advice: "The app never offers Execute before you approve, so repeated attempts suggest a script or direct API calls.",
+        advice: msg("The app never offers Execute before you approve, so repeated attempts suggest a script or direct API calls."),
         ...cite(c),
       };
     });
@@ -188,11 +189,11 @@ function staleApprovalReplay(events: AuditEvent[]): ThreatSignal[] {
       return {
         code: "STALE_APPROVAL_REPLAY",
         severity: repeated ? "critical" : "warning",
-        title: repeated ? "Repeated use of an outdated approval" : "An approval no longer matched its transfer",
+        title: repeated ? msg("Repeated use of an outdated approval") : msg("An approval no longer matched its transfer"),
         text:
           `${plural(c.length, "attempt")} ${span(c)} used an approval or version that no longer matched the current ` +
           `transfer details. The approval was invalidated and nothing executed.`,
-        advice: "Re-check the recipient and amount, then approve the current version only if you still want it.",
+        advice: msg("Re-check the recipient and amount, then approve the current version only if you still want it."),
         ...cite(c),
       };
     });
@@ -219,13 +220,13 @@ function recipientSwap(events: AuditEvent[], lookups: ThreatLookups): ThreatSign
     out.push({
       code: "RECIPIENT_SWAP",
       severity: "critical",
-      title: "Recipient bank details changed right before a transfer",
+      title: msg("Recipient bank details changed right before a transfer"),
       text:
         `Recipient ${recipientId}'s details changed at ${clock(change)}, and ${plural(follow.length, "transfer step")} ` +
         `to that recipient followed within ${R.withinMs / MIN} minutes (${list(uniq(follow.map((e) => e.eventType)))}). ` +
         `Changed payment instructions just before a payment are a common fraud pattern.` +
         (executed ? " A transfer to the changed details executed." : " No transfer to the changed details executed."),
-      advice: "Confirm the new details on a phone number you already trust before verifying or approving.",
+      advice: msg("Confirm the new details on a phone number you already trust before verifying or approving."),
       ...cite(cluster),
     });
   }
@@ -247,7 +248,7 @@ function replayExecution(events: AuditEvent[]): ThreatSignal[] {
         text:
           `${plural(c.length, "repeat execution request")} ${span(c)} targeted ${c[0].actionId}, which had already ` +
           `completed. Each returned the existing receipt; nothing executed twice.`,
-        advice: "Repeated submissions can be a stuck client or a replay attempt. No action is needed if this was you.",
+        advice: msg("Repeated submissions can be a stuck client or a replay attempt. No action is needed if this was you."),
         ...cite(c),
       })),
   );
@@ -273,7 +274,7 @@ function limitProbing(events: AuditEvent[]): ThreatSignal[] {
       text:
         `${plural(attempts.length, "transfer version")} ${span(c)} were held for exceeding the per-transfer or daily ` +
         `limit. Trying amounts against a limit is a common way to find out how much can be moved.`,
-      advice: "Leave your limits as they are unless you meant to change them yourself.",
+      advice: msg("Leave your limits as they are unless you meant to change them yourself."),
       ...cite(c),
     }));
 }
@@ -308,7 +309,7 @@ function controlsThenSpend(events: AuditEvent[]): ThreatSignal[] {
       text:
         `${what} at ${clock(change)}, then ${plural(approvals.length, "approval")} followed within ` +
         `${R.withinMs / MIN} minutes. Loosening controls right before moving money is worth a second look.`,
-      advice: "If you didn't change your controls, pause transfers and review the approved items.",
+      advice: msg("If you didn't change your controls, pause transfers and review the approved items."),
       ...cite([change, ...approvals]),
     });
   }
@@ -344,14 +345,14 @@ function promptInjection(events: AuditEvent[]): ThreatSignal[] {
     return {
       code: "PROMPT_INJECTION",
       severity: proposals.length > 0 ? "critical" : "warning",
-      title: proposals.length > 0 ? "Injected instructions followed by an assistant proposal" : "Prompt-injection attempt",
+      title: proposals.length > 0 ? msg("Injected instructions followed by an assistant proposal") : msg("Prompt-injection attempt"),
       text:
         `${plural(c.length, "message or document")} ${span(c)} tried to instruct the assistant ` +
         `(${list(markers.map(injectionMarkerLabel))})` + (sources.length ? `, including untrusted content from ${list(sources)}` : "") + `. ` +
         (proposals.length > 0
           ? `The assistant then drafted ${plural(proposals.length, "proposal")}; it still needs your exact-version approval and policy checks.`
           : `The assistant drafted no proposal in response.`),
-      advice: "Review any assistant proposal carefully. Text in documents or messages can never approve or execute anything.",
+      advice: msg("Review any assistant proposal carefully. Text in documents or messages can never approve or execute anything."),
       ...cite([...c, ...proposals].sort((a, b) => a.id - b.id)),
     };
   });
@@ -369,11 +370,11 @@ function privilegeAttempt(events: AuditEvent[]): ThreatSignal[] {
     .map((c) => ({
       code: "ASSISTANT_PRIVILEGE_ATTEMPT",
       severity: c.length >= R.critical ? "critical" : "warning",
-      title: c.length === 1 ? "Assistant asked for a tool it doesn't have" : `Assistant asked for unavailable tools ${c.length} times`,
+      title: c.length === 1 ? msg("Assistant asked for a tool it doesn't have") : `Assistant asked for unavailable tools ${c.length} times`,
       text:
         `The assistant requested ${list(uniq(c.map((e) => str(e.detail.tool) ?? "?")))} ${span(c)}, which it is not ` +
         `allowed to use. The tool layer refused every call.`,
-      advice: "This often follows a prompt-injection attempt. Check the conversation that triggered it.",
+      advice: msg("This often follows a prompt-injection attempt. Check the conversation that triggered it."),
       ...cite(c),
     }));
 }
@@ -387,13 +388,13 @@ function executionFailure(events: AuditEvent[]): ThreatSignal[] {
     return {
       code: "EXECUTION_FAILURE",
       severity: scope ? "critical" : "warning",
-      title: scope ? "A background agent tried to read outside its scope" : `${plural(c.length, "operation")} failed`,
+      title: scope ? msg("A background agent tried to read outside its scope") : `${plural(c.length, "operation")} failed`,
       text:
         `${list(uniq(c.map((e) => e.eventType)))} ${span(c)}. ` +
         (scope
           ? "The agent's out-of-scope read was blocked and its run failed."
           : "Failed simulated operations roll back completely; no partial debit or credit was made."),
-      advice: "Check the affected items' status before retrying.",
+      advice: msg("Check the affected items' status before retrying."),
       ...cite(c),
     };
   });
@@ -408,7 +409,7 @@ function transferVelocity(events: AuditEvent[]): ThreatSignal[] {
       severity: "warning",
       title: `${c.length} transfers executed in quick succession`,
       text: `${plural(c.length, "transfer")} executed ${span(c)}, faster than typical activity.`,
-      advice: "If you didn't make these, pause transfers and review the receipts.",
+      advice: msg("If you didn't make these, pause transfers and review the receipts."),
       ...cite(c),
     }));
 }

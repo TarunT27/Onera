@@ -15,6 +15,7 @@ import type {
   Quote,
   TradingControls,
 } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 export interface OrderTerms {
   accountId: string;
@@ -90,60 +91,60 @@ export function evaluateOrderPolicy(input: OrderPolicyInput): OrderPolicyResult 
   const sizeText = order.notionalCents !== null ? usd(order.notionalCents) : `${shares(order.quantityMicros ?? 0)} sh`;
 
   const tradable = isTradableAccount(account);
-  add("tradable_account", "Paper trading account", tradable,
+  add("tradable_account", msg("Paper trading account"), tradable,
     tradable
       ? `${account.name} ••${account.mask} is a paper account (simulated money).`
       : `${account.name} ••${account.mask} is view-only. Orders can only execute in a paper trading account.`,
     "NOT_TRADABLE");
 
   const allowed = instrument !== null && (instrument.type === "stock" || instrument.type === "etf");
-  add("instrument_allowed", "Supported stock or ETF", allowed,
+  add("instrument_allowed", msg("Supported stock or ETF"), allowed,
     allowed
       ? `${instrument!.symbol} (${instrument!.type.toUpperCase()}) is supported. No options, margin, leverage or shorting.`
       : `${order.symbol} is not on the supported list of stocks and ETFs.`,
     "INSTRUMENT_NOT_ALLOWED");
 
-  add("quote_available", "Simulated quote available", quote !== null,
+  add("quote_available", msg("Simulated quote available"), quote !== null,
     quote ? `${quote.symbol} at ${usd(quote.priceCents)} (simulated, as of ${quote.asOf}).` : `No simulated quote for ${order.symbol}.`,
     "QUOTE_UNAVAILABLE");
 
   if (quote) {
     const bound = order.priceBoundCents;
     const within = bound !== null && (order.side === "buy" ? quote.priceCents <= bound : quote.priceCents >= bound);
-    add("price_within_bound", order.side === "buy" ? "Price at or below your maximum" : "Price at or above your minimum",
+    add("price_within_bound", order.side === "buy" ? msg("Price at or below your maximum") : msg("Price at or above your minimum"),
       within,
       bound === null
-        ? "No price bound was captured for this version."
+        ? msg("No price bound was captured for this version.")
         : `Current ${usd(quote.priceCents)} vs ${order.side === "buy" ? "max" : "min"} ${usd(bound)}.`,
       "PRICE_OUT_OF_BOUND");
   }
 
-  add("per_order_limit", "Per-order limit", value <= limits.perOrderLimitCents,
+  add("per_order_limit", msg("Per-order limit"), value <= limits.perOrderLimitCents,
     `${usd(value)} vs limit ${usd(limits.perOrderLimitCents)}.`, "ORDER_LIMIT_EXCEEDED");
 
   const dailyAfter = input.executedTodayCents + value;
-  add("daily_order_limit", "Daily order limit", dailyAfter <= limits.dailyOrderLimitCents,
+  add("daily_order_limit", msg("Daily order limit"), dailyAfter <= limits.dailyOrderLimitCents,
     `${usd(input.executedTodayCents)} traded today + ${usd(value)} = ${usd(dailyAfter)} vs limit ${usd(limits.dailyOrderLimitCents)}.`,
     "DAILY_ORDER_LIMIT_EXCEEDED");
 
   if (order.side === "buy") {
-    add("available_cash", "Paper cash available", value <= account.availableCents,
+    add("available_cash", msg("Paper cash available"), value <= account.availableCents,
       `${sizeText} needs up to ${usd(value)}; ${usd(account.availableCents)} available in ${account.name}.`,
       "INSUFFICIENT_CASH");
   } else {
     const qty = order.quantityMicros ?? 0;
-    add("shares_held", "Shares held (no shorting)", qty <= input.heldQuantityMicros,
+    add("shares_held", msg("Shares held (no shorting)"), qty <= input.heldQuantityMicros,
       `Selling ${shares(qty)} ${order.symbol}; ${shares(input.heldQuantityMicros)} held in ${account.name}.`,
       "INSUFFICIENT_SHARES");
   }
 
-  add("not_paused", "Execution not paused", !input.paused,
-    input.paused ? "You paused execution in Control. Orders and mandate trades are blocked." : "Execution is enabled.",
+  add("not_paused", msg("Execution not paused"), !input.paused,
+    input.paused ? msg("You paused execution in Control. Orders and mandate trades are blocked.") : msg("Execution is enabled."),
     "PAUSED");
 
   if (order.mandateId !== null) {
     const problems = mandateProblems(order, input.mandate, value, input.mandateUsedTodayCents, input.now);
-    add("mandate_valid", "Agent mandate covers this order", problems.length === 0,
+    add("mandate_valid", msg("Agent mandate covers this order"), problems.length === 0,
       problems.length === 0
         ? `Mandate ${order.mandateId} covers ${order.side} ${order.symbol} up to ${usd(input.mandate!.maxOrderCents)} per order.`
         : problems.join(" "),
@@ -168,14 +169,14 @@ function mandateProblems(
   usedTodayCents: number,
   now: Date,
 ): string[] {
-  if (!mandate) return ["Mandate not found."];
+  if (!mandate) return [msg("Mandate not found.")];
   const problems: string[] = [];
   if (mandate.revokedAt !== null) problems.push(`Mandate was revoked at ${mandate.revokedAt}.`);
   if (new Date(mandate.expiresAt).getTime() <= now.getTime()) problems.push(`Mandate expired at ${mandate.expiresAt}.`);
   if (order.createdBy !== `agent:${mandate.agentId}`) {
     problems.push(`Mandate belongs to agent ${mandate.agentId}; this order was proposed by ${order.createdBy}.`);
   }
-  if (order.accountId !== mandate.accountId) problems.push("Mandate covers a different account.");
+  if (order.accountId !== mandate.accountId) problems.push(msg("Mandate covers a different account."));
   if (order.side !== mandate.side) problems.push(`Mandate allows ${mandate.side} orders only.`);
   if (!mandate.symbols.includes(order.symbol)) {
     problems.push(`Mandate covers ${mandate.symbols.join(", ")}, not ${order.symbol}.`);

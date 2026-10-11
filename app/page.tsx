@@ -40,12 +40,16 @@ import { useSession } from "./components/SessionContext";
 import { EmptyState, Loading } from "./components/Card";
 import { formatCents } from "@/lib/finance/money";
 import { useRouter } from "next/navigation";
+import { useT } from "./components/I18nContext";
+import { formatDate } from "./components/format";
+import { msg } from "@/lib/i18n/msg";
+import type { Translate } from "@/lib/i18n/translate";
 
 const KIND_LABEL = {
-  checking: "Checking",
-  savings: "Savings",
-  brokerage: "Brokerage",
-  credit: "Credit card",
+  checking: msg("Checking"),
+  savings: msg("Savings"),
+  brokerage: msg("Brokerage"),
+  credit: msg("Credit card"),
 } as const;
 
 function categoryIcon(category: string, merchant: string | null) {
@@ -68,9 +72,9 @@ function categoryIcon(category: string, merchant: string | null) {
   }
 }
 
-function greeting() {
+function greeting(t: Translate) {
   const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  return h < 12 ? t("Good morning") : h < 18 ? t("Good afternoon") : t("Good evening");
 }
 
 /** "$42,780.87" → dollars and a quieter ".87". */
@@ -89,6 +93,7 @@ function SplitAmount({ cents }: { cents: number }) {
 const i = (n: number) => ({ "--i": n }) as CSSProperties;
 
 export default function OverviewPage() {
+  const t = useT();
   const portfolio = useApiData<{ portfolio: Portfolio }>("/api/portfolio");
   const accounts = useApiData<AccountsResponse>(paths.accounts);
   const insights = useApiData<InsightsResponse>(paths.insights);
@@ -176,41 +181,41 @@ export default function OverviewPage() {
       <div className="overview-heading rise" style={i(0)}>
         <p className="eyebrow">
           {date
-            ? date.toLocaleDateString("en-US", {
+            ? formatDate(date, {
                 weekday: "long",
                 month: "long",
                 day: "numeric",
               })
-            : "Your money, in one place."}
+            : t("Your money, in one place.")}
         </p>
         <h1 suppressHydrationWarning>
-          {session.data ? `${greeting()}, ${session.data.user.name.split(" ")[0]}.`
-            : session.error ? "Your overview."
-            : <><span className="greeting-placeholder" aria-hidden /><span className="sr-only">Loading your overview</span></>}
+          {session.data ? t("{greeting}, {name}.", { greeting: greeting(t), name: session.data.user.name.split(" ")[0] })
+            : session.error ? t("Your overview.")
+            : <><span className="greeting-placeholder" aria-hidden /><span className="sr-only">{t("Loading your overview")}</span></>}
         </h1>
       </div>
       <ErrorBox error={error} />
       <ErrorBox
         error={accounts.error}
-        title="Couldn't load accounts"
+        title={t("Couldn't load accounts")}
         onRetry={() => void accounts.reload()}
       />
-      <ErrorBox error={actions.error} title="Couldn't load transfers" />
-      <ErrorBox error={recipients.error} title="Couldn't load recipients" />
+      <ErrorBox error={actions.error} title={t("Couldn't load transfers")} />
+      <ErrorBox error={recipients.error} title={t("Couldn't load recipients")} />
       <div className="overview-grid">
         <div className="hero-shell rise" style={i(1)}>
           <section
             className="balance-hero"
-            aria-label="Total balance"
+            aria-label={t("Total balance")}
             ref={heroRef}
             onPointerMove={onHeroPointer}
           >
             <div className="balance-label">
-              Total balance
-              <span title="USD equivalent of cash, debt and simulated investments. Paper accounts excluded.">
+              {t("Total balance")}
+              <span title={t("USD equivalent of cash, debt and simulated investments. Paper accounts excluded.")}>
                 <Info
                   size={17}
-                  aria-label="Balance includes currency conversion and simulated investments"
+                  aria-label={t("Balance includes currency conversion and simulated investments")}
                 />
               </span>
             </div>
@@ -220,16 +225,15 @@ export default function OverviewPage() {
               </p>
             ) : (
               <div className="balance-amount">
-                <Loading label="Loading balance…" />
+                <Loading label={t("Loading balance…")} />
               </div>
             )}
             <p className="balance-note">
-              Across your demo accounts · USD equivalent · paper trading
-              excluded
+              {t("Across your demo accounts · USD equivalent · paper trading excluded")}
             </p>
             <div className="hero-actions">
               <Link href="/transfers" className="pill">
-                New transfer
+                {t("New transfer")}
                 <span className="knob" aria-hidden>
                   <ArrowRight size={18} weight="bold" />
                 </span>
@@ -238,7 +242,7 @@ export default function OverviewPage() {
                 <span className="knob" aria-hidden>
                   <Sparkle size={18} weight="fill" />
                 </span>
-                Ask Onera
+                {t("Ask Onera")}
               </Link>
             </div>
           </section>
@@ -246,15 +250,15 @@ export default function OverviewPage() {
 
         <section className="wallet-panel rise" style={i(2)}>
           <header className="panel-head">
-            <h2>Your accounts</h2>
+            <h2>{t("Your accounts")}</h2>
             <Link href="/accounts" className="quiet-link">
-              View all
+              {t("View all")}
               <CaretRight size={14} weight="bold" aria-hidden />
             </Link>
           </header>
           <ErrorBox
             error={portfolio.error}
-            title="Couldn't load holdings"
+            title={t("Couldn't load holdings")}
             onRetry={() => void portfolio.reload()}
           />
           {accounts.loading && !accounts.data ? (
@@ -262,9 +266,9 @@ export default function OverviewPage() {
           ) : wallet.length === 0 ? (
             accounts.data && (
               <EmptyState>
-                No accounts yet.{" "}
+                {t("No accounts yet.")}{" "}
                 <Link href="/accounts" className="quiet-link">
-                  Link a demo bank
+                  {t("Link a demo bank")}
                 </Link>
               </EmptyState>
             )
@@ -284,12 +288,12 @@ export default function OverviewPage() {
                     <div className="wallet-top">
                       <div>
                         <p className="wallet-name">{a.name}</p>
-                        <p className="wallet-kind">{KIND_LABEL[a.type]}</p>
+                        <p className="wallet-kind">{t(KIND_LABEL[a.type])}</p>
                       </div>
                       <span className="wallet-balance">
                         {a.type === "brokerage" && !portfolio.data
                           ? portfolio.error
-                            ? "Unavailable"
+                            ? t("Unavailable")
                             : "—"
                           : formatCents(
                               portfolio.data?.portfolio.accounts.find(
@@ -303,7 +307,7 @@ export default function OverviewPage() {
                       <span className="wallet-mask">•• {a.mask}</span>
                       {a.capabilities.length === 1 ? (
                         <span className="wallet-note">
-                          View-only demo import
+                          {t("View-only demo import")}
                         </span>
                       ) : (
                         <span className="wallet-chip" aria-hidden />
@@ -342,7 +346,7 @@ export default function OverviewPage() {
           <section
             className="attention glass rise"
             style={i(3)}
-            aria-label="Needs your review"
+            aria-label={t("Needs your review")}
           >
             <span className="attention-icon">
               <WarningCircle size={24} weight="fill" aria-hidden />
@@ -350,13 +354,15 @@ export default function OverviewPage() {
             <div className="attention-content">
               <strong>
                 {pending
-                  ? `${formatCents(pending.amountCents)} transfer needs review`
-                  : "Bank details need your review"}
+                  ? t("{amount} transfer needs review", { amount: formatCents(pending.amountCents) })
+                  : t("Bank details need your review")}
               </strong>
               <p>
                 {pending
-                  ? `${pending.destination.displayName} · ${pending.state === "HELD" ? "On hold" : "Awaiting your approval"}`
-                  : `${changed!.displayName} changed its bank details.`}
+                  ? pending.state === "HELD"
+                    ? t("{name} · On hold", { name: pending.destination.displayName })
+                    : t("{name} · Awaiting your approval", { name: pending.destination.displayName })
+                  : t("{name} changed its bank details.", { name: changed!.displayName })}
               </p>
             </div>
             {changed?.previousDetails && (
@@ -365,11 +371,11 @@ export default function OverviewPage() {
                   {changed.previousDetails.institution} ••
                   {changed.previousDetails.accountMask}
                 </span>
-                <ArrowRight size={14} aria-label="changed to" />
+                <ArrowRight size={14} aria-label={t("changed to")} />
                 <span className="now">
                   {changed.details.institution} ••{changed.details.accountMask}
                 </span>
-                <small>Previously verified → requested</small>
+                <small>{t("Previously verified → requested")}</small>
               </div>
             )}
             <button
@@ -378,10 +384,10 @@ export default function OverviewPage() {
               disabled={busy}
             >
               {busy
-                ? "Opening…"
+                ? t("Opening…")
                 : pending
-                  ? "Review transfer"
-                  : "Try rent review"}
+                  ? t("Review transfer")
+                  : t("Try rent review")}
               <span className="knob" aria-hidden>
                 <ArrowRight size={16} weight="bold" />
               </span>
@@ -395,13 +401,14 @@ export default function OverviewPage() {
               <span className="squircle light">
                 <Lightbulb size={17} weight="fill" aria-hidden />
               </span>
-              <h2>{sub ? "One thing changed" : "All caught up"}</h2>
+              <h2>{sub ? t("One thing changed") : t("All caught up")}</h2>
               {sub && (
                 <span className="quiet-link muted">
-                  Latest{" "}
-                  {new Date(sub.latestChargeAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
+                  {t("Latest {date}", {
+                    date: formatDate(sub.latestChargeAt, {
+                      month: "short",
+                      day: "numeric",
+                    }),
                   })}
                 </span>
               )}
@@ -421,10 +428,13 @@ export default function OverviewPage() {
                       <ArrowUpRight size={26} weight="bold" aria-hidden />
                     </p>
                     <p className="insight-copy">
-                      {sub.merchant} went up this month{" "}
+                      {t("{merchant} went up this month", { merchant: sub.merchant })}{" "}
                       <span>
-                        — from {formatCents(sub.previousAmountCents)} to{" "}
-                        {formatCents(sub.currentAmountCents)}.
+                        —{" "}
+                        {t("from {from} to {to}.", {
+                          from: formatCents(sub.previousAmountCents),
+                          to: formatCents(sub.currentAmountCents),
+                        })}
                       </span>
                     </p>
                   </div>
@@ -442,7 +452,7 @@ export default function OverviewPage() {
                           }
                         >
                           <i />
-                          {new Date(t.postedAt).toLocaleDateString("en-US", {
+                          {formatDate(t.postedAt, {
                             month: "short",
                           })}
                         </div>
@@ -453,17 +463,17 @@ export default function OverviewPage() {
                 <details className="evidence">
                   <summary>
                     <Receipt size={18} aria-hidden />
-                    View details
+                    {t("View details")}
                     <CaretRight size={14} weight="bold" aria-hidden />
                   </summary>
                   <p className="row-meta">
-                    Based on your synthetic transaction history.
+                    {t("Based on your synthetic transaction history.")}
                   </p>
                   <ul>
                     {evidence.map((t) => (
                       <li key={t.id}>
                         <span>
-                          {new Date(t.postedAt).toLocaleDateString()} ·{" "}
+                          {formatDate(t.postedAt)} ·{" "}
                           {t.description}
                         </span>
                         <span>{formatCents(t.amountCents, t.currency)}</span>
@@ -474,7 +484,7 @@ export default function OverviewPage() {
               </>
             ) : (
               <p className="row-meta">
-                No subscription increases found in your current activity.
+                {t("No subscription increases found in your current activity.")}
               </p>
             )}
           </section>
@@ -484,9 +494,9 @@ export default function OverviewPage() {
               <span className="squircle">
                 <ClockCounterClockwise size={17} aria-hidden />
               </span>
-              <h2>Recent activity</h2>
+              <h2>{t("Recent activity")}</h2>
               <Link href="/accounts?view=activity" className="quiet-link">
-                View all
+                {t("View all")}
                 <CaretRight size={14} weight="bold" aria-hidden />
               </Link>
             </header>
@@ -511,7 +521,7 @@ export default function OverviewPage() {
                           {t.merchant ?? t.description}
                         </span>
                         <time className="row-meta block" dateTime={t.postedAt}>
-                          {new Date(t.postedAt).toLocaleDateString("en-US", {
+                          {formatDate(t.postedAt, {
                             weekday: "short",
                             month: "short",
                             day: "numeric",
@@ -528,7 +538,7 @@ export default function OverviewPage() {
             )}
             {txns.data?.transactions.length === 0 && (
               <p className="row-meta">
-                No activity yet. <Link href="/accounts">Explore accounts</Link>
+                {t("No activity yet.")} <Link href="/accounts">{t("Explore accounts")}</Link>
               </p>
             )}
           </section>

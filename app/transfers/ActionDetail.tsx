@@ -22,25 +22,29 @@ import {
   holdReasonLabel,
 } from "../components/Badge";
 import { HOLD_MESSAGES } from "@/lib/policy/messages";
+import { msg } from "@/lib/i18n/msg";
+import type { Translate } from "@/lib/i18n/translate";
 import { Button, inputClass } from "../components/Button";
 import { Card, EmptyState, Loading } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
+import { useI18n, useT } from "../components/I18nContext";
 import { centsToDollarInput, formatDateTime, mask, parseDollarsToCents } from "../components/format";
 import { Money } from "../components/Money";
 import { useApiData } from "../components/useApiData";
 
 type Notice = { tone: "success" | "info" | "warning"; text: ReactNode };
 
-const OP_LABELS: Record<string, string> = {
-  approve: "approve",
-  execute: "execute",
-  forceExecute: "execute",
-  verify: "verify the recipient",
-  evaluate: "re-evaluate",
-  edit: "edit the amount",
+const OP_REFUSED: Record<string, string> = {
+  approve: msg("Server refused to approve"),
+  execute: msg("Server refused to execute"),
+  forceExecute: msg("Server refused to execute"),
+  verify: msg("Server refused to verify the recipient"),
+  evaluate: msg("Server refused to re-evaluate"),
+  edit: msg("Server refused to edit the amount"),
 };
 
 export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged: () => void; onClose: () => void }) {
+  const { t, tr } = useI18n();
   const detail = useApiData<ActionDetailResponse>(paths.action(id));
   const audit = useApiData<AuditResponse>(paths.audit({ actionId: id, limit: 10 }));
 
@@ -85,8 +89,8 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
   if (detail.loading && !detail.data) {
     return (
       <div ref={rootRef} className="scroll-mt-24">
-        <Card title="Transfer">
-          <Loading label="Loading transfer…" />
+        <Card title={t("Transfer")}>
+          <Loading label={t("Loading transfer…")} />
         </Card>
       </div>
     );
@@ -95,14 +99,14 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
     return (
       <div ref={rootRef} className="scroll-mt-24">
         <Card
-          title="Transfer"
+          title={t("Transfer")}
           action={
             <Button size="sm" variant="ghost" onClick={onClose}>
-              Close
+              {t("Close")}
             </Button>
           }
         >
-          <ErrorBox error={detail.error ?? "Transfer not found"} title="Couldn't load this transfer" onRetry={() => void detail.reload()} />
+          <ErrorBox error={detail.error ?? t("Transfer not found")} title={t("Couldn't load this transfer")} onRetry={() => void detail.reload()} />
         </Card>
       </div>
     );
@@ -118,7 +122,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
     run("approve", async () => {
       const { action: a } = await clearfi.approveAction(action.id, action.version);
       if (detail.data) detail.setData({ ...detail.data, action: a });
-      return { tone: "success", text: "Transfer approved. Any changes will need your approval again." };
+      return { tone: "success", text: t("Transfer approved. Any changes will need your approval again.") };
     });
 
   const execute = (op: "execute" | "forceExecute") =>
@@ -131,7 +135,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
           tone: "info",
           text: (
             <>
-              <strong>No second transfer was made.</strong> This transfer is already complete.
+              <strong>{t("No second transfer was made.")}</strong> {t("This transfer is already complete.")}
             </>
           ),
         };
@@ -140,7 +144,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
         tone: op === "forceExecute" ? "warning" : "success",
         text: (
           <>
-            Transfer complete. This was a simulation; no real money moved.
+            {t("Transfer complete. This was a simulation; no real money moved.")}
           </>
         ),
       };
@@ -153,7 +157,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
       setJustVerified(true);
       return {
         tone: "info",
-        text: "Recipient verified for this demo. Check the transfer again to continue.",
+        text: t("Recipient verified for this demo. Check the transfer again to continue."),
       };
     });
 
@@ -166,10 +170,12 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
         tone: a.state === "HELD" ? "warning" : "success",
         text:
           a.state === "HELD"
-            ? `Transfer still on hold: ${a.holdReasons.map(holdReasonLabel).join(", ") || "see the checks below"}.`
+            ? t("Transfer still on hold: {reasons}.", {
+                reasons: a.holdReasons.map((r) => holdReasonLabel(r, t)).join(", ") || t("see the checks below"),
+              })
             : a.state === "AWAITING_APPROVAL"
-              ? "All checks passed. Ready for your approval."
-              : `Re-evaluated: ${a.state}.`,
+              ? t("All checks passed. Ready for your approval.")
+              : t("Re-evaluated: {state}.", { state: a.state }),
       };
     });
 
@@ -181,7 +187,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
 
   function submitEdit(e: FormEvent) {
     e.preventDefault();
-    const parsed = parseDollarsToCents(editValue);
+    const parsed = parseDollarsToCents(editValue, { t });
     if (!parsed.ok) {
       setEditError(parsed.error);
       return;
@@ -193,7 +199,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
       setEditing(false);
       return {
         tone: "warning",
-        text: `Amount updated. Previous approval was cleared and safety checks ran again.${a.state === "HELD" ? " Review the hold reasons below." : ""}`,
+        text: `${t("Amount updated. Previous approval was cleared and safety checks ran again.")}${a.state === "HELD" ? ` ${t("Review the hold reasons below.")}` : ""}`,
       };
     });
   }
@@ -203,7 +209,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
       {detail.error !== null && (
         <ErrorBox
           error={detail.error}
-          title="Couldn't refresh this transfer. Actions are disabled until its current state reloads."
+          title={t("Couldn't refresh this transfer. Actions are disabled until its current state reloads.")}
           onRetry={() => void detail.reload()}
         />
       )}
@@ -215,13 +221,13 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
             tabIndex={-1}
             className="text-xs font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400"
           >
-            Transfer proposal
+            {t("Transfer proposal")}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="grid size-11 shrink-0 place-items-center rounded-lg text-xl leading-none text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 sm:size-8 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-            aria-label="Close transfer details"
+            aria-label={t("Close transfer details")}
           >
             ×
           </button>
@@ -229,15 +235,17 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
 
         <div className={`mt-3 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-sm ${stateCalloutTone(state)}`}>
           <ActionStateBadge state={state} />
-          <p className="min-w-0 text-pretty">{stateSummary(action, recipient)}</p>
+          <p className="min-w-0 text-pretty">{stateSummary(action, recipient, t)}</p>
         </div>
 
         <p className="mt-4 text-3xl font-semibold tracking-tight tabular-nums">
           <Money cents={action.amountCents} /> <span className="text-sm font-medium tracking-normal text-zinc-500 dark:text-zinc-400">USD</span>
         </p>
         <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
-          to <span className="font-medium text-zinc-900 dark:text-zinc-100">{recipient.displayName}</span> from {sourceAccount.name}{" "}
-          {mask(sourceAccount.mask)}
+          {tr("to {recipient} from {account}", {
+            recipient: <span className="font-medium text-zinc-900 dark:text-zinc-100">{recipient.displayName}</span>,
+            account: `${sourceAccount.name} ${mask(sourceAccount.mask)}`,
+          })}
         </p>
         <code className="mt-1 block font-mono text-[11px] break-all text-zinc-400 dark:text-zinc-500">{action.id}</code>
 
@@ -256,13 +264,13 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
         )}
         {recipient.status === "unverified" && (
           <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-            <p className="font-semibold">This recipient has never been verified.</p>
+            <p className="font-semibold">{t("This recipient has never been verified.")}</p>
             <p className="mt-1">
-              Onera won&apos;t let money go to a destination you haven&apos;t confirmed through a trusted channel.
+              {t("Onera won't let money go to a destination you haven't confirmed through a trusted channel.")}
             </p>
             {recipientNeedsVerify && (
               <Button className="mt-3" variant="warning" busy={busy === "verify"} disabled={anyBusy} onClick={verify}>
-                Verify recipient (simulated out-of-band check)
+                {t("Verify recipient (simulated out-of-band check)")}
               </Button>
             )}
           </div>
@@ -270,38 +278,41 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
 
         {/* Summary */}
         <dl className="mt-5 grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
-          <Field label="From">
+          <Field label={t("From")}>
             <p className="font-medium">
               {sourceAccount.name} <span className="text-zinc-500 tabular-nums dark:text-zinc-400">{mask(sourceAccount.mask)}</span>
             </p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {sourceAccount.institution} · <Money cents={sourceAccount.availableCents} /> available
+              {tr("{institution} · {amount} available", { institution: sourceAccount.institution, amount: <Money cents={sourceAccount.availableCents} /> })}
             </p>
           </Field>
-          <Field label="To">
+          <Field label={t("To")}>
             <p className="flex flex-wrap items-center gap-2 font-medium">
               {recipient.displayName} <RecipientStatusBadge status={recipient.status} />
             </p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               {recipient.details.institution} {mask(recipient.details.accountMask)}
-              {recipient.details.routingMask ? ` · routing ${mask(recipient.details.routingMask)}` : ""}
-              {recipient.kind === "own_account" ? " · your account" : ""}
+              {recipient.details.routingMask ? ` · ${t("routing {mask}", { mask: mask(recipient.details.routingMask) })}` : ""}
+              {recipient.kind === "own_account" ? ` · ${t("your account")}` : ""}
             </p>
             {action.recipientVersion !== recipient.version && (
               <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                Proposal captured recipient v{action.recipientVersion} ({action.destination.institution}{" "}
-                {mask(action.destination.accountMask)}); the recipient is now v{recipient.version}.
+                {t("Proposal captured recipient v{captured} ({destination}); the recipient is now v{current}.", {
+                  captured: action.recipientVersion,
+                  destination: `${action.destination.institution} ${mask(action.destination.accountMask)}`,
+                  current: recipient.version,
+                })}
               </p>
             )}
           </Field>
-          <Field label="Amount">
+          <Field label={t("Amount")}>
             {editing ? (
               <form onSubmit={submitEdit} className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative w-36">
                     <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-sm text-zinc-500">$</span>
                     <input
-                      aria-label="New amount in dollars"
+                      aria-label={t("New amount in dollars")}
                       name="amount"
                       className={`${inputClass} py-1.5 pl-6 tabular-nums`}
                       inputMode="decimal"
@@ -311,15 +322,15 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
                     />
                   </div>
                   <Button size="sm" type="submit" variant="primary" busy={busy === "edit"} disabled={anyBusy}>
-                    Save new amount
+                    {t("Save new amount")}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={anyBusy}>
-                    Cancel
+                    {t("Cancel")}
                   </Button>
                 </div>
                 {editError && <p className="text-xs text-red-700 dark:text-red-400">{editError}</p>}
                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                  Changing the amount clears your approval and runs the safety checks again.
+                  {t("Changing the amount clears your approval and runs the safety checks again.")}
                 </p>
               </form>
             ) : (
@@ -332,29 +343,29 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
                     disabled={anyBusy}
                     className="text-xs font-medium text-brand-700 hover:underline disabled:opacity-50 dark:text-brand-400"
                   >
-                    Edit amount
+                    {t("Edit amount")}
                   </button>
                 )}
               </p>
             )}
           </Field>
-          <Field label="Memo">
+          <Field label={t("Memo")}>
             <p className={action.memo ? "" : "text-zinc-400"}>{action.memo || "—"}</p>
           </Field>
-          <Field label="Created">
+          <Field label={t("Created")}>
             <p className="flex flex-wrap items-center gap-2">
               <CreatorBadge createdBy={action.createdBy} />
               <span className="text-zinc-600 dark:text-zinc-400">{formatDateTime(action.createdAt)}</span>
             </p>
           </Field>
-          <Field label="Approval">
+          <Field label={t("Approval")}>
             {action.hasApproval ? (
               <p>
-                Approved{" "}
+                {t("Approved")}{" "}
                 <span className="text-zinc-500 dark:text-zinc-400">· {formatDateTime(action.approvedAt)}</span>
               </p>
             ) : (
-              <p className="text-zinc-500 dark:text-zinc-400">Not approved</p>
+              <p className="text-zinc-500 dark:text-zinc-400">{t("Not approved")}</p>
             )}
           </Field>
         </dl>
@@ -365,7 +376,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
               id="hold-reasons-heading"
               className="mb-1.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400"
             >
-              {state === "HELD" ? "Why Onera held this transfer" : "Hold reasons"}
+              {state === "HELD" ? t("Why Onera held this transfer") : t("Hold reasons")}
             </p>
             <ul className="space-y-2">
               {action.holdReasons.map((r) => {
@@ -378,10 +389,10 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
                     <HoldReasonChip reason={r} />
                     {m && (
                       <>
-                        <p className="mt-1.5 text-zinc-800 dark:text-zinc-200">{m.explanation}</p>
+                        <p className="mt-1.5 text-zinc-800 dark:text-zinc-200">{t(m.explanation)}</p>
                         <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                          <span className="font-semibold text-amber-800 dark:text-amber-300">What you can do: </span>
-                          {m.recovery}
+                          <span className="font-semibold text-amber-800 dark:text-amber-300">{t("What you can do:")} </span>
+                          {t(m.recovery)}
                         </p>
                       </>
                     )}
@@ -394,7 +405,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
 
         {state === "FAILED" && action.failureReason && (
           <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/50 dark:text-red-200">
-            Simulation failed: {action.failureReason}
+            {t("Simulation failed: {reason}", { reason: t(action.failureReason) })}
           </p>
         )}
 
@@ -403,17 +414,17 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
           <div className="flex flex-wrap gap-2">
             {state === "AWAITING_APPROVAL" && (
               <Button variant="primary" busy={busy === "approve"} disabled={anyBusy} onClick={() => void approve()}>
-                Approve transfer
+                {t("Approve transfer")}
               </Button>
             )}
             {state === "APPROVED" && (
               <Button variant="primary" busy={busy === "execute"} disabled={anyBusy} onClick={() => void execute("execute")}>
-                Send demo transfer
+                {t("Send demo transfer")}
               </Button>
             )}
             {state === "EXECUTED" && (
               <Button variant="secondary" busy={busy === "execute"} disabled={anyBusy} onClick={() => void execute("execute")}>
-                Check receipt
+                {t("Check receipt")}
               </Button>
             )}
             {(state === "HELD" || state === "PROPOSED" || justVerified) && state !== "EXECUTED" && (
@@ -423,7 +434,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
                 disabled={anyBusy}
                 onClick={() => void evaluate()}
               >
-                Check again
+                {t("Check again")}
               </Button>
             )}
             {(state === "HELD" || state === "AWAITING_APPROVAL") && (
@@ -432,19 +443,19 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
                 busy={busy === "forceExecute"}
                 disabled={anyBusy}
                 onClick={() => void execute("forceExecute")}
-                title="Calls the execute endpoint directly. The server should refuse."
+                title={t("Calls the execute endpoint directly. The server should refuse.")}
               >
-                Try to execute anyway
+                {t("Try to execute anyway")}
               </Button>
             )}
           </div>
-          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{decisionHint(action, recipient)}</p>
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{decisionHint(action, recipient, t)}</p>
 
           {opError && (
             <ErrorBox
               className="mt-3"
               error={opError.error}
-              title={`Server refused to ${OP_LABELS[opError.op] ?? opError.op}`}
+              title={OP_REFUSED[opError.op] ? t(OP_REFUSED[opError.op]) : t("Server refused to {op}", { op: opError.op })}
               onDismiss={() => setOpError(null)}
             />
           )}
@@ -453,11 +464,11 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
 
         {receipt && <ReceiptView receipt={receipt} />}
         <details className="mt-4 text-xs text-zinc-400">
-          <summary className="cursor-pointer py-2">Transfer reference details</summary>
+          <summary className="cursor-pointer py-2">{t("Transfer reference details")}</summary>
           <dl className="mt-2 grid gap-3 sm:grid-cols-2">
-            <Field label="Transfer reference"><code className="break-all">{action.id}</code></Field>
-            <Field label="Version">{action.version}</Field>
-            <Field label="Approved version">{action.approvedVersion ?? "Not approved"}</Field>
+            <Field label={t("Transfer reference")}><code className="break-all">{action.id}</code></Field>
+            <Field label={t("Version")}>{action.version}</Field>
+            <Field label={t("Approved version")}>{action.approvedVersion ?? t("Not approved")}</Field>
           </dl>
         </details>
       </Card>
@@ -465,25 +476,25 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
       <PolicyCard action={action} />
 
       <Card
-        title="Audit trail"
-        subtitle="Latest 10 events for this transfer"
+        title={t("Audit trail")}
+        subtitle={t("Latest 10 events for this transfer")}
         action={
           <Button size="sm" variant="ghost" onClick={() => void audit.reload()}>
-            ↻ Refresh
+            ↻ {t("Refresh")}
           </Button>
         }
       >
-        <ErrorBox error={audit.error} title="Couldn't load audit events" className="mb-3" />
+        <ErrorBox error={audit.error} title={t("Couldn't load audit events")} className="mb-3" />
         {audit.loading && !audit.data ? (
           <Loading />
         ) : audit.data && audit.data.events.length > 0 ? (
           <AuditList events={audit.data.events.slice(0, 10)} showActionLink={false} />
         ) : audit.error ? null : (
-          <EmptyState>No audit events yet.</EmptyState>
+          <EmptyState>{t("No audit events yet.")}</EmptyState>
         )}
         <p className="mt-3 text-xs">
           <Link href="/control#audit" className="text-brand-700 hover:underline dark:text-brand-400">
-            Full audit log →
+            {t("Full audit log")} →
           </Link>
         </p>
       </Card>
@@ -506,42 +517,42 @@ function stateCalloutTone(state: ActionState): string {
   return "border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100";
 }
 
-function stateSummary(action: TransferAction, recipient: RecipientWithStatus): string {
+function stateSummary(action: TransferAction, recipient: RecipientWithStatus, t: Translate): string {
   switch (action.state) {
     case "HELD":
       return recipient.status !== "verified"
-        ? "Transfer held. Verify the recipient through a trusted channel, then re-evaluate the policy."
-        : "Transfer held. Resolve the policy reasons below, then re-evaluate the transfer.";
+        ? t("Transfer held. Verify the recipient through a trusted channel, then re-evaluate the policy.")
+        : t("Transfer held. Resolve the policy reasons below, then re-evaluate the transfer.");
     case "AWAITING_APPROVAL":
-      return `Policy checks passed. Review this exact version before approving v${action.version}.`;
+      return t("Policy checks passed. Review this exact version before approving v{version}.", { version: action.version });
     case "APPROVED":
-      return `Version ${action.approvedVersion ?? action.version} is approved. Execution still re-checks your controls.`;
+      return t("Version {version} is approved. Execution still re-checks your controls.", { version: action.approvedVersion ?? action.version });
     case "EXECUTED":
-      return "The transfer executed as a simulation. The receipt and audit trail are recorded below.";
+      return t("The transfer executed as a simulation. The receipt and audit trail are recorded below.");
     case "FAILED":
-      return "The simulated execution failed. No real funds moved; review the failure and audit details below.";
+      return t("The simulated execution failed. No real funds moved; review the failure and audit details below.");
     case "PROPOSED":
     default:
-      return "This proposal is not yet evaluated. Run the policy checks before it can move to approval.";
+      return t("This proposal is not yet evaluated. Run the policy checks before it can move to approval.");
   }
 }
 
-function decisionHint(action: TransferAction, recipient: RecipientWithStatus): string {
+function decisionHint(action: TransferAction, recipient: RecipientWithStatus, t: Translate): string {
   switch (action.state) {
     case "AWAITING_APPROVAL":
-      return "Your approval covers this amount and these accounts. Any changes need your approval again.";
+      return t("Your approval covers this amount and these accounts. Any changes need your approval again.");
     case "APPROVED":
-      return "We’ll check your limits and balance again before sending. No real money moves in this demo.";
+      return t("We’ll check your limits and balance again before sending. No real money moves in this demo.");
     case "HELD":
       return recipient.status !== "verified"
-        ? "Verify the recipient, then check again. Transfers on hold can’t be sent."
-        : "Resolve the hold reasons above, then check again. This transfer can’t be sent yet.";
+        ? t("Verify the recipient, then check again. Transfers on hold can’t be sent.")
+        : t("Resolve the hold reasons above, then check again. This transfer can’t be sent yet.");
     case "EXECUTED":
-      return "Checking again won’t send another transfer.";
+      return t("Checking again won’t send another transfer.");
     case "PROPOSED":
-      return "Check this transfer against your limits before approving it.";
+      return t("Check this transfer against your limits before approving it.");
     case "FAILED":
-      return "The simulated transfer failed. No money moved.";
+      return t("The simulated transfer failed. No money moved.");
     default:
       return "";
   }
@@ -557,6 +568,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function NoticeBox({ notice, onDismiss }: { notice: Notice; onDismiss: () => void }) {
+  const t = useT();
   const tone =
     notice.tone === "success"
       ? "border-green-200 bg-green-50 text-green-900 dark:border-green-900 dark:bg-green-950/50 dark:text-green-200"
@@ -566,8 +578,8 @@ function NoticeBox({ notice, onDismiss }: { notice: Notice; onDismiss: () => voi
   return (
     <div role="status" className={`mt-3 flex items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${tone}`}>
       <div className="min-w-0 break-words">{notice.text}</div>
-      <button type="button" onClick={onDismiss} className="shrink-0 text-xs underline underline-offset-2" aria-label="Dismiss">
-        Dismiss
+      <button type="button" onClick={onDismiss} className="shrink-0 text-xs underline underline-offset-2" aria-label={t("Dismiss")}>
+        {t("Dismiss")}
       </button>
     </div>
   );
@@ -575,7 +587,7 @@ function NoticeBox({ notice, onDismiss }: { notice: Notice; onDismiss: () => voi
 
 // ---------------------------------------------------------------------------
 
-const STEPS = ["Proposed", "Policy check", "Your approval", "Executed"] as const;
+const STEPS = [msg("Proposed"), msg("Policy check"), msg("Your approval"), msg("Executed")] as const;
 type StepStatus = "done" | "current" | "blocked" | "todo" | "failed";
 
 function stepStatuses(state: ActionState): StepStatus[] {
@@ -598,9 +610,10 @@ function stepStatuses(state: ActionState): StepStatus[] {
 }
 
 function Stepper({ state }: { state: ActionState }) {
+  const t = useT();
   const statuses = stepStatuses(state);
   return (
-    <ol className="mt-5 grid grid-cols-4 gap-1.5" aria-label="Transfer lifecycle">
+    <ol className="mt-5 grid grid-cols-4 gap-1.5" aria-label={t("Transfer lifecycle")}>
       {STEPS.map((label, i) => {
         const s = statuses[i];
         const bar =
@@ -624,7 +637,7 @@ function Stepper({ state }: { state: ActionState }) {
             <div className={`h-1.5 rounded-full ${bar}`} />
             <p className={`mt-1.5 text-[11px] leading-tight font-medium sm:text-xs ${text}`}>
               {s === "done" ? "✓ " : s === "blocked" ? "⏸ " : s === "failed" ? "✕ " : ""}
-              {s === "blocked" ? "Held by policy" : label}
+              {s === "blocked" ? t("Held by policy") : t(label)}
             </p>
           </li>
         );
@@ -636,9 +649,9 @@ function Stepper({ state }: { state: ActionState }) {
 // ---------------------------------------------------------------------------
 
 const DIFF_FIELDS: { key: keyof RecipientDetails; label: string; fmt: (d: RecipientDetails) => string }[] = [
-  { key: "institution", label: "Institution", fmt: (d) => d.institution },
-  { key: "accountMask", label: "Account", fmt: (d) => mask(d.accountMask) },
-  { key: "routingMask", label: "Routing", fmt: (d) => mask(d.routingMask) },
+  { key: "institution", label: msg("Institution"), fmt: (d) => d.institution },
+  { key: "accountMask", label: msg("Account"), fmt: (d) => mask(d.accountMask) },
+  { key: "routingMask", label: msg("Routing"), fmt: (d) => mask(d.routingMask) },
 ];
 
 function RecipientChangeAlert({
@@ -656,6 +669,7 @@ function RecipientChangeAlert({
   disabled: boolean;
   onVerify: () => void;
 }) {
+  const t = useT();
   const prev = recipient.previousDetails;
   const cur = recipient.details;
   const changed = new Set(DIFF_FIELDS.filter((f) => !prev || prev[f.key] !== cur[f.key]).map((f) => f.key));
@@ -672,42 +686,44 @@ function RecipientChangeAlert({
         <div className="min-w-0">
           <p className="text-base font-semibold text-red-900 dark:text-red-100">
             {held
-              ? "Onera held this transfer because the destination changed since you last verified it."
-              : "The destination for this recipient changed since you last verified it."}
+              ? t("Onera held this transfer because the destination changed since you last verified it.")
+              : t("The destination for this recipient changed since you last verified it.")}
           </p>
           <p className="mt-1 text-sm text-red-800/90 dark:text-red-200/90">
-            {recipient.displayName}&apos;s bank details are now version {recipient.version}; you last verified version{" "}
-            {recipient.verifiedVersion ?? "—"}.
+            {t("{name}'s bank details are now version {version}; you last verified version {verified}.", {
+              name: recipient.displayName,
+              version: recipient.version,
+              verified: recipient.verifiedVersion ?? "—",
+            })}
           </p>
         </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3">
         <DiffColumn
-          title="Last verified"
+          title={t("Last verified")}
           version={recipient.verifiedVersion}
           details={prev}
           changed={changed}
           side="prev"
         />
-        <DiffColumn title="Now on file" version={recipient.version} details={cur} changed={changed} side="cur" />
+        <DiffColumn title={t("Now on file")} version={recipient.version} details={cur} changed={changed} side="cur" />
       </div>
 
       {recipient.changeNote && (
         <div className="mt-3 rounded-lg border border-red-200 bg-white/70 px-3 py-2 text-sm dark:border-red-900 dark:bg-zinc-900/60">
-          <p className="text-xs font-semibold tracking-wide text-red-800 uppercase dark:text-red-300">Change note on record</p>
+          <p className="text-xs font-semibold tracking-wide text-red-800 uppercase dark:text-red-300">{t("Change note on record")}</p>
           <p className="mt-0.5 break-words text-zinc-800 italic dark:text-zinc-200">&ldquo;{recipient.changeNote}&rdquo;</p>
         </div>
       )}
 
       <p className="mt-3 text-xs text-red-900/80 dark:text-red-200/80">
-        &ldquo;We changed banks&rdquo; is a classic payment-redirect scam. Confirm the new details through a channel you already
-        trust before verifying.
+        {t("“We changed banks” is a classic payment-redirect scam. Confirm the new details through a channel you already trust before verifying.")}
       </p>
 
       {canVerify && (
         <Button className="mt-3" variant="danger" busy={busy} disabled={disabled} onClick={onVerify}>
-          Verify recipient (simulated out-of-band check)
+          {t("Verify recipient (simulated out-of-band check)")}
         </Button>
       )}
     </div>
@@ -727,6 +743,7 @@ function DiffColumn({
   changed: Set<keyof RecipientDetails>;
   side: "prev" | "cur";
 }) {
+  const t = useT();
   return (
     <div
       className={`min-w-0 rounded-xl border bg-white p-3 dark:bg-zinc-900 ${
@@ -749,10 +766,10 @@ function DiffColumn({
             return (
               <div key={f.key} className="min-w-0">
                 <dt className="flex items-center gap-1 text-[11px] tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-                  {f.label}
+                  {t(f.label)}
                   {isChanged && side === "cur" && (
                     <Badge tone="amber" className="px-1.5 py-0 text-[10px] normal-case">
-                      changed
+                      {t("changed")}
                     </Badge>
                   )}
                 </dt>
@@ -762,7 +779,7 @@ function DiffColumn({
           })}
         </dl>
       ) : (
-        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">No verified details on record.</p>
+        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{t("No verified details on record.")}</p>
       )}
     </div>
   );
@@ -771,28 +788,29 @@ function DiffColumn({
 // ---------------------------------------------------------------------------
 
 function PolicyCard({ action }: { action: TransferAction }) {
+  const t = useT();
   const policy = action.policy;
   return (
     <Card
-      title="Safety checks"
+      title={t("Safety checks")}
       subtitle={
         policy ? (
           <>
             <span className={`font-semibold ${policy.decision === "ALLOW" ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
-              {policy.decision === "ALLOW" ? "Checks passed" : "Needs attention"}
+              {policy.decision === "ALLOW" ? t("Checks passed") : t("Needs attention")}
             </span>{" "}
-            · checked {formatDateTime(policy.evaluatedAt)}
+            · {t("checked {date}", { date: formatDateTime(policy.evaluatedAt) })}
           </>
         ) : (
-          "Not evaluated yet"
+          t("Not evaluated yet")
         )
       }
     >
       {!policy || policy.checks.length === 0 ? (
-        <EmptyState>This transfer hasn’t been checked yet.</EmptyState>
+        <EmptyState>{t("This transfer hasn’t been checked yet.")}</EmptyState>
       ) : (
         <details open={policy.decision !== "ALLOW"}>
-          <summary className="cursor-pointer pb-3 text-sm">View safety checks</summary>
+          <summary className="cursor-pointer pb-3 text-sm">{t("View safety checks")}</summary>
         <ul className="space-y-2">
           {policy.checks.map((c) => (
             <PolicyCheckRow key={c.id} check={c} />
@@ -805,6 +823,7 @@ function PolicyCard({ action }: { action: TransferAction }) {
 }
 
 function PolicyCheckRow({ check }: { check: PolicyCheck }) {
+  const t = useT();
   return (
     <li
       className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
@@ -814,7 +833,7 @@ function PolicyCheckRow({ check }: { check: PolicyCheck }) {
       }`}
     >
       <span
-        aria-label={check.passed ? "Passed" : "Failed"}
+        aria-label={check.passed ? t("Passed") : t("Failed")}
         className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-xs font-bold ${
           check.passed
             ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400"
@@ -825,14 +844,14 @@ function PolicyCheckRow({ check }: { check: PolicyCheck }) {
       </span>
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-          {check.label}
+          {t(check.label)}
           {!check.passed && check.reason && (
             <code className="rounded bg-red-100 px-1.5 py-0.5 font-mono text-[10px] text-red-800 dark:bg-red-900/60 dark:text-red-200">
               {check.reason}
             </code>
           )}
         </p>
-        <p className="mt-0.5 text-xs break-words text-zinc-600 dark:text-zinc-400">{check.detail}</p>
+        <p className="mt-0.5 text-xs break-words text-zinc-600 dark:text-zinc-400">{t(check.detail)}</p>
       </div>
     </li>
   );
@@ -841,35 +860,36 @@ function PolicyCheckRow({ check }: { check: PolicyCheck }) {
 // ---------------------------------------------------------------------------
 
 function ReceiptView({ receipt }: { receipt: ExecutionReceipt }) {
+  const t = useT();
   return (
     <div className="mt-5 rounded-2xl border border-green-200 bg-green-50/60 p-4 dark:border-green-900 dark:bg-green-950/30">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-semibold text-green-900 dark:text-green-200">✓ Transfer complete</p>
+        <p className="font-semibold text-green-900 dark:text-green-200">✓ {t("Transfer complete")}</p>
         <div className="flex gap-1.5">
-          <Badge tone="amber">Simulated</Badge>
+          <Badge tone="amber">{t("Simulated")}</Badge>
           <SyntheticLabel />
         </div>
       </div>
       <dl className="mt-3 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-        <Field label="Sent on">{formatDateTime(receipt.executedAt, { full: true })}</Field>
-        <Field label="Amount">
+        <Field label={t("Sent on")}>{formatDateTime(receipt.executedAt, { full: true })}</Field>
+        <Field label={t("Amount")}>
           <Money cents={receipt.amountCents} className="font-medium" /> <span className="text-zinc-500">USD</span>
         </Field>
-        <Field label="To">{receipt.destination}</Field>
-        <Field label="From account balance after">
+        <Field label={t("To")}>{receipt.destination}</Field>
+        <Field label={t("From account balance after")}>
           <Money cents={receipt.sourceBalanceAfterCents} />
         </Field>
         {receipt.destinationBalanceAfterCents !== null && (
-          <Field label="To account balance after">
+          <Field label={t("To account balance after")}>
             <Money cents={receipt.destinationBalanceAfterCents} />
           </Field>
         )}
       </dl>
       <p className="mt-3 text-xs text-green-900/70 dark:text-green-200/70">
-        Demo transfer using synthetic balances. No real money moved.
+        {t("Demo transfer using synthetic balances. No real money moved.")}
       </p>
       <details className="mt-3 text-xs text-green-200/70">
-        <summary className="cursor-pointer py-2">Receipt reference</summary>
+        <summary className="cursor-pointer py-2">{t("Receipt reference")}</summary>
         <code className="block break-all py-2">{receipt.receiptId}</code>
       </details>
     </div>
