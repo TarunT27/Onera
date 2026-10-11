@@ -79,7 +79,7 @@ function isErrorEnvelope(v: unknown): v is { error: { code: ApiErrorCode; messag
 // Core request
 // ---------------------------------------------------------------------------
 
-type Method = "GET" | "POST" | "PATCH";
+type Method = "GET" | "POST" | "PATCH" | "DELETE";
 
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
   if (method === "GET") {
@@ -162,6 +162,7 @@ export const api = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
   patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, body),
+  del: <T>(path: string) => request<T>("DELETE", path),
 };
 
 // ---------------------------------------------------------------------------

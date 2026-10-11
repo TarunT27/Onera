@@ -1,0 +1,80 @@
+/* Trade: ticker/company search above the watchlist, and the chart's watchlist star. */
+.watch-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 6px 8px;
+  padding: 0 6px 0 12px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--fill-1);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  color: var(--text-3);
+}
+.watch-search:focus-within {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.28);
+  color: var(--text-2);
+}
+.watch-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 13.5px;
+  outline: none;
+}
+.watch-search input::-webkit-search-cancel-button {
+  display: none;
+}
+.watch-search .icon-btn {
+  width: 24px;
+  height: 24px;
+}
+.search-results {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.search-note {
+  padding: 6px 12px 10px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.search-row .watch-row {
+  flex: 1;
+  min-width: 0;
+}
+.search-meta {
+  margin-left: 6px;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.search-star,
+.chart-watch {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+.search-star[aria-pressed="true"],
+.chart-watch[aria-pressed="true"] {
+  color: #f4d699;
+}
+.chart-watch {
+  align-self: center;
+  margin-left: auto;
+  margin-right: 8px;
+}
+@media (min-width: 901px) {
+  .watchlist .search-results {
+    flex: 1;
+  }
+}

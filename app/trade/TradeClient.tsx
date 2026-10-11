@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 /* eslint-disable @next/next/no-img-element -- small static mascot PNG */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Star } from "@phosphor-icons/react";
 import type {
   BrokerConnection,
   Instrument,
@@ -25,6 +26,8 @@ import { useApiData } from "../components/useApiData";
 import { OrderReview, OrderStateBadge, creatorLabel, orderTitle } from "./OrderReview";
 import { OrderTicket } from "./OrderTicket";
 import { PriceChart } from "./PriceChart";
+import { SymbolSearch } from "./SymbolSearch";
+import "./trade-search.css";
 import { TradeAssistant } from "./TradeAssistant";
 import { formatShares } from "./shares";
 
@@ -37,6 +40,8 @@ const RANGES = [
 
 interface InstrumentsResponse {
   instruments: Instrument[];
+  /** Symbols this user added from search (also included in `instruments`). */
+  watchlist: string[];
   market: MarketStatus;
   disclaimer: string;
 }
@@ -135,7 +140,7 @@ export function TradeClient() {
 
   const instruments = useApiData<InstrumentsResponse>("/api/markets/instruments");
   const quotes = useApiData<{ quotes: Quote[]; disclaimer: string }>("/api/markets/quotes");
-  const history = useApiData<{ history: PriceHistory; quote: Quote | null }>(
+  const history = useApiData<{ history: PriceHistory; quote: Quote | null; instrument: Instrument | null }>(
     `/api/markets/history/${encodeURIComponent(symbol)}?days=${RANGES[range].days}`,
     true,
   );
@@ -161,7 +166,32 @@ export function TradeClient() {
   const realPrices = portfolio.data?.portfolio.quotesSource === "alpaca_iex";
   const market = instruments.data?.market;
   const quote = quotes.data?.quotes.find((q) => q.symbol === symbol) ?? history.data?.quote ?? null;
-  const instrument = instruments.data?.instruments.find((i) => i.symbol === symbol);
+  const instrument =
+    instruments.data?.instruments.find((i) => i.symbol === symbol) ??
+    (history.data?.history.symbol === symbol ? history.data.instrument : null) ??
+    undefined;
+  const watched = instruments.data?.watchlist.includes(symbol) ?? false;
+  // Built-in symbols are always listed; anything else (found through search) can be starred.
+  const builtIn = Boolean(instruments.data?.instruments.some((i) => i.symbol === symbol)) && !watched;
+  const [watchBusy, setWatchBusy] = useState(false);
+  const [watchError, setWatchError] = useState<unknown>(null);
+  const reloadWatchlist = useCallback(() => {
+    void instruments.reload();
+    void quotes.reload();
+  }, [instruments, quotes]);
+  async function toggleWatch() {
+    setWatchBusy(true);
+    setWatchError(null);
+    try {
+      if (watched) await api.del(`/api/markets/watchlist/${encodeURIComponent(symbol)}`);
+      else await api.post("/api/markets/watchlist", { symbol });
+      reloadWatchlist();
+    } catch (err) {
+      setWatchError(err);
+    } finally {
+      setWatchBusy(false);
+    }
+  }
   const points = history.data?.history.points ?? [];
   const first = points[0]?.closeCents ?? 0;
   const last = quote?.priceCents ?? points.at(-1)?.closeCents ?? 0;
@@ -294,6 +324,7 @@ export function TradeClient() {
             <h2>{t("Watchlist")}</h2>
             <span className="row-meta">{t("{count} symbols", { count: quotes.data?.quotes.length ?? "…" })}</span>
           </header>
+          <SymbolSearch onSelect={setSymbol} onWatchlistChange={reloadWatchlist}>
           <ErrorBox error={quotes.error} title={t("Couldn't load quotes")} onRetry={() => void quotes.reload()} />
           {quotes.loading && !quotes.data ? (
             <Loading label={t("Loading quotes…")} />
@@ -326,6 +357,7 @@ export function TradeClient() {
               })}
             </ul>
           )}
+          </SymbolSearch>
         </section>
 
         <div className="trade-main" inert={assistantOpen || undefined}>
@@ -345,6 +377,21 @@ export function TradeClient() {
                   <span className="row-meta">{t(RANGES[range].desc)}</span>
                 </p>
               </div>
+              {instrument && !builtIn && (
+                <button
+                  type="button"
+                  className="icon-btn chart-watch"
+                  aria-pressed={watched}
+                  disabled={watchBusy}
+                  onClick={() => void toggleWatch()}
+                  aria-label={watched
+                    ? t("Remove {symbol} from watchlist", { symbol })
+                    : t("Add {symbol} to watchlist", { symbol })}
+                  title={watched ? t("On your watchlist") : t("Add to watchlist")}
+                >
+                  <Star size={18} weight={watched ? "fill" : "regular"} aria-hidden />
+                </button>
+              )}
               <div className="seg range-seg" role="radiogroup" aria-label={t("Chart range")} style={{ ["--n" as string]: RANGES.length, ["--idx" as string]: range }}>
                 <span className="seg-lens" aria-hidden />
                 {RANGES.map((r, i) => (
@@ -355,6 +402,7 @@ export function TradeClient() {
               </div>
             </header>
             <ErrorBox error={history.error} title={t("Couldn't load the chart")} onRetry={() => void history.reload()} />
+            <ErrorBox error={watchError} onDismiss={() => setWatchError(null)} />
             {points.length > 0 ? (
               <PriceChart
                 points={points}

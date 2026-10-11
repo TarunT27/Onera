@@ -215,6 +215,22 @@ Code: `lib/markets/alpaca.ts` (HTTP client), `marketdata.ts` (quote/bar/clock ca
 - A quote older than 60s is **unavailable** (`null`), and orders hold with `QUOTE_UNAVAILABLE`. Alpaca mode never falls back to simulated prices, so a made-up price can never become a real limit price.
 - Labels: `source`/`quotesSource` = `"alpaca_iex"`. `disclaimer` = `ALPACA_PRICES_DISCLAIMER`. `market` = `{ status: "open"|"closed", label, source, nextOpen, nextClose }` from the Alpaca clock.
 
+### Search and watchlist
+
+| Method | Path | Body / response |
+|---|---|---|
+| GET | `/api/markets/search?q=` | `{ results: InstrumentSearchResult[], scope: "built_in" \| "us_equities" }`. Up to 20 matches by ticker or name: exact ticker, then ticker prefix, then name |
+| GET | `/api/markets/watchlist` | `{ watchlist: string[] }`, the symbols the session user added |
+| POST | `/api/markets/watchlist` | `{ symbol }` → `201 { watchlist }`. `404` for unknown or untradable symbols. At most 50 |
+| DELETE | `/api/markets/watchlist/:symbol` | `{ watchlist }` |
+
+- **Simulated mode** searches only the 12 built-in symbols.
+- **Alpaca mode** searches every active, tradable US stock and ETF from `GET /v2/assets`, cached in `market_assets` and refreshed daily.
+  - Leveraged and inverse funds (2×, −1×, UltraPro, "Daily Target") are excluded, because Onera offers no leverage or shorting.
+  - A searched symbol is a valid instrument for quotes, history and orders. Policy's `instrument_allowed` check uses the same lookup.
+- `/api/markets/instruments` and `/api/markets/quotes` (without `symbols`) return the built-in list plus the user's watchlist.
+- Routes that price a symbol (history, order create/edit/evaluate/approve/execute) refresh that symbol's quote and bars first.
+
 ### Connecting
 
 `POST /api/brokers/alpaca/connect` (user only) validates the keys:

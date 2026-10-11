@@ -7,16 +7,21 @@ import { ServiceError } from "@/lib/errors";
 import {
   approveOrder,
   cancelOrder,
+  addToWatchlist,
   connectAlpaca,
   createMandate,
   createOrder,
   executeOrder,
   getOrder,
   getPortfolio,
+  getPriceHistory,
   getQuote,
+  listWatchlist,
   ordersExecutedTodayCents,
   placeOrder,
   refreshMarketData,
+  removeFromWatchlist,
+  searchMarket,
   syncOrders,
 } from "@/lib/markets";
 import { decimalProductCents, decimalToCents, decimalToMicros, microsToDecimal } from "@/lib/markets/math";
@@ -76,6 +81,7 @@ function fakeAlpaca() {
     /** ok | reject403 | timeout | timeoutButCreated | auth */
     postMode: "ok" as string,
     deleteMode: "ok" as "ok" | "unprocessable",
+    assetCalls: 0,
     calls: [] as string[],
   };
 
@@ -108,6 +114,16 @@ function fakeAlpaca() {
     if (path === "/v2/clock") {
       return json({ timestamp: new Date().toISOString(), is_open: true,
         next_open: "2026-10-12T13:30:00Z", next_close: "2099-01-01T21:00:00Z" });
+    }
+    if (path === "/v2/assets") {
+      fake.assetCalls++;
+      return json([
+        { symbol: "TSLA", name: "Tesla, Inc. Common Stock", exchange: "NASDAQ", tradable: true, fractionable: true, status: "active" },
+        { symbol: "TSLT", name: "T-REX 2X Long Tesla Daily Target ETF", exchange: "BATS", tradable: true, fractionable: true, status: "active" },
+        { symbol: "SPY", name: "SPDR S&P 500 ETF Trust", exchange: "ARCA", tradable: true, fractionable: true, status: "active" },
+        { symbol: "SPYD", name: "SPDR Portfolio S&P 500 High Dividend ETF", exchange: "ARCA", tradable: true, fractionable: true, status: "active" },
+        { symbol: "HALT", name: "Halted Holdings Inc.", exchange: "NYSE", tradable: false, fractionable: false, status: "active" },
+      ]);
     }
     if (path.startsWith("/v2/assets/")) {
       return json({ symbol: path.split("/").pop(), tradable: true, fractionable: true, status: "active" });
@@ -486,5 +502,59 @@ describe("secrets", () => {
     expect(err).toBeInstanceOf(ServiceError);
     expect((err as ServiceError).message).toContain("rejected the API keys");
     expect((err as ServiceError).message).not.toContain("wrongSecretValue123");
+  });
+});
+
+describe("stock search and watchlist", () => {
+  it("searches every tradable US equity by ticker or name, without leveraged or untradable funds", async () => {
+    const tesla = await searchMarket(db, "alice", "tesla");
+    expect(tesla.map((r) => r.symbol)).toEqual(["TSLA"]);
+    expect(tesla[0]).toMatchObject({ name: "Tesla, Inc. Common Stock", type: "stock", exchange: "NASDAQ",
+      builtIn: false, inWatchlist: false });
+
+    const spy = await searchMarket(db, "alice", "spy");
+    expect(spy[0]).toMatchObject({ symbol: "SPY", type: "etf" });
+    expect(spy.map((r) => r.symbol)).toContain("SPYD");
+
+    expect(await searchMarket(db, "alice", "halted")).toEqual([]);
+    expect((await searchMarket(db, "alice", "apple"))[0]).toMatchObject({ symbol: "AAPL", builtIn: true });
+    // The asset list is cached, not re-fetched per keystroke.
+    expect(fake.assetCalls).toBe(1);
+  });
+
+  it("keeps a per-user watchlist of real instruments only", async () => {
+    await searchMarket(db, "alice", "tsla");
+    expect(addToWatchlist(db, "alice", { symbol: "tsla" })).toEqual(["TSLA"]);
+    expect(addToWatchlist(db, "alice", { symbol: "TSLA" })).toEqual(["TSLA"]);
+    expect(errorCode(() => addToWatchlist(db, "alice", { symbol: "NOPE" }))).toBe("NOT_FOUND");
+    expect(errorCode(() => addToWatchlist(db, "alice", { symbol: "TSLT" }))).toBe("NOT_FOUND"); // leveraged
+    expect(errorCode(() => addToWatchlist(db, "alice", { symbol: "1$" }))).toBe("BAD_REQUEST");
+    expect(listWatchlist(db, "bob" as UserId)).toEqual([]);
+    expect((await searchMarket(db, "alice", "tesla"))[0].inWatchlist).toBe(true);
+    expect(removeFromWatchlist(db, "alice", "tsla")).toEqual([]);
+  });
+
+  it("prices, charts and trades a searched symbol through the same approval flow", async () => {
+    fake.prices.TSLA = 382.5;
+    await connectAlpaca(db, "alice");
+    await searchMarket(db, "alice", "tesla");
+    await refreshMarketData(db, "alice", { symbols: ["TSLA"], force: true });
+    expect(getQuote("TSLA", new Date(), db)).toMatchObject({ priceCents: 38_250, source: "alpaca_iex" });
+    expect(getPriceHistory("TSLA", 30, new Date(), db)?.points.at(-1)?.closeCents).toBe(38_250);
+
+    const order = createOrder(db, "alice", { accountId: ALPACA, symbol: "TSLA", side: "buy", notionalCents: 5_000 }, "user");
+    expect(order.state).toBe("AWAITING_APPROVAL");
+    const approved = approveOrder(db, "alice", order.id, { version: order.version });
+    await placeOrder(db, "alice", approved.id);
+    expect(fake.posts[0]).toMatchObject({ symbol: "TSLA", type: "limit", limit_price: "386.33" });
+  });
+
+  it("only offers the built-in list in simulated mode", async () => {
+    vi.unstubAllEnvs();
+    expect((await searchMarket(db, "alice", "apple")).map((r) => r.symbol)).toEqual(["AAPL"]);
+    expect(await searchMarket(db, "alice", "tesla")).toEqual([]);
+    const held = createOrder(db, "alice", { accountId: "acct_alice_paper", symbol: "TSLA", side: "buy", notionalCents: 1_000 }, "user");
+    expect(held.holdReasons).toContain("INSTRUMENT_NOT_ALLOWED");
+    expect(fake.assetCalls).toBe(0);
   });
 });
