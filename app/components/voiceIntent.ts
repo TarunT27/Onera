@@ -17,6 +17,7 @@ export type VoiceRoute =
 const PAGES: { href: string; label: string; names: string[] }[] = [
   { href: "/", label: "Overview", names: ["overview", "home", "home page", "dashboard"] },
   { href: "/accounts", label: "Accounts", names: ["accounts", "account", "balances"] },
+  { href: "/family", label: "Family", names: ["family", "family cards", "kids", "kids cards", "kids' cards"] },
   { href: "/transfers", label: "Transfers", names: ["transfers", "transfer", "payments"] },
   { href: "/trade", label: "Trade", names: ["trade", "trading", "paper trading", "market", "markets"] },
   { href: "/chat", label: "Assistant", names: ["assistant", "chat", "ask onera"] },

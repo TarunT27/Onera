@@ -129,6 +129,7 @@ describe("voice command routing (deterministic, no model)", () => {
     expect(routeVoiceCommand("Okay, take me to the trade page")).toMatchObject({ href: "/trade" });
     expect(routeVoiceCommand("Hey Onera, show me my accounts")).toMatchObject({ href: "/accounts" });
     expect(routeVoiceCommand("go home")).toMatchObject({ href: "/" });
+    expect(routeVoiceCommand("Open the family tab")).toMatchObject({ href: "/family" });
     expect(routeVoiceCommand("Show me my spending")).toEqual({ kind: "ask", agent: "general" });
   });
 

@@ -1,7 +1,8 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- small static mascot PNGs, no optimisation needed */
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowUp, Sparkle } from "@phosphor-icons/react";
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from "react";
+import { ArrowUp, ArrowUpRight, Sparkle } from "@phosphor-icons/react";
 import type { AssistantAgentId, ChatRequest, ChatResponse } from "@/lib/types";
 import { api } from "../components/api";
 import { Badge } from "../components/Badge";
@@ -9,12 +10,44 @@ import { ErrorBox } from "../components/ErrorBox";
 
 type TradeAgent = Exclude<AssistantAgentId, "general">;
 
-const AGENTS: { id: TradeAgent; name: string; blurb: string; ask: (s: string) => string }[] = [
-  { id: "research", name: "Research analyst", blurb: "What a company or fund is", ask: (s) => `What is ${s} and how has it done lately?` },
-  { id: "chart", name: "Chart reader", blurb: "Trend, range and volatility", ask: (s) => `Read the ${s} chart over the last 3 months.` },
-  { id: "risk", name: "Risk checker", blurb: "Concentration and your limits", ask: (s) => `Would buying $250 more of ${s} make my paper portfolio lopsided?` },
-  { id: "drafter", name: "Trade drafter", blurb: "Drafts an order you approve", ask: (s) => `Buy $250 of ${s} in my paper account.` },
+interface AgentStyle {
+  id: TradeAgent;
+  /** Tab label. */
+  label: string;
+  /** Name used in replies and screen-reader text. */
+  name: string;
+  tagline: string;
+  headline: (symbol: string) => string;
+  ask: (symbol: string) => string;
+  /** Accent: the mascot's own colour. */
+  color: string;
+  mascot: string;
+}
+
+const AGENTS: AgentStyle[] = [
+  {
+    id: "research", label: "Research", name: "Research analyst", tagline: "Companies, explained.",
+    headline: (s) => `A clearer view of ${s}.`, ask: (s) => `What is ${s} and how has it done lately?`,
+    color: "#72c6fa", mascot: "/agents/research.png",
+  },
+  {
+    id: "chart", label: "Charts", name: "Chart reader", tagline: "Trend, range and volatility.",
+    headline: (s) => `How ${s} has moved.`, ask: (s) => `Read the ${s} chart over the last 3 months.`,
+    color: "#b6abf9", mascot: "/agents/charts.png",
+  },
+  {
+    id: "risk", label: "Risk", name: "Risk checker", tagline: "Concentration and your limits.",
+    headline: (s) => `How ${s} fits your portfolio.`, ask: (s) => `Would $250 more of ${s} make my paper portfolio lopsided?`,
+    color: "#9be5bf", mascot: "/agents/risk.png",
+  },
+  {
+    id: "drafter", label: "Trade", name: "Trade drafter", tagline: "Drafts orders you approve.",
+    headline: (s) => `Draft an order for ${s}.`, ask: (s) => `Buy $250 of ${s} in my paper account.`,
+    color: "#fcb18e", mascot: "/agents/trade.png",
+  },
 ];
+const agentById = (id: TradeAgent) => AGENTS.find((a) => a.id === id)!;
+const accent = (a: AgentStyle) => ({ "--agent": a.color }) as CSSProperties;
 
 type Msg =
   | { id: number; role: "user"; content: string; agent: TradeAgent }
@@ -36,11 +69,23 @@ export function TradeAssistant({ symbol, onReviewOrder }: { symbol: string; onRe
   const [error, setError] = useState<unknown>(null);
   const nextId = useRef(1);
   const listRef = useRef<HTMLDivElement>(null);
-  const current = AGENTS.find((a) => a.id === agent)!;
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const current = agentById(agent);
+  const index = AGENTS.indexOf(current);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, pending]);
+
+  // Radio group: arrow keys move the selection (and focus), like native radios.
+  function onTabsKey(e: KeyboardEvent<HTMLDivElement>) {
+    const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = AGENTS[(index + step + AGENTS.length) % AGENTS.length];
+    setAgent(next.id);
+    tabsRef.current?.querySelector<HTMLButtonElement>(`[data-agent="${next.id}"]`)?.focus();
+  }
 
   async function send(text: string) {
     const content = text.trim();
@@ -67,69 +112,86 @@ export function TradeAssistant({ symbol, onReviewOrder }: { symbol: string; onRe
   }
 
   return (
-    <aside className="trade-assistant glass" aria-label="Assistant">
+    <aside className="trade-assistant glass" aria-label="Assistant" style={accent(current)}>
       <header className="assistant-head">
-        <span className="squircle assistant-mark">
-          <Sparkle size={16} weight="fill" aria-hidden />
-        </span>
+        <Sparkle className="assistant-spark" size={18} weight="fill" aria-hidden />
         <h2>Ask Onera</h2>
         <span className="row-meta">Not financial advice</span>
       </header>
 
-      <p className="assistant-label" id="agent-label">
-        Choose an agent
-      </p>
-      <div className="agent-grid" role="radiogroup" aria-labelledby="agent-label">
+      <div
+        ref={tabsRef}
+        className="agent-tabs"
+        role="radiogroup"
+        aria-label="Choose an agent"
+        onKeyDown={onTabsKey}
+        style={{ "--idx": index } as CSSProperties}
+      >
         {AGENTS.map((a) => (
           <button
             key={a.id}
             type="button"
             role="radio"
             aria-checked={agent === a.id}
-            className="agent-chip"
+            tabIndex={agent === a.id ? 0 : -1}
+            data-agent={a.id}
+            className="agent-tab"
             onClick={() => setAgent(a.id)}
           >
-            <strong>{a.name}</strong>
-            <small>{a.blurb}</small>
+            <img src={a.mascot} alt="" width={40} height={40} />
+            <span>{a.label}</span>
           </button>
         ))}
+        <span className="agent-bar" aria-hidden />
       </div>
+
+      <p className="agent-line" key={`line-${agent}`}>
+        <strong>{current.label}</strong> · {current.tagline}
+      </p>
 
       <div className="assistant-thread" ref={listRef} aria-live="polite">
         {messages.length === 0 && !pending && (
-          <div className="assistant-empty">
-            <p>Ask the {current.name.toLowerCase()} about {symbol}.</p>
-            <button type="button" className="suggestion" onClick={() => void send(current.ask(symbol))}>
-              {current.ask(symbol)}
+          <div className="agent-hello" key={`hello-${agent}`}>
+            <img className="agent-hero" src={current.mascot} alt="" width={72} height={72} />
+            <h3>{current.headline(symbol)}</h3>
+            <p>Ask a question to get started.</p>
+            <button type="button" className="agent-suggest" onClick={() => void send(current.ask(symbol))}>
+              <span>{current.ask(symbol)}</span>
+              <ArrowUpRight size={16} weight="bold" aria-hidden />
             </button>
           </div>
         )}
-        {messages.map((m) =>
-          m.role === "user" ? (
+        {messages.map((m) => {
+          const who = agentById(m.agent);
+          return m.role === "user" ? (
             <p key={m.id} className="bubble user">
               {m.content}
             </p>
           ) : (
-            <div key={m.id} className="bubble assistant">
-              <span className="bubble-agent">
-                {AGENTS.find((a) => a.id === m.agent)?.name}
-                {m.response.mode === "fallback" && <Badge tone="amber">Fallback · no model</Badge>}
-              </span>
-              <p>{m.content}</p>
-              {m.response.notice && <p className="bubble-notice">{m.response.notice}</p>}
-              {m.response.trace.length > 0 && (
-                <p className="bubble-tools">Used {[...new Set(m.response.trace.map((t) => t.tool))].join(" · ")}</p>
-              )}
-              {(m.response.proposedOrderIds ?? []).map((id) => (
-                <button key={id} type="button" className="pill small bubble-review" onClick={() => onReviewOrder(id)}>
-                  Review proposed order
-                </button>
-              ))}
+            <div key={m.id} className="agent-reply" style={accent(who)}>
+              <img src={who.mascot} alt="" width={28} height={28} />
+              <div className="agent-reply-body">
+                <span className="bubble-agent">
+                  {who.name}
+                  {m.response.mode === "fallback" && <Badge tone="amber">Fallback · no model</Badge>}
+                </span>
+                <p>{m.content}</p>
+                {m.response.notice && <p className="bubble-notice">{m.response.notice}</p>}
+                {m.response.trace.length > 0 && (
+                  <p className="bubble-tools">Used {[...new Set(m.response.trace.map((t) => t.tool))].join(" · ")}</p>
+                )}
+                {(m.response.proposedOrderIds ?? []).map((id) => (
+                  <button key={id} type="button" className="agent-review" onClick={() => onReviewOrder(id)}>
+                    Review proposed order
+                  </button>
+                ))}
+              </div>
             </div>
-          ),
-        )}
+          );
+        })}
         {pending && (
-          <div className="bubble assistant typing" role="status">
+          <div className="agent-typing" role="status">
+            <img src={current.mascot} alt="" width={22} height={22} />
             <span className="sr-only">The {current.name.toLowerCase()} is working…</span>
             <i />
             <i />
@@ -155,14 +217,14 @@ export function TradeAssistant({ symbol, onReviewOrder }: { symbol: string; onRe
           value={input}
           maxLength={4000}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={`Ask the ${current.name.toLowerCase()} about ${symbol}…`}
+          placeholder={messages.length ? "Ask a follow-up…" : `Ask about ${symbol}…`}
         />
         <button type="submit" aria-label="Send" disabled={pending || !input.trim()}>
-          <ArrowUp size={16} weight="bold" aria-hidden />
+          <ArrowUp size={17} weight="bold" aria-hidden />
         </button>
       </form>
       <p className="assistant-foot">
-        Agents read your synthetic data. Only the Trade drafter can propose orders, and only you can approve them.
+        Agents read your synthetic data. Only Trade can propose orders, and only you can approve them.
       </p>
     </aside>
   );
