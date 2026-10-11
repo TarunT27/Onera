@@ -134,6 +134,24 @@ async function fetchJson<T>(method: Method, path: string, body?: unknown): Promi
   return json as T;
 }
 
+/**
+ * POSTs a non-JSON body or reads a non-JSON reply (voice audio). Errors use the
+ * same envelope as fetchJson. Voice endpoints change no state, so the display
+ * cache is left alone.
+ */
+async function postRaw(path: string, body: BodyInit, headers: Record<string, string> = {}): Promise<Response> {
+  let res: Response;
+  try {
+    res = await fetch(path, { method: "POST", cache: "no-store", credentials: "same-origin", headers, body });
+  } catch (err) {
+    throw new ApiRequestError(0, "NETWORK", err instanceof Error ? err.message : "Network request failed");
+  }
+  if (res.ok) return res;
+  const json: unknown = await res.json().catch(() => undefined);
+  if (isErrorEnvelope(json)) throw new ApiRequestError(res.status, json.error.code, json.error.message, json.error.details);
+  throw new ApiRequestError(res.status, "INTERNAL", res.statusText || "Request failed");
+}
+
 export const api = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
@@ -214,6 +232,16 @@ export interface AgentRunResponse {
   insights: Insight[];
 }
 export type { Insight as AgentInsight };
+export interface VoiceStatusResponse {
+  configured: boolean;
+  provider: "ElevenLabs";
+  sttModel: string;
+  ttsModel: string;
+}
+export interface TranscriptResponse {
+  text: string;
+  languageCode: string | null;
+}
 export interface ExecuteResponse {
   action: TransferAction;
   receipt: ExecutionReceipt;
@@ -266,6 +294,16 @@ export const clearfi = {
   updateControls: (input: UpdateControlsInput) => api.patch<{ controls: UserControls }>(paths.controls, input),
 
   chat: (req: ChatRequest) => api.post<ChatResponse>("/api/chat", req),
+
+  // Voice is transport only: a transcript is sent through chat like typed text.
+  voiceStatus: () => api.get<VoiceStatusResponse>("/api/voice"),
+  transcribe: async (audio: Blob, filename: string) => {
+    const form = new FormData();
+    form.append("audio", audio, filename);
+    return (await postRaw("/api/voice/transcribe", form, { Accept: "application/json" })).json() as Promise<TranscriptResponse>;
+  },
+  speak: async (text: string) =>
+    (await postRaw("/api/voice/speak", JSON.stringify({ text }), { "Content-Type": "application/json" })).blob(),
 
   // Monitoring agents are advisory: these calls only run read-only monitors and
   // mark their findings. Nothing here approves, executes or changes controls.

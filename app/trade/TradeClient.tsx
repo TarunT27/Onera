@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import type {
   Instrument,
   PaperOrder,
@@ -82,6 +83,23 @@ export function TradeClient() {
   const last = quote?.priceCents ?? points.at(-1)?.closeCents ?? 0;
   const change = first ? last - first : 0;
   const changePct = first ? (change / first) * 100 : 0;
+
+  // Voice and other pages link here with ?order=<id> to open a proposal for review.
+  const linkedOrder = useSearchParams().get("order");
+  const lowerRef = useRef<HTMLDivElement>(null);
+  const revealReview = useRef(false);
+  useEffect(() => {
+    if (!linkedOrder) return;
+    revealReview.current = true;
+    void openOrder(linkedOrder);
+  }, [linkedOrder]); // Once per linked order; openOrder is recreated every render.
+  // Wait for the chart and watchlist so the page is tall enough to scroll.
+  const pageReady = Boolean(history.data && quotes.data && portfolio.data);
+  useEffect(() => {
+    if (!selected || !pageReady || !revealReview.current) return;
+    revealReview.current = false;
+    lowerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [selected, pageReady]);
 
   async function openOrder(id: string) {
     setOpenError(null);
@@ -210,7 +228,7 @@ export function TradeClient() {
             <p className="chart-foot">{history.data?.history.disclaimer ?? "Simulated prices — not real market data"}</p>
           </section>
 
-          <div className="trade-lower">
+          <div className="trade-lower" ref={lowerRef}>
             <OrderTicket
               symbol={symbol}
               quote={quote}

@@ -308,6 +308,8 @@ export type AssistantAgentId = (typeof ASSISTANT_AGENTS)[number];
 export const ChatRequestSchema = z.object({
   /** Defaults to "general". */
   agent: z.enum(ASSISTANT_AGENTS).optional(),
+  /** "voice" when the last message was spoken (ElevenLabs transcript). Shapes reply style only; grants nothing. */
+  source: z.enum(["text", "voice"]).optional(),
   messages: z
     .array(
       z.object({
