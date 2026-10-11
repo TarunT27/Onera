@@ -258,7 +258,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
           <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
             <p className="font-semibold">This recipient has never been verified.</p>
             <p className="mt-1">
-              ClearFi won&apos;t let money go to a destination you haven&apos;t confirmed through a trusted channel.
+              Onera won&apos;t let money go to a destination you haven&apos;t confirmed through a trusted channel.
             </p>
             {recipientNeedsVerify && (
               <Button className="mt-3" variant="warning" busy={busy === "verify"} disabled={anyBusy} onClick={verify}>
@@ -365,7 +365,7 @@ export function ActionDetail({ id, onChanged, onClose }: { id: string; onChanged
               id="hold-reasons-heading"
               className="mb-1.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400"
             >
-              {state === "HELD" ? "Why ClearFi held this transfer" : "Hold reasons"}
+              {state === "HELD" ? "Why Onera held this transfer" : "Hold reasons"}
             </p>
             <ul className="space-y-2">
               {action.holdReasons.map((r) => {
@@ -672,7 +672,7 @@ function RecipientChangeAlert({
         <div className="min-w-0">
           <p className="text-base font-semibold text-red-900 dark:text-red-100">
             {held
-              ? "ClearFi held this transfer because the destination changed since you last verified it."
+              ? "Onera held this transfer because the destination changed since you last verified it."
               : "The destination for this recipient changed since you last verified it."}
           </p>
           <p className="mt-1 text-sm text-red-800/90 dark:text-red-200/90">

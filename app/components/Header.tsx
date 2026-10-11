@@ -12,16 +12,18 @@ import {
   ArrowCounterClockwise,
   ShieldWarning,
   Robot,
+  UsersThree,
 } from "@phosphor-icons/react";
 import { clearfi, errorMessage } from "./api";
 import { useSession } from "./SessionContext";
-import { LogoMark } from "./Logo";
+import { LogoLockup } from "./Logo";
 import { DemoUserMenu } from "./DemoUserMenu";
 import type { UserId } from "@/lib/types";
 
 const navigation = [
   { href: "/", label: "Overview", icon: House },
   { href: "/accounts", label: "Accounts", icon: Bank },
+  { href: "/family", label: "Family", icon: UsersThree },
   { href: "/transfers", label: "Transfers", icon: ArrowsLeftRight },
   { href: "/trade", label: "Trade", icon: ChartLineUp },
   { href: "/chat", label: "Assistant", icon: ChatCircle },
@@ -148,9 +150,8 @@ export function Header() {
         Skip to content
       </a>
       <header className="topbar" data-scrolled={scrolled ? "true" : undefined}>
-        <Link className="wordmark" href="/" aria-label="ClearFi home">
-          <LogoMark />
-          <span>ClearFi</span>
+        <Link className="wordmark" href="/" aria-label="Onera home">
+          <LogoLockup />
         </Link>
         <nav
           aria-label="Main"

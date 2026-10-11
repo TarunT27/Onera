@@ -1,4 +1,4 @@
-# ClearFi — what's real, simulated, and roadmap
+# Onera — what's real, simulated, and roadmap
 
 Use this list for the pitch, the submission and judge Q&A. If something isn't in "Real code", don't present it as working.
 
@@ -19,6 +19,7 @@ Use this list for the pitch, the submission and judge Q&A. If something isn't in
 | Background monitoring agents: job queue (dedupe, retries, dead-letter), worker, five monitors, persisted insights | `lib/agents`, `npm run worker` | `tests/agents*.test.ts` |
 | AI governance in code: agent permission registry enforced at runtime; agents can't approve, execute, use mandates or change controls | `lib/agents/registry.ts`, `lib/agents/context.ts` | `tests/agents-registry.test.ts`, `tests/agents-scope.test.ts`, `tests/agents-boundary.test.ts` |
 | Claude assistant with read tools and proposal-only writes; tool trace shown to the user; labeled fallback | `lib/ai` | `tests/ai-boundary.test.ts` |
+| Family cards: kids' secondary cards with parent-set monthly and per-purchase limits, blocked categories, freeze, and deterministic approve/decline | `lib/family`, `/family` | `tests/family.test.ts`, e2e "family cards" |
 | Audit log of every proposal, decision, approval, execution, agent run and tool call | `lib/audit.ts` | visible in Control |
 
 ## Simulated (works, but the data or counterparty is fake)
@@ -30,7 +31,7 @@ Use this list for the pitch, the submission and judge Q&A. If something isn't in
 | Money movement | "Simulated" receipts; no bank connection |
 | Stock/ETF prices | "Simulated prices — not real market data"; simulated market is always open |
 | Paper portfolio | "Paper · not in net worth" |
-| FX rates | "ClearFi demo FX (synthetic)" with a date |
+| FX rates | "Onera demo FX (synthetic)" with a date |
 | Recipient verification | "Simulated out-of-band check" |
 | The injected article | Labeled synthetic and malicious |
 

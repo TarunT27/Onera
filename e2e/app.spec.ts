@@ -35,7 +35,7 @@ test("all navigation, overview links, evidence and responsive layout", async ({
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
-  await expect(page).toHaveTitle("ClearFi");
+  await expect(page).toHaveTitle("Onera");
   await expect(
     page.getByRole("heading", {
       name: /^Good (morning|afternoon|evening), Alice\.$/,
@@ -56,7 +56,7 @@ test("all navigation, overview links, evidence and responsive layout", async ({
   ).toBeVisible();
   for (const [label, heading] of <[string, string | RegExp][]>[
     ["Transfers", "Transfers"],
-    ["Assistant", "Ask ClearFi"],
+    ["Assistant", "Ask Onera"],
     ["Trade", "Trade"],
     ["Controls", "Control"],
     ["Accounts", "Your accounts"],
@@ -193,7 +193,7 @@ test("held transfer verification, exact approval, execution and duplicate receip
   await createRent(page);
   const changed = HOLD_MESSAGES.RECIPIENT_CHANGED;
   const why = page.getByRole("region", {
-    name: "Why ClearFi held this transfer",
+    name: "Why Onera held this transfer",
   });
   await expect(why.getByText(changed.label, { exact: true })).toBeVisible();
   await expect(why.getByText(changed.explanation)).toBeVisible();
@@ -514,6 +514,47 @@ test("trade page: propose, hold to approve and execute a paper order", async ({ 
   await review.getByRole("button", { name: "Execute paper order" }).click();
   await expect(review.getByText("Executed · simulated fill")).toBeVisible();
   await expect(review.getByText(/Paper money only, not counted in net worth/)).toBeVisible();
+  await checkLayout(page);
+  expect(errors).toEqual([]);
+});
+
+test("family cards: kids' spend, blocked-category decline, freeze and limits", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/family");
+  await expect(page.getByRole("heading", { name: "Family", level: 1 })).toBeVisible();
+  const maya = page.getByRole("region", { name: "Maya" });
+  const leo = page.getByRole("region", { name: "Leo" });
+  await expect(maya.getByText("Age 16 · Card ••3318")).toBeVisible();
+  await expect(maya.getByText(/% of the monthly limit used/)).toBeVisible();
+
+  // Leo's rules decline a gaming purchase; nothing is charged.
+  await leo.getByText("Try a purchase").click();
+  await leo.getByRole("button", { name: "Tap card" }).click();
+  await expect(leo.getByRole("status").filter({ hasText: "Declined · Category blocked" })).toBeVisible();
+
+  // An allowed purchase is approved.
+  await leo.getByLabel("Merchant").fill("Chipotle");
+  await leo.getByLabel("Category").selectOption("dining");
+  await leo.getByLabel("Amount").fill("9.50");
+  await leo.getByRole("button", { name: "Tap card" }).click();
+  await expect(leo.getByRole("status").filter({ hasText: "Approved · $9.50 at Chipotle" })).toBeVisible();
+
+  // Freeze, then the next purchase is declined; unfreeze restores it.
+  await leo.getByRole("button", { name: "Freeze card" }).click();
+  await expect(leo.getByText("Frozen", { exact: true })).toBeVisible();
+  await leo.getByRole("button", { name: "Tap card" }).click();
+  await expect(leo.getByRole("status").filter({ hasText: "Declined · Card is frozen" })).toBeVisible();
+  await leo.getByRole("button", { name: "Unfreeze" }).click();
+  await expect(leo.getByText("Active", { exact: true })).toBeVisible();
+
+  // Parent raises Maya's limit and unblocks nothing new: the saved limit persists after reload.
+  await maya.getByText("Limits & blocked categories").click();
+  await maya.getByLabel("Monthly limit", { exact: true }).fill("500");
+  await maya.getByRole("button", { name: "Save limits" }).click();
+  await expect(maya.getByText("Saved")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Maya" }).getByText("of $500.00")).toBeVisible();
   await checkLayout(page);
   expect(errors).toEqual([]);
 });

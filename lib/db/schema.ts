@@ -7,7 +7,7 @@
  */
 
 /** Bump when any schema (core or module) changes. Local demo DBs are rebuilt and reseeded. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const SUPPORTED_CURRENCIES = ["USD", "EUR", "GBP", "CAD"] as const;
 

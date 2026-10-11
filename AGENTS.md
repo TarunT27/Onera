@@ -1,6 +1,6 @@
 # Guidance for AI coding assistants (Claude, Codex, Gemini)
 
-ClearFi is a hackathon finance demo whose whole pitch is that AI can't move money without enforced controls. Keep these invariants intact when you change code.
+Onera is a hackathon finance demo whose whole pitch is that AI can't move money without enforced controls. Keep these invariants intact when you change code.
 
 ## Invariants — do not break
 

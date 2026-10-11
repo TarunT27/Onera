@@ -397,7 +397,7 @@ export function matchInternalTransfers(db: DB, userId: UserId): number {
 
 /**
  * Balances as of sync: opening balance at the start of the synced history plus
- * posted activity (including ClearFi-simulated transfers). Available = balance
+ * posted activity (including Onera-simulated transfers). Available = balance
  * plus pending holds/charges; for cards, available credit = limit + balance + pending.
  */
 function refreshBalances(db: DB, userId: UserId, row: ConnectionRow, now: Date): void {

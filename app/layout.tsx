@@ -5,7 +5,7 @@ import { SessionProvider } from "./components/SessionContext";
 import "./globals.css";
 import "./obsidian.css";
 export const metadata: Metadata = {
-  title: { default: "ClearFi", template: "%s · ClearFi" },
+  title: { default: "Onera", template: "%s · Onera" },
   description:
     "Your money, clearly. Synthetic accounts and simulated transfers, with you in control.",
 };

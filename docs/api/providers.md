@@ -2,7 +2,7 @@
 
 Routes under `app/api/institutions` and `app/api/connections`, backed by [`lib/providers`](../../lib/providers/index.ts). This page describes the code as implemented and expands the summary table in [API.md](../API.md#simulated-bank-connections-integrated-october-10).
 
-> **Simulated institutions.** Every institution is a synthetic profile that imitates the shape of a real bank's data. ClearFi is **not affiliated** with TD Bank, Bank of America, JPMorgan Chase, Barclays or RBC Royal Bank. There is no real connection, no credentials and no real money. Each institution has `simulated: true`, a display name ending in `(simulated)` and a `disclaimer` (`"Simulated connector. Not affiliated with <brand>; no real connection or credentials."`). Every connection has `simulated: true`. The UI must keep these labels visible.
+> **Simulated institutions.** Every institution is a synthetic profile that imitates the shape of a real bank's data. Onera is **not affiliated** with TD Bank, Bank of America, JPMorgan Chase, Barclays or RBC Royal Bank. There is no real connection, no credentials and no real money. Each institution has `simulated: true`, a display name ending in `(simulated)` and a `disclaimer` (`"Simulated connector. Not affiliated with <brand>; no real connection or credentials."`). Every connection has `simulated: true`. The UI must keep these labels visible.
 
 ## Conventions
 
