@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { ChatRequest, ChatResponse, ToolTraceEntry } from "@/lib/types";
-import { clearfi, paths, type ActionDetailResponse, type ResearchResponse } from "../components/api";
+import { clearfi, paths, type ActionDetailResponse, type ChatSecurityResponse, type ResearchResponse } from "../components/api";
+import { monitorLabel } from "../security/AssistantMonitor";
+import { AssistantTabs } from "../components/AssistantTabs";
 import { ActionStateBadge, Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Card, EmptyState, Loading, PageHeader, Spinner } from "../components/Card";
@@ -32,6 +34,33 @@ const MAX_CONTENT = 4000;
 
 /** Per-tab convenience so the conversation survives hopping to a transfer card and back. Cleared on user switch/reset. */
 const CHAT_STORAGE_KEY = "clearfi.chat.v1";
+/** Groups this tab's turns for security monitoring. A label only; the server scopes it to the session user. */
+const CONVERSATION_STORAGE_KEY = "clearfi.chat.conversation.v1";
+
+function newConversationId(): string {
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return `conv_${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function loadConversationId(): string {
+  try {
+    const stored = window.sessionStorage.getItem(CONVERSATION_STORAGE_KEY);
+    if (stored && /^[A-Za-z0-9_-]{8,64}$/.test(stored)) return stored;
+  } catch {
+    /* storage unavailable */
+  }
+  return storeConversationId(newConversationId());
+}
+
+function storeConversationId(id: string): string {
+  try {
+    window.sessionStorage.setItem(CONVERSATION_STORAGE_KEY, id);
+  } catch {
+    /* storage unavailable — the server still scopes the ID to this user */
+  }
+  return id;
+}
 
 function loadStored(): UiMessage[] {
   try {
@@ -43,14 +72,14 @@ function loadStored(): UiMessage[] {
   }
 }
 
-function toRequest(history: UiMessage[]): ChatRequest {
+function toRequest(history: UiMessage[], conversationId: string | undefined): ChatRequest {
   let msgs = history
     .filter((m) => m.role !== "user" || m.delivery !== "unknown")
     .map((m) => ({ role: m.role, content: (m.content.trim() || "(empty reply)").slice(0, MAX_CONTENT) }))
     .slice(-MAX_MESSAGES);
   // Conversation must start with a user turn.
   while (msgs.length > 0 && msgs[0].role !== "user") msgs = msgs.slice(1);
-  return { messages: msgs };
+  return { messages: msgs, ...(conversationId ? { conversationId } : {}) };
 }
 
 export function ChatClient() {
@@ -62,7 +91,9 @@ export function ChatClient() {
   const nextId = useRef(1);
   const bottomRef = useRef<HTMLDivElement>(null);
   const research = useApiData<ResearchResponse>(paths.research);
+  const monitor = useApiData<ChatSecurityResponse>(`${paths.chatSecurity}?limit=5`);
   const restored = useRef(false);
+  const conversationId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const stored = loadStored();
@@ -70,6 +101,10 @@ export function ChatClient() {
       nextId.current = Math.max(...stored.map((m) => m.id)) + 1;
       setMessages(stored);
     }
+    conversationId.current = loadConversationId();
+    // "Ask Onera about this" links from the personal assistant prefill the box; nothing is sent automatically.
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setInput(q.slice(0, MAX_CONTENT));
     restored.current = true;
   }, []);
 
@@ -107,7 +142,10 @@ export function ChatClient() {
     setError(null);
     setPending(true);
     try {
-      const response = await clearfi.chat(toRequest(history));
+      const response = await clearfi.chat(toRequest(history, conversationId.current));
+      if (response.conversationId) conversationId.current = storeConversationId(response.conversationId);
+      // The background monitor reviews the turn within moments; refresh its status chip.
+      window.setTimeout(() => void monitor.reload(), 1500);
       setMessages((prev) => [
         ...prev,
         { id: nextId.current++, role: "assistant", content: response.reply ?? "", response },
@@ -139,6 +177,7 @@ export function ChatClient() {
 
   return (
     <div>
+      <AssistantTabs />
       <PageHeader
         title="Ask Onera"
         description="Ask about your synthetic accounts in plain English. The assistant can read your data and propose transfers — it cannot approve, execute, change limits or verify recipients."
@@ -151,6 +190,7 @@ export function ChatClient() {
               onClick={() => {
                 setMessages([]);
                 setError(null);
+                conversationId.current = storeConversationId(newConversationId());
               }}
             >
               Clear conversation
@@ -254,6 +294,26 @@ export function ChatClient() {
         </div>
 
         <aside className="min-w-0 space-y-6 lg:col-span-4">
+          <Card title="Security monitor" subtitle="Reviews every turn in the background">
+            {monitor.data ? (
+              <div className="space-y-2 text-sm">
+                <p className="text-zinc-100">{monitorLabel(monitor.data.status)}</p>
+                <p className="text-xs text-white/50">
+                  {monitor.data.findings.length > 0
+                    ? `Latest finding: ${monitor.data.findings[0].title}.`
+                    : "No findings for your conversations."}{" "}
+                  <Link href="/security" className="font-medium text-brand-300 hover:underline">
+                    Open Security →
+                  </Link>
+                </p>
+              </div>
+            ) : monitor.error ? (
+              <ErrorBox error={monitor.error} title="Couldn't load monitor status" />
+            ) : (
+              <Loading />
+            )}
+          </Card>
+
           <Card title="What the assistant can do">
             <ul className="space-y-1.5 text-sm">
               <li className="flex gap-2">
@@ -350,6 +410,8 @@ function AssistantMessage({ response }: { response: ChatResponse }) {
         )}
       </div>
 
+      <GuardNotice response={response} />
+
       {response.notice && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
           {response.notice}
@@ -366,6 +428,52 @@ function AssistantMessage({ response }: { response: ChatResponse }) {
 
       <ToolTrace trace={trace} />
     </li>
+  );
+}
+
+/** Dispatcher refusals (nothing ran), as opposed to errors from a tool that did run. */
+const BLOCKED =
+  /^(Unknown tool|Refused: not available to this agent|Rejected: invalid input|Refused: tool budget exceeded|Rejected: sensitive data in tool input)$/;
+
+const GUARD_REASON: Record<string, string> = {
+  SENSITIVE_DATA: "it contained data the assistant must never show",
+  UNSUPPORTED_EXECUTION_CLAIM: "it claimed money moved when Onera's records say otherwise",
+  AMOUNT_MISMATCH: "an amount didn't match the proposal",
+  INLINE_CHECK_UNAVAILABLE: "a required safety check couldn't complete",
+};
+
+/** What the inline gates did on this turn, in plain words. */
+function GuardNotice({ response }: { response: ChatResponse }) {
+  const g = response.guard;
+  if (!g) return null;
+  const notes: { tone: "red" | "amber" | "blue"; text: string }[] = [];
+  if (g.withheld) {
+    const why = g.reasons.map((r) => GUARD_REASON[r]).filter(Boolean).join("; ");
+    notes.push({ tone: "red", text: `Reply withheld by a safety check${why ? ` because ${why}` : ""}. The text below comes from Onera's records.` });
+  }
+  if (g.blockedToolCalls > 0) {
+    notes.push({ tone: "amber", text: `Attempted tool use blocked: ${g.blockedToolCalls} call${g.blockedToolCalls === 1 ? " was" : "s were"} refused before running.` });
+  }
+  if (g.untrustedInstructions) {
+    notes.push({ tone: "amber", text: "Possible unsafe instruction detected in a document the assistant read. It was treated as data and grants no permissions." });
+  }
+  if (!g.withheld && g.reasons.includes("AMBIGUOUS_CLAIM")) {
+    notes.push({ tone: "blue", text: "This reply mentions a completed payment that couldn't be matched to a record. Check Transfers for the authoritative status." });
+  }
+  if (notes.length === 0) return null;
+  const tones = {
+    red: "border-red-400/25 bg-red-400/10 text-red-100",
+    amber: "border-amber-300/25 bg-amber-300/10 text-amber-100",
+    blue: "border-sky-400/25 bg-sky-400/10 text-sky-100",
+  };
+  return (
+    <ul className="space-y-1.5" aria-label="Safety checks">
+      {notes.map((n) => (
+        <li key={n.text} className={`rounded-lg border px-3 py-2 text-xs ${tones[n.tone]}`}>
+          {n.text}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -393,7 +501,13 @@ function ToolTrace({ trace }: { trace: ToolTraceEntry[] }) {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[11px] text-zinc-400 tabular-nums">{i + 1}.</span>
                 <code className="font-mono text-xs font-semibold break-all">{t.tool}</code>
-                {t.ok ? <Badge tone="green">ok</Badge> : <Badge tone="red">error</Badge>}
+                {t.ok ? (
+                  <Badge tone="green">ok</Badge>
+                ) : BLOCKED.test(t.summary) ? (
+                  <Badge tone="red" title="Refused by the tool dispatcher before anything ran">Attempted tool use blocked</Badge>
+                ) : (
+                  <Badge tone="red">error</Badge>
+                )}
               </div>
               <pre className="mt-1.5 max-h-48 max-w-full overflow-auto rounded-lg bg-zinc-100 px-2.5 py-2 font-mono text-[11px] leading-relaxed text-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
                 {prettyJson(t.input)}

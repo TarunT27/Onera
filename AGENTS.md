@@ -20,6 +20,7 @@ Onera is a hackathon finance demo whose whole pitch is that AI can't move money 
 - Feature modules (`lib/providers`, `lib/markets`, `lib/agents`) call each other only through their `index.ts`. They register tables via their own `db.ts`, never by editing `lib/db/schema.ts`.
 - Delegating to subagents: follow `docs/agents/SUBAGENT_DELEGATION.md`.
 - Services throw `ServiceError` (`lib/errors.ts`); routes wrap handlers with `handler()` from `lib/http.ts`.
+- Chat safety lives in `lib/chatguard`: inline gates run before a reply or tool result is released; the background monitor only explains afterwards. Security events are written by server code only, with redacted excerpts. Don't stream replies past the output gate (docs/api/chat-security.md).
 - New state-changing logic needs a Vitest test in `tests/` (use `freshDb()` from `tests/helpers.ts`, an in-memory seeded database).
 - UI code talks to the server only through `/api/*` fetches; never import `lib/db`, `lib/actions` or `lib/ai` into client components.
 - Run `npm run typecheck` and `npm test` before pushing.

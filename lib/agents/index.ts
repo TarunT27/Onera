@@ -29,5 +29,6 @@ export {
   type PermissionRow,
 } from "./registry";
 export { getInsight, listInsights, parseInsightStatus, setInsightStatus } from "./insights";
+export { getLatestBriefing, type LatestBriefing } from "./briefing";
 export { lastRunByAgent, listRuns } from "./runs";
 export { ScopeViolationError, PermanentJobError } from "./errors";

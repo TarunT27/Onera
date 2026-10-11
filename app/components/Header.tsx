@@ -25,13 +25,17 @@ const navigation = [
   { href: "/family", label: "Family", icon: UsersThree },
   { href: "/transfers", label: "Transfers", icon: ArrowsLeftRight },
   { href: "/trade", label: "Trade", icon: ChartLineUp },
-  { href: "/chat", label: "Assistant", icon: ChatCircle },
+  // The Assistant tab covers the chat and the personal assistant's briefing.
+  { href: "/chat", label: "Assistant", icon: ChatCircle, also: ["/briefing"] },
   { href: "/security", label: "Security", icon: ShieldWarning },
   { href: "/control", label: "Controls", icon: SlidersHorizontal },
 ];
 
 const isActive = (href: string, pathname: string) =>
-  href === "/" ? pathname === "/" : pathname.startsWith(href);
+  href === "/"
+    ? pathname === "/"
+    : pathname.startsWith(href) ||
+      (navigation.find((n) => n.href === href)?.also ?? []).some((p) => pathname.startsWith(p));
 
 /**
  * Glides the glass lens under the active tab. Long jumps stretch the lens
@@ -119,6 +123,7 @@ export function Header() {
     try {
       await clearfi.setSession(id);
       sessionStorage.removeItem("clearfi.chat.v1");
+      sessionStorage.removeItem("clearfi.chat.conversation.v1");
       window.location.reload();
     } catch (e) {
       setError(errorMessage(e));

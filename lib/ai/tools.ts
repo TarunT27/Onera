@@ -14,11 +14,20 @@
  *    exact-version approval.
  *  - Each assistant agent may call only its own tools (ToolContext.allowedTools,
  *    see agents.ts); everything else is refused here.
+ *  - A turn may make at most MAX_TOOL_CALLS_PER_TURN calls; the model can't raise it.
+ *  - A call whose name or arguments contain a sensitive pattern (lib/security/redact) is refused before it runs,
+ *    and tool names and arguments are redacted before they reach the trace or the audit log, so model-written
+ *    arguments can't carry a secret past the output gate (or into a stored memo).
+ *  - Every gate decision and result is recorded as a chat security event
+ *    (lib/chatguard) for the background monitor. Recording is best effort and
+ *    never changes the decision.
  */
 import type { BetaTool } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { z, ZodError } from "zod";
 import { createTransfer } from "@/lib/actions/service";
-import { findInjectionMarkers } from "@/lib/security/injection";
+import { MAX_TOOL_CALLS_PER_TURN, tryRecordEvent, type EventReason } from "@/lib/chatguard";
+import { findInjectionMarkers, INJECTION_MARKERS } from "@/lib/security/injection";
+import { findSensitiveData, redact } from "@/lib/security/redact";
 import { listInsights } from "@/lib/agents";
 import { writeAudit } from "@/lib/audit";
 import type { DB } from "@/lib/db";
@@ -247,6 +256,49 @@ export interface ToolContext {
   proposedOrderIds?: string[];
   /** When set, only these tools may run (the selected agent's tools). */
   allowedTools?: ReadonlySet<string>;
+  /** Chat turn identity for security events and the per-turn tool budget. Absent outside a chat turn. */
+  security?: ToolSecurityContext;
+}
+
+export interface ToolSecurityContext {
+  conversationId: string;
+  turnId: string;
+  agent: string;
+  /** Tool calls made so far in this turn (incremented by runTool). */
+  toolCalls: number;
+  /** Calls the dispatcher refused this turn. */
+  blocked: number;
+  /** Untrusted content with embedded instructions was returned this turn. */
+  untrustedInstructions: boolean;
+}
+
+/** Redacts every string inside a tool input before it is stored or shown. */
+function redactInput(value: unknown): unknown {
+  if (typeof value === "string") return redact(value, 500);
+  if (Array.isArray(value)) return value.slice(0, 50).map(redactInput);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).slice(0, 50).map(([k, v]) => [redact(k, 80), redactInput(v)]));
+  }
+  return value;
+}
+
+/** Every string (keys and values) in a tool input. Numbers are excluded: share quantities in micros can be long digit runs. */
+function stringsIn(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap(stringsIn);
+  if (value && typeof value === "object") return Object.entries(value).flatMap(([k, v]) => [k, ...stringsIn(v)]);
+  return [];
+}
+
+/** About 300 characters of `text` around the first injection marker, for the security event excerpt. */
+function markerExcerpt(text: string): string {
+  let at = -1;
+  for (const m of INJECTION_MARKERS) {
+    const i = text.search(m.pattern);
+    if (i >= 0 && (at < 0 || i < at)) at = i;
+  }
+  const start = Math.max(0, at - 80);
+  return text.slice(start, start + 300);
 }
 
 export interface ToolOutcome {
@@ -257,22 +309,59 @@ export interface ToolOutcome {
 
 export function runTool(ctx: ToolContext, name: string, rawInput: unknown): ToolOutcome {
   const input = (rawInput ?? {}) as Record<string, unknown>;
+  // Model-written: never store or display these unredacted.
+  const safeName = redact(name, 80);
+  const safeInput = redactInput(input) as Record<string, unknown>;
+  const sec = ctx.security;
+  const record = (
+    stage: "tool_request" | "tool_result" | "retrieved_content",
+    outcome: "allow" | "deny" | "observe",
+    reasons: EventReason[] = [],
+    extra: { evidenceIds?: string[]; signals?: Record<string, unknown>; excerpt?: string } = {},
+  ) => {
+    if (!sec) return;
+    tryRecordEvent(ctx.db, {
+      userId: ctx.userId, conversationId: sec.conversationId, turnId: sec.turnId, agent: sec.agent,
+      stage, tool: safeName, outcome, reasons, ...extra,
+    });
+  };
   const finish = (ok: boolean, result: unknown, summary: string): ToolOutcome => {
     writeAudit(ctx.db, {
       userId: ctx.userId, actor: "assistant", eventType: "assistant.tool_call",
-      detail: { tool: name, input, ok, summary },
+      detail: { tool: safeName, input: safeInput, ok, summary },
     });
-    return { content: JSON.stringify(result), isError: !ok, trace: { tool: name, input, ok, summary } };
+    return { content: JSON.stringify(result), isError: !ok, trace: { tool: safeName, input: safeInput, ok, summary } };
+  };
+  /** A refusal before dispatch: nothing ran. */
+  const refuse = (reason: EventReason, result: unknown, summary: string, signals?: Record<string, unknown>) => {
+    if (sec) sec.blocked++;
+    record("tool_request", "deny", [reason], { signals });
+    return finish(false, result, summary);
   };
 
-  if (!Object.hasOwn(Inputs, name)) return finish(false, { error: `Unknown tool ${name}` }, "Unknown tool");
+  if (sec) {
+    sec.toolCalls++;
+    if (sec.toolCalls > MAX_TOOL_CALLS_PER_TURN) {
+      return refuse("TOOL_BUDGET_EXCEEDED", { error: `Tool-call budget of ${MAX_TOOL_CALLS_PER_TURN} per turn reached` },
+        "Refused: tool budget exceeded", { limit: MAX_TOOL_CALLS_PER_TURN });
+    }
+  }
+  const sensitive = findSensitiveData([name, ...stringsIn(input)].join("\n"));
+  if (sensitive.length > 0) {
+    return refuse("SENSITIVE_DATA", { error: "Tool input contains data that must never be used or stored" },
+      "Rejected: sensitive data in tool input", { sensitive });
+  }
+  if (!Object.hasOwn(Inputs, name)) return refuse("UNKNOWN_TOOL", { error: `Unknown tool ${safeName}` }, "Unknown tool");
   if (ctx.allowedTools && !ctx.allowedTools.has(name)) {
-    return finish(false, { error: `Tool ${name} is not available to this agent` }, "Refused: not available to this agent");
+    return refuse("NOT_ALLOWED_FOR_AGENT", { error: `Tool ${safeName} is not available to this agent` },
+      "Refused: not available to this agent");
   }
   const parsed = Inputs[name as ToolName].safeParse(input);
   if (!parsed.success) {
-    return finish(false, { error: "Invalid input", issues: parsed.error.issues }, "Rejected: invalid input");
+    return refuse("INVALID_INPUT", { error: "Invalid input", issues: parsed.error.issues }, "Rejected: invalid input",
+      { issues: parsed.error.issues.length });
   }
+  record("tool_request", "allow");
 
   try {
     const { db, userId } = ctx;
@@ -308,7 +397,10 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
           return finish(true, { documents: listResearchDocuments() }, "Listed research documents");
         }
         const doc = getResearchDocument(p.document_id);
-        if (!doc) return finish(false, { error: "Document not found" }, "Document not found");
+        if (!doc) {
+          record("tool_result", "deny", ["NOT_FOUND"], { signals: { code: "NOT_FOUND" } });
+          return finish(false, { error: "Document not found" }, "Document not found");
+        }
         // Label embedded instructions for the threat monitor. Detection only: the content is returned unchanged
         // and the markers never feed policy or tool permissions.
         const markers = findInjectionMarkers(doc.content);
@@ -316,6 +408,10 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
           writeAudit(db, {
             userId, actor: "assistant", eventType: "assistant.untrusted_instructions",
             detail: { source: doc.id, markers },
+          });
+          if (sec) sec.untrustedInstructions = true;
+          record("retrieved_content", "observe", ["UNTRUSTED_INSTRUCTIONS"], {
+            evidenceIds: [doc.id], signals: { source: doc.id, markers }, excerpt: markerExcerpt(doc.content),
           });
         }
         return finish(
@@ -426,6 +522,9 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
           ...(p.quantity_micros !== undefined ? { quantityMicros: p.quantity_micros } : {}),
         }, "assistant");
         (ctx.proposedOrderIds ??= []).push(order.id);
+        record("tool_result", "allow", ["PROPOSAL_CREATED"], {
+          evidenceIds: [order.id], signals: { state: order.state, holdReasons: order.holdReasons },
+        });
         return finish(
           true,
           {
@@ -448,6 +547,9 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
           memo: p.memo ?? "",
         }, "assistant");
         ctx.proposedActionIds.push(action.id);
+        record("tool_result", "allow", ["PROPOSAL_CREATED"], {
+          evidenceIds: [action.id], signals: { state: action.state, holdReasons: action.holdReasons },
+        });
         return finish(
           true,
           {
@@ -462,9 +564,14 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
     }
   } catch (err) {
     if (err instanceof ServiceError) {
+      // Ownership refusals say only "not found": never whether a record exists or who owns it.
+      record("tool_result", "deny", [err.code === "NOT_FOUND" ? "NOT_FOUND" : "SERVICE_REFUSED"], {
+        signals: { code: err.code },
+      });
       return finish(false, { error: err.code, message: err.message }, `Refused: ${err.code} — ${err.message}`);
     }
     if (err instanceof ZodError) {
+      record("tool_result", "deny", ["INVALID_INPUT"], { signals: { issues: err.issues.length } });
       return finish(false, { error: "Invalid input", issues: err.issues }, "Rejected: invalid input");
     }
     throw err;

@@ -34,6 +34,7 @@ import {
 } from "./components/api";
 import { ErrorBox } from "./components/ErrorBox";
 import { PaperLabel } from "./components/Badge";
+import { AssistantPanel } from "./components/AssistantPanel";
 import { MonitoringPanel } from "./components/MonitoringPanel";
 import { useSession } from "./components/SessionContext";
 import { EmptyState, Loading } from "./components/Card";
@@ -532,6 +533,7 @@ export default function OverviewPage() {
             )}
           </section>
         </div>
+        <AssistantPanel />
         <MonitoringPanel
           accounts={accounts.data?.accounts}
           actions={actions.data?.actions}

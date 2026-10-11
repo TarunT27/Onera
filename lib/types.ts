@@ -308,6 +308,11 @@ export type AssistantAgentId = (typeof ASSISTANT_AGENTS)[number];
 export const ChatRequestSchema = z.object({
   /** Defaults to "general". */
   agent: z.enum(ASSISTANT_AGENTS).optional(),
+  /**
+   * Client-generated grouping key for security monitoring. Scoped to the session user on the server; it is a label,
+   * never an identity. The server makes one when it is missing and returns it.
+   */
+  conversationId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).optional(),
   messages: z
     .array(
       z.object({
@@ -348,6 +353,21 @@ export interface ChatResponse {
   /** The agent that answered. */
   agent: AssistantAgentId;
   notice?: string;
+  /** Echo of (or the server-made) conversation ID; send it back on the next turn. */
+  conversationId?: string;
+  /** What the inline gates did this turn. */
+  guard?: ChatGuardInfo;
+}
+
+export interface ChatGuardInfo {
+  /** The draft reply failed an inline check and was replaced with a status built from Onera's records. */
+  withheld: boolean;
+  /** Server reason codes, e.g. SENSITIVE_DATA, UNSUPPORTED_EXECUTION_CLAIM, AMBIGUOUS_CLAIM. */
+  reasons: string[];
+  /** Tool calls the dispatcher refused this turn (forbidden, malformed, over budget). */
+  blockedToolCalls: number;
+  /** Untrusted content with embedded instructions was read this turn. */
+  untrustedInstructions: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -362,6 +382,7 @@ export type ApiErrorCode =
   | "APPROVAL_INVALID"
   | "POLICY_HOLD"
   | "UNSUPPORTED"
+  | "RATE_LIMITED"
   | "INTERNAL";
 
 export interface ApiError {

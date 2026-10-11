@@ -55,13 +55,24 @@ There is deliberately **no** route that lets a client set an action's state or s
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| POST | `/api/chat` | `ChatRequest` (`{ agent?, messages: { role, content }[] }`, full visible history). `agent` is `general` (default), `research`, `chart`, `risk` or `drafter`; each gets only its own tools (`lib/ai/agents.ts`) | `ChatResponse` — `mode` is `live` (real model call) or `fallback` (labeled deterministic summary). `trace` lists every tool call the model made. `proposedActionIds` are transfer proposals and `proposedOrderIds` paper-order proposals (Trade drafter only) it created; the user still approves on the transfer card or the Trade page. `agent` is the agent that answered |
+| POST | `/api/chat` | `ChatRequest` (`{ agent?, conversationId?, messages: { role, content }[] }`, full visible history). `agent` is `general` (default), `research`, `chart`, `risk` or `drafter`; each gets only its own tools (`lib/ai/agents.ts`). `conversationId` (`[A-Za-z0-9_-]{8,64}`) groups turns for security monitoring; the server makes one if it's missing | `ChatResponse` — `mode` is `live` (real model call) or `fallback` (labeled deterministic summary). `trace` lists every tool call the model made. `proposedActionIds` are transfer proposals and `proposedOrderIds` paper-order proposals (Trade drafter only) it created; the user still approves on the transfer card or the Trade page. `agent` is the agent that answered. `conversationId` echoes the grouping key. `guard` is `{ withheld, reasons, blockedToolCalls, untrustedInstructions }`: when `withheld` is true the draft reply failed an inline check and `reply` was rebuilt from server records. `429 RATE_LIMITED` when the per-user limit (`CLEARFI_CHAT_RATE_LIMIT`, default 12/min) is reached |
 
-Assistant tools are read-only plus `propose_transfer`. There is no approve or execute tool.
+Assistant tools are read-only plus `propose_transfer`. There is no approve or execute tool. Inline gates (rate limit, tool allowlist and budget, buffered output check) and the background chat monitor are described in [api/chat-security.md](api/chat-security.md).
+
+## Personal assistant
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/agents/briefing` | — | `{ briefing, preparedAt, lastRun, agent }` — the latest briefing the `personal_assistant` agent prepared in the background for the session user (`null` before its first run). A `Briefing` has `headline`, `snapshot` (monthly income/spending, savings rate, cash, emergency-fund months, invested, top categories), `potentialAnnualSavingsCents`, `tips` (`save` / `spending` / `invest`, each with evidence IDs and an optional `insightId`), `research` (one note per holding from simulated price history), `movers` and `attention` (links to transfers and connections that need the user) |
+| POST | `/api/agents/briefing` | — | Same, after running a fresh `assistant_briefing` job for the session user now. Also returns `report` |
+
+The assistant runs every 30 minutes per user (and on demand). Deterministic rules, integer cents, no model. Inbox-worthy tips also become `assistant_tip` insights. It can't move money, propose, approve, trade or change settings.
 
 ## Security monitoring
 
 Refused requests are audited at the HTTP boundary (`handler()` in `lib/http.ts`): any `404 NOT_FOUND` or `409 INVALID_STATE | STALE_VERSION | APPROVAL_INVALID | POLICY_HOLD` writes a `request.refused` audit event under the **caller's** session user with `{ code, status, method, path }` only — never whether the record exists or who owns it. When the assistant reads a research document containing embedded instructions, `assistant.untrusted_instructions` is written with `{ source, markers }` (detection only; the document is returned unchanged).
+
+Assistant conversations have their own event stream and background monitor: `GET /api/security/chat` (status, findings, recent events) and `GET /api/security/chat/findings/:id` (`404` for another user's finding). See [api/chat-security.md](api/chat-security.md).
 
 The background **threat monitor** (`threat_sweep` job, agent `threat_monitor`) sweeps the user's own audit log shortly after new activity and raises `security_threat` insights for patterns such as repeated not-found probes, execution without approval, stale-approval replays, recipient swaps before a transfer, limit probing, controls loosened before an approval, prompt injection and refused assistant tools. Rules and thresholds: `lib/agents/monitors/threats.ts`. Findings use the existing insight routes (`GET /api/agents/insights?agentId=threat_monitor`, `PATCH /api/agents/insights/:id`) and appear on `/security`. The monitor is advisory: it cannot pause, hold, approve or execute. The page's "Pause transfers" button is the user's own `PATCH /api/controls`.
 

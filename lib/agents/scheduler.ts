@@ -9,6 +9,8 @@
  *  - per user, whenever new activity reaches the audit log: threat_sweep
  *    (key `threat_sweep:${userId}:upto:${latestAuditId}`). An idle user gets no sweeps,
  *    and nothing the threat monitor writes triggers one, so sweeps can't loop.
+ *  - every 30 minutes per user: assistant_briefing
+ *    (key `assistant_briefing:${userId}:${YYYY-MM-DDTHH:MM}` bucket start)
  */
 import type { DB } from "@/lib/db";
 import { listConnections } from "@/lib/providers";
@@ -18,6 +20,7 @@ import type { JobType, ScheduleReport } from "./types";
 
 export const DAILY_JOB_TYPES: JobType[] = ["spending_review", "subscription_review", "portfolio_review"];
 export const SYNC_INTERVAL_MS = 15 * 60_000;
+export const BRIEFING_INTERVAL_MS = 30 * 60_000;
 
 /**
  * Newest audit event that should prompt a threat sweep. Routine agent run records, insight status changes and the
@@ -35,8 +38,8 @@ export function latestSweepTrigger(db: DB, userId: UserId): number | null {
   return row.id;
 }
 
-export function syncBucket(now: Date): string {
-  return new Date(Math.floor(now.getTime() / SYNC_INTERVAL_MS) * SYNC_INTERVAL_MS).toISOString().slice(0, 16);
+export function syncBucket(now: Date, intervalMs: number = SYNC_INTERVAL_MS): string {
+  return new Date(Math.floor(now.getTime() / intervalMs) * intervalMs).toISOString().slice(0, 16);
 }
 
 export function scheduleRecurring(
@@ -47,6 +50,7 @@ export function scheduleRecurring(
   const trigger = opts.trigger ?? "schedule";
   const day = now.toISOString().slice(0, 10);
   const bucket = syncBucket(now);
+  const briefingBucket = syncBucket(now, BRIEFING_INTERVAL_MS);
   const runAfter = now.toISOString();
   const users = opts.userId
     ? [opts.userId]
@@ -62,6 +66,7 @@ export function scheduleRecurring(
 
   for (const userId of users) {
     for (const type of DAILY_JOB_TYPES) add(userId, type, `${type}:${userId}:${day}`, {});
+    add(userId, "assistant_briefing", `assistant_briefing:${userId}:${briefingBucket}`, {});
 
     const latest = latestSweepTrigger(db, userId);
     if (latest !== null) add(userId, "threat_sweep", `threat_sweep:${userId}:upto:${latest}`, { uptoAuditId: latest });
