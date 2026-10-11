@@ -197,46 +197,49 @@ export function OrderReview({
 
       <ErrorBox error={error} onDismiss={() => setError(null)} />
 
-      {order.state === "AWAITING_APPROVAL" && (
-        <HoldButton
-          label={`Hold to approve version ${order.version}`}
-          busyLabel="Approving…"
-          busy={busy === "approve"}
-          onConfirm={() => void run("approve")}
-        />
-      )}
-      {order.state === "APPROVED" && (
-        <button type="button" className="pill review-execute" disabled={busy !== null} onClick={() => void run("execute")}>
-          {busy === "execute" ? (order.venue === "onera_paper" ? "Executing…" : "Submitting…") : placeLabel(order)}
-        </button>
-      )}
-      {order.state === "SUBMITTED" && !broker?.cancelRequestedAt && (
-        <button type="button" className="pill secondary review-execute" disabled={busy !== null} onClick={() => void run("cancel")}>
-          {busy === "cancel" ? "Canceling…" : "Cancel order"}
-        </button>
-      )}
-      {order.state === "HELD" && (
-        <button type="button" className="pill secondary review-execute" disabled={busy !== null} onClick={() => void run("evaluate")}>
-          {busy === "evaluate" ? "Re-checking…" : "Re-check at current price"}
-        </button>
-      )}
-      {fill && (
-        <div className="review-fill" role="status">
-          <strong>
-            {fill.simulated ? "Executed · simulated fill" : `Filled at Alpaca${fill.partial ? " · partial" : ""}`}
-            {duplicate ? " (already executed)" : ""}
-          </strong>
-          <span>
-            {fill.side === "buy" ? "Bought" : "Sold"} {formatShares(fill.quantityMicros)} sh {fill.symbol} at{" "}
-            {fill.simulated ? "" : "an average of "}
-            {formatCents(fill.priceCents)} for {formatCents(fill.grossCents)}.{" "}
-            {fill.paper ? "Paper money only, not counted in net worth." : "Real money."}
-          </span>
-        </div>
-      )}
-      {order.state === "CANCELED" && (
-        <p className="row-meta">{order.failureReason ?? "Canceled at Alpaca before anything filled. Nothing was traded."}</p>
-      )}
+      {/* Actions stay pinned to the bottom of the pane, so approval never needs a page scroll. */}
+      <div className="review-actions">
+        {order.state === "AWAITING_APPROVAL" && (
+          <HoldButton
+            label={`Hold to approve version ${order.version}`}
+            busyLabel="Approving…"
+            busy={busy === "approve"}
+            onConfirm={() => void run("approve")}
+          />
+        )}
+        {order.state === "APPROVED" && (
+          <button type="button" className="pill review-execute" disabled={busy !== null} onClick={() => void run("execute")}>
+            {busy === "execute" ? (order.venue === "onera_paper" ? "Executing…" : "Submitting…") : placeLabel(order)}
+          </button>
+        )}
+        {order.state === "SUBMITTED" && !broker?.cancelRequestedAt && (
+          <button type="button" className="pill secondary review-execute" disabled={busy !== null} onClick={() => void run("cancel")}>
+            {busy === "cancel" ? "Canceling…" : "Cancel order"}
+          </button>
+        )}
+        {order.state === "HELD" && (
+          <button type="button" className="pill secondary review-execute" disabled={busy !== null} onClick={() => void run("evaluate")}>
+            {busy === "evaluate" ? "Re-checking…" : "Re-check at current price"}
+          </button>
+        )}
+        {fill && (
+          <div className="review-fill" role="status">
+            <strong>
+              {fill.simulated ? "Executed · simulated fill" : `Filled at Alpaca${fill.partial ? " · partial" : ""}`}
+              {duplicate ? " (already executed)" : ""}
+            </strong>
+            <span>
+              {fill.side === "buy" ? "Bought" : "Sold"} {formatShares(fill.quantityMicros)} sh {fill.symbol} at{" "}
+              {fill.simulated ? "" : "an average of "}
+              {formatCents(fill.priceCents)} for {formatCents(fill.grossCents)}.{" "}
+              {fill.paper ? "Paper money only, not counted in net worth." : "Real money."}
+            </span>
+          </div>
+        )}
+        {order.state === "CANCELED" && (
+          <p className="row-meta">{order.failureReason ?? "Canceled at Alpaca before anything filled. Nothing was traded."}</p>
+        )}
+      </div>
       {order.state === "FAILED" && order.failureReason && <p className="ticket-error">{order.failureReason}</p>}
     </section>
   );
