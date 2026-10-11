@@ -36,6 +36,7 @@ import type {
   ScheduleReport,
 } from "@/lib/agents";
 import type { ChatSecurityEvent, ChatSecurityFinding, MonitorStatus } from "@/lib/chatguard";
+import type { CardCharge, FamilyCard, FamilyOverview, SimulatePurchaseInput, UpdateCardInput } from "@/lib/family";
 import { displayCache } from "./readCache";
 
 // ---------------------------------------------------------------------------
@@ -272,6 +273,7 @@ export const paths = {
   agentInsights: "/api/agents/insights",
   briefing: "/api/agents/briefing",
   chatSecurity: "/api/security/chat",
+  family: "/api/family",
 };
 
 export const clearfi = {
@@ -298,7 +300,15 @@ export const clearfi = {
     api.patch<{ insight: Insight }>(`/api/agents/insights/${enc(id)}`, { status }),
   // The personal assistant only reads and writes its briefing and insights.
   refreshBriefing: () => api.post<BriefingResponse>(paths.briefing),
+
+  // Family cards: parent-only controls and simulated purchases.
+  updateFamilyCard: (id: string, input: UpdateCardInput) =>
+    api.patch<{ card: FamilyCard }>(`/api/family/cards/${enc(id)}`, input),
+  simulateFamilyPurchase: (id: string, input: SimulatePurchaseInput) =>
+    api.post<{ charge: CardCharge; card: FamilyCard }>(`/api/family/cards/${enc(id)}/simulate`, input),
 };
+
+export type { CardCharge, FamilyCard, FamilyOverview };
 
 export function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;

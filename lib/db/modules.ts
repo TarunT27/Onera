@@ -7,6 +7,7 @@ import type { DB } from "./index";
 import { providersModule } from "@/lib/providers/db";
 import { marketsModule } from "@/lib/markets/db";
 import { agentsModule } from "@/lib/agents/db";
+import { familyModule } from "@/lib/family/db";
 import { chatguardModule } from "@/lib/chatguard/db";
 
 export interface DbModule {
@@ -19,4 +20,4 @@ export interface DbModule {
   seed?: (db: DB, asOf: Date) => void;
 }
 
-export const MODULES: DbModule[] = [providersModule, marketsModule, agentsModule, chatguardModule];
+export const MODULES: DbModule[] = [providersModule, marketsModule, agentsModule, familyModule, chatguardModule];
