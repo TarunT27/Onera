@@ -136,35 +136,38 @@ export function OrderReview({
 
       <ErrorBox error={error} onDismiss={() => setError(null)} />
 
-      {order.state === "AWAITING_APPROVAL" && (
-        <HoldButton
-          label={t("Hold to approve version {version}", { version: order.version })}
-          busyLabel={t("Approving…")}
-          busy={busy === "approve"}
-          onConfirm={() => void run("approve")}
-        />
-      )}
-      {order.state === "APPROVED" && (
-        <button type="button" className="pill review-execute" disabled={busy !== null} onClick={() => void run("execute")}>
-          {busy === "execute" ? t("Executing…") : t("Execute paper order")}
-        </button>
-      )}
-      {order.state === "HELD" && (
-        <button type="button" className="pill secondary review-execute" disabled={busy !== null} onClick={() => void run("evaluate")}>
-          {busy === "evaluate" ? t("Re-checking…") : t("Re-check at current price")}
-        </button>
-      )}
-      {fill && (
-        <div className="review-fill" role="status">
-          <strong>{t("Executed · simulated fill")}{duplicate ? ` ${t("(already executed)")}` : ""}</strong>
-          <span>
-            {fill.side === "buy"
-              ? t("Bought {shares} sh {symbol} at {price} for {gross}.", { shares: formatShares(fill.quantityMicros), symbol: fill.symbol, price: formatCents(fill.priceCents), gross: formatCents(fill.grossCents) })
-              : t("Sold {shares} sh {symbol} at {price} for {gross}.", { shares: formatShares(fill.quantityMicros), symbol: fill.symbol, price: formatCents(fill.priceCents), gross: formatCents(fill.grossCents) })}{" "}
-            {t("Paper money only, not counted in net worth.")}
-          </span>
-        </div>
-      )}
+      {/* Actions stay pinned to the bottom of the pane, so approval never needs a page scroll. */}
+      <div className="review-actions">
+        {order.state === "AWAITING_APPROVAL" && (
+          <HoldButton
+            label={t("Hold to approve version {version}", { version: order.version })}
+            busyLabel={t("Approving…")}
+            busy={busy === "approve"}
+            onConfirm={() => void run("approve")}
+          />
+        )}
+        {order.state === "APPROVED" && (
+          <button type="button" className="pill review-execute" disabled={busy !== null} onClick={() => void run("execute")}>
+            {busy === "execute" ? t("Executing…") : t("Execute paper order")}
+          </button>
+        )}
+        {order.state === "HELD" && (
+          <button type="button" className="pill secondary review-execute" disabled={busy !== null} onClick={() => void run("evaluate")}>
+            {busy === "evaluate" ? t("Re-checking…") : t("Re-check at current price")}
+          </button>
+        )}
+        {fill && (
+          <div className="review-fill" role="status">
+            <strong>{t("Executed · simulated fill")}{duplicate ? ` ${t("(already executed)")}` : ""}</strong>
+            <span>
+              {fill.side === "buy"
+                ? t("Bought {shares} sh {symbol} at {price} for {gross}.", { shares: formatShares(fill.quantityMicros), symbol: fill.symbol, price: formatCents(fill.priceCents), gross: formatCents(fill.grossCents) })
+                : t("Sold {shares} sh {symbol} at {price} for {gross}.", { shares: formatShares(fill.quantityMicros), symbol: fill.symbol, price: formatCents(fill.priceCents), gross: formatCents(fill.grossCents) })}{" "}
+              {t("Paper money only, not counted in net worth.")}
+            </span>
+          </div>
+        )}
+      </div>
       {order.state === "FAILED" && order.failureReason && <p className="ticket-error">{t(order.failureReason)}</p>}
     </section>
   );
