@@ -313,6 +313,8 @@ export const ChatRequestSchema = z.object({
    * never an identity. The server makes one when it is missing and returns it.
    */
   conversationId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).optional(),
+  /** "voice" when the last message was spoken (ElevenLabs transcript). Shapes reply style only; grants nothing. */
+  source: z.enum(["text", "voice"]).optional(),
   messages: z
     .array(
       z.object({

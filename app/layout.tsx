@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Header } from "./components/Header";
 import { SessionProvider } from "./components/SessionContext";
+import { VoiceDock } from "./components/VoiceDock";
 import "./globals.css";
 import "./obsidian.css";
 export const metadata: Metadata = {
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           All accounts and transactions are synthetic. Transfers are simulated.
           You approve every action.
         </footer>
+        <VoiceDock />
         </SessionProvider>
       </body>
     </html>

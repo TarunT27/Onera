@@ -55,7 +55,7 @@ There is deliberately **no** route that lets a client set an action's state or s
 
 | Method | Path | Body | Response |
 |---|---|---|---|
-| POST | `/api/chat` | `ChatRequest` (`{ agent?, conversationId?, messages: { role, content }[] }`, full visible history). `agent` is `general` (default), `research`, `chart`, `risk` or `drafter`; each gets only its own tools (`lib/ai/agents.ts`). `conversationId` (`[A-Za-z0-9_-]{8,64}`) groups turns for security monitoring; the server makes one if it's missing | `ChatResponse` — `mode` is `live` (real model call) or `fallback` (labeled deterministic summary). `trace` lists every tool call the model made. `proposedActionIds` are transfer proposals and `proposedOrderIds` paper-order proposals (Trade drafter only) it created; the user still approves on the transfer card or the Trade page. `agent` is the agent that answered. `conversationId` echoes the grouping key. `guard` is `{ withheld, reasons, blockedToolCalls, untrustedInstructions }`: when `withheld` is true the draft reply failed an inline check and `reply` was rebuilt from server records. `429 RATE_LIMITED` when the per-user limit (`CLEARFI_CHAT_RATE_LIMIT`, default 12/min) is reached |
+| POST | `/api/chat` | `ChatRequest` (`{ agent?, conversationId?, source?, messages: { role, content }[] }`, full visible history). `agent` is `general` (default), `research`, `chart`, `risk` or `drafter`; each gets only its own tools (`lib/ai/agents.ts`). `conversationId` (`[A-Za-z0-9_-]{8,64}`) groups turns for security monitoring; the server makes one if it's missing. `source: "voice"` asks for a short spoken-style reply and is recorded on the `assistant.prompt` audit event; it changes no tools | `ChatResponse` — `mode` is `live` (real model call) or `fallback` (labeled deterministic summary). `trace` lists every tool call the model made. `proposedActionIds` are transfer proposals and `proposedOrderIds` paper-order proposals (Trade drafter only) it created; the user still approves on the transfer card or the Trade page. `agent` is the agent that answered. `conversationId` echoes the grouping key. `guard` is `{ withheld, reasons, blockedToolCalls, untrustedInstructions }`: when `withheld` is true the draft reply failed an inline check and `reply` was rebuilt from server records. `429 RATE_LIMITED` when the per-user limit (`CLEARFI_CHAT_RATE_LIMIT`, default 12/min) is reached |
 
 Assistant tools are read-only plus `propose_transfer`. There is no approve or execute tool. Inline gates (rate limit, tool allowlist and budget, buffered output check) and the background chat monitor are described in [api/chat-security.md](api/chat-security.md).
 
@@ -67,6 +67,18 @@ Assistant tools are read-only plus `propose_transfer`. There is no approve or ex
 | POST | `/api/agents/briefing` | — | Same, after running a fresh `assistant_briefing` job for the session user now. Also returns `report` |
 
 The assistant runs every 30 minutes per user (and on demand). Deterministic rules, integer cents, no model. Inbox-worthy tips also become `assistant_tip` insights. It can't move money, propose, approve, trade or change settings.
+
+### Voice (ElevenLabs)
+
+Voice is transport only. The UI transcribes speech, routes the transcript with a deterministic keyword router (`app/components/voiceIntent.ts`: page navigation, explicit buy/sell → `drafter`, everything else → `general`) and sends it to `POST /api/chat` with `source: "voice"`. Approvals stay a tap on the card. `ELEVENLABS_API_KEY` stays on the server.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/voice` | — | `{ configured, provider: "ElevenLabs", sttModel, ttsModel }` (never the key) |
+| POST | `/api/voice/transcribe` | multipart form with an `audio` file (≤ 10 MB, `audio/*` or `video/webm`) | `{ text, languageCode }`. Transcribes only; nothing is acted on |
+| POST | `/api/voice/speak` | `{ text }` | `audio/mpeg`. Markdown, URLs and record IDs are stripped and long replies are cut at a sentence (`lib/voice`) |
+
+Without a key both POSTs return `503 UNSUPPORTED`. ElevenLabs failures return `502` (or `429` for rate limits) with ElevenLabs' message.
 
 ## Security monitoring
 

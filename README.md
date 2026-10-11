@@ -22,6 +22,8 @@ cp .env.example .env.local
 
 Add your `ANTHROPIC_API_KEY` to `.env.local`. Without a key, chat still works in a clearly labeled fallback mode.
 
+For voice, add `ELEVENLABS_API_KEY` too. Then tap **Talk to Onera** at the bottom of any page and speak a command like "Pay Oak Street Properties $1,850 for rent", "Buy $250 of NVDA in my paper account" or "Open transfers". ElevenLabs transcribes it, the assistant runs it with the same tools and approval rules as typed chat, and the reply is read aloud.
+
 ```bash
 npm run dev
 ```

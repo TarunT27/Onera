@@ -59,14 +59,18 @@ const getClient = () => (client ??= new Anthropic());
 // If an opted-in account rejects it, retry once without it for this process.
 let serverFallbackEnabled = process.env.CLEARFI_SERVER_FALLBACK === "true";
 
-async function createMessage(messages: BetaMessageParam[], agent: AssistantAgent): Promise<BetaMessage> {
+/** Style only: a spoken turn changes how the reply reads aloud, never which tools the agent has. */
+export const VOICE_BRIEF =
+  "The user is speaking to you and will hear your reply read aloud. Answer in one to three short spoken sentences: no lists, markdown or record IDs (the app shows the details and tool trace on screen).";
+
+async function createMessage(messages: BetaMessageParam[], agent: AssistantAgent, voice: boolean): Promise<BetaMessage> {
   const params = {
     model: MODEL,
     max_tokens: 16000,
     system: [
       // The shared prompt stays first and cached; the agent brief follows it.
       { type: "text" as const, text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" as const } },
-      { type: "text" as const, text: `Selected agent: ${agent.name}. ${agent.brief}` },
+      { type: "text" as const, text: `Selected agent: ${agent.name}. ${agent.brief}${voice ? ` ${VOICE_BRIEF}` : ""}` },
     ],
     tools: TOOL_DEFINITIONS.filter((t) => agent.tools.includes(t.name)),
     messages,
@@ -227,9 +231,10 @@ export async function runChat(db: DB, userId: UserId, request: ChatRequest): Pro
     signals: { markers, messages: request.messages.length },
     excerpt: markers.length > 0 ? lastUser : null,
   });
+  const source = request.source ?? "text";
   writeAudit(db, {
     userId, actor: `user:${userId}`, eventType: "assistant.prompt",
-    detail: { text: redact(lastUser, 500), agent: agent.id },
+    detail: { text: redact(lastUser, 500), agent: agent.id, source },
   });
 
   const finish = (response: ChatResponse): ChatResponse => {
@@ -259,7 +264,7 @@ export async function runChat(db: DB, userId: UserId, request: ChatRequest): Pro
   let response: BetaMessage | null = null;
   try {
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      response = await createMessage(messages, agent);
+      response = await createMessage(messages, agent, source === "voice");
 
       if (response.stop_reason === "refusal") break;
       if (response.stop_reason === "pause_turn") {
