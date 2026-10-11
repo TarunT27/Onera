@@ -1,5 +1,7 @@
 /**
- * Paper broker — the only code that fills orders and moves paper cash/shares.
+ * Onera paper broker — the only code that fills Onera paper orders and moves
+ * paper cash/shares. Orders in Alpaca-linked accounts never fill here: they are
+ * submitted to Alpaca by brokerage.ts (which reuses verifyApprovedOrder).
  *
  * One IMMEDIATE SQLite transaction verifies owner, state and the approval hash,
  * reruns policy (pause, limits, cash/shares, mandate), checks the current
@@ -20,13 +22,13 @@ import { randomBytes } from "node:crypto";
 import { writeAudit } from "@/lib/audit";
 import type { DB } from "@/lib/db";
 import { conflict, ServiceError } from "@/lib/errors";
-import type { UserId } from "@/lib/types";
+import type { Account, UserId } from "@/lib/types";
 import { orderApprovalHash } from "./approval";
 import { MICROS_PER_SHARE, mulDiv, valueCents } from "./math";
 import { applyOrderEvaluation, approvableOrder, getOrder, loadOrderRow, runOrderPolicy } from "./orders";
-import type { PositionRow } from "./rows";
-import type { ExecuteOrderResult, OrderFill } from "./types";
-import { msg } from "@/lib/i18n/msg";
+import type { OrderRow, PositionRow } from "./rows";
+import type { ExecuteOrderResult, OrderFill, OrderPolicyResult, Quote } from "./types";
+import { msg, tpl } from "@/lib/i18n/msg";
 
 type Outcome =
   | { kind: "executed" }
@@ -37,8 +39,39 @@ type Executor =
   | { kind: "user" }
   | { kind: "mandate"; mandateId: string; agentId: string };
 
+/**
+ * Pre-execution checks shared by the Onera paper broker and Alpaca submission. Must run
+ * inside the caller's IMMEDIATE transaction on an APPROVED row:
+ *  1. the stored approval matches the exact current version (incl. price bound and venue);
+ *  2. current policy (pause, limits, cash/shares, mandate, quote within bound) still passes.
+ * On failure the order is re-evaluated (approval discarded) and the error is returned for
+ * the caller to throw after commit.
+ */
+export function verifyApprovedOrder(
+  db: DB,
+  userId: UserId,
+  row: OrderRow,
+  now: Date,
+): { ok: true; policy: OrderPolicyResult; account: Account; quote: Quote } | { ok: false; error: ServiceError } {
+  const expected = orderApprovalHash(approvableOrder(row));
+  if (row.approval_hash !== expected || row.approved_version !== row.version || row.price_bound_cents === null) {
+    writeAudit(db, { userId, actor: "system", eventType: "order.approval_invalidated", actionId: row.id,
+      detail: { reason: "Order changed after approval" } });
+    applyOrderEvaluation(db, userId, row, "system", now, { bumpOnReprice: true });
+    return { ok: false, error: conflict("APPROVAL_INVALID",
+      msg("Something material changed after approval. The approval was discarded; review the order again.")) };
+  }
+  const { policy, account, quote } = runOrderPolicy(db, userId, row, now);
+  if (policy.decision === "HOLD" || !quote) {
+    applyOrderEvaluation(db, userId, row, "system", now, { bumpOnReprice: true });
+    return { ok: false, error: conflict("POLICY_HOLD",
+      tpl("Execution blocked: {reasons}. The approval was discarded.", { reasons: policy.reasons.join(", ") }), { reasons: policy.reasons }) };
+  }
+  return { ok: true, policy, account, quote };
+}
+
 /** SQLITE_BUSY / SQLITE_LOCKED (and extended codes): another writer holds the lock. Transient. */
-function isTransientLockError(err: unknown): boolean {
+export function isTransientLockError(err: unknown): boolean {
   const code = (err as { code?: unknown } | null)?.code;
   return typeof code === "string" && (code.startsWith("SQLITE_BUSY") || code.startsWith("SQLITE_LOCKED"));
 }
@@ -76,6 +109,13 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
     outcome = db.transaction((): Outcome => {
       const row = loadOrderRow(db, userId, orderId);
 
+      if (row.venue !== "onera_paper") {
+        writeAudit(db, { userId, actor, eventType: "order.execute_refused", actionId: orderId,
+          detail: { reason: "BROKER_ORDER", venue: row.venue, state: row.state } });
+        return { kind: "rejected", error: conflict("INVALID_STATE",
+          msg("This order is placed through Alpaca, not Onera's paper broker. Submit it to Alpaca instead."),
+          { venue: row.venue }) };
+      }
       if (row.state === "EXECUTED") {
         writeAudit(db, { userId, actor, eventType: "order.execute_duplicate", actionId: orderId });
         return { kind: "duplicate" };
@@ -84,7 +124,7 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
         writeAudit(db, { userId, actor, eventType: "order.execute_refused", actionId: orderId,
           detail: { reason: "NOT_APPROVED", state: row.state, holdReasons: JSON.parse(row.hold_reasons) } });
         return { kind: "rejected", error: conflict("INVALID_STATE",
-          `Order is ${row.state}; only an APPROVED order can execute`, { state: row.state }) };
+          tpl("Order is {state}; only an APPROVED order can execute", { state: row.state }), { state: row.state }) };
       }
       // An agent may only execute its own order, authorized by the mandate it used.
       if (executor.kind === "mandate" && (row.mandate_id !== executor.mandateId || row.created_by !== actor
@@ -95,27 +135,14 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
           msg("Agents can only execute their own mandate-authorized orders")) };
       }
 
-      // 1. The approval must match the exact current order version, including the price bound.
-      const expected = orderApprovalHash(approvableOrder(row));
-      if (row.approval_hash !== expected || row.approved_version !== row.version || row.price_bound_cents === null) {
-        writeAudit(db, { userId, actor: "system", eventType: "order.approval_invalidated", actionId: orderId,
-          detail: { reason: "Order changed after approval" } });
-        applyOrderEvaluation(db, userId, row, "system", now, { bumpOnReprice: true });
-        return { kind: "rejected", error: conflict("APPROVAL_INVALID",
-          msg("Something material changed after approval. The approval was discarded; review the order again.")) };
-      }
+      // 1–2. Exact-version approval, then current controls, limits, cash/shares, mandate and price bound.
+      const verified = verifyApprovedOrder(db, userId, row, now);
+      if (!verified.ok) return { kind: "rejected", error: verified.error };
+      const { account, quote } = verified;
 
-      // 2. Current controls, limits, cash/shares, mandate and price bound must still pass.
-      const { policy, account, quote } = runOrderPolicy(db, userId, row, now);
-      if (policy.decision === "HOLD" || !quote) {
-        applyOrderEvaluation(db, userId, row, "system", now, { bumpOnReprice: true });
-        return { kind: "rejected", error: conflict("POLICY_HOLD",
-          `Execution blocked: ${policy.reasons.join(", ")}. The approval was discarded.`, { reasons: policy.reasons }) };
-      }
-
-      // 3. Fill at the current simulated price.
+      // 3. Fill at the current price (simulated, or Alpaca's last trade in Alpaca market-data mode).
       const priceCents = quote.priceCents;
-      const bound = row.price_bound_cents;
+      const bound = row.price_bound_cents!;
       const inBound = row.side === "buy" ? priceCents <= bound : priceCents >= bound;
       if (!inBound) throw new Error(msg("Price outside the approved bound")); // policy already checked; defense in depth
 
@@ -158,7 +185,10 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
         realizedPnlCents: row.side === "sell" ? grossCents - costPortionCents : null,
         approvedBy: row.approved_by!,
         executedBy: actor,
-        quoteSource: "simulated",
+        quoteSource: quote.source,
+        venue: "onera_paper",
+        partial: false,
+        brokerOrderId: null,
         paper: true,
         simulated: true,
       };
@@ -207,7 +237,7 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
       writeAudit(db, { userId, actor, eventType: "order.executed", actionId: orderId,
         detail: { fillId: fill.fillId, version: row.version, symbol: row.symbol, side: row.side, quantityMicros,
           priceCents, grossCents, priceBoundCents: bound, approvedBy: row.approved_by, mandateId: row.mandate_id,
-          paper: true, simulated: true } });
+          quoteSource: quote.source, paper: true, simulated: true } });
       return { kind: "executed" };
     }).immediate();
   } catch (err) {
@@ -228,7 +258,7 @@ function runExecution(db: DB, userId: UserId, orderId: string, executor: Executo
       if (isTransientLockError(recordErr)) throw brokerBusy();
       throw recordErr;
     }
-    throw new ServiceError("INTERNAL", `Paper order failed: ${message}`, 500);
+    throw new ServiceError("INTERNAL", tpl("Paper order failed: {message}", { message }), 500);
   }
 
   if (outcome.kind === "rejected") throw outcome.error;

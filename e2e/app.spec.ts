@@ -14,17 +14,23 @@ async function checkLayout(page: Page) {
     ),
   ).toBeTruthy();
 }
+/** Opens a From/To picker and chooses the option with this visible name. */
+async function pickAccount(page: Page, slot: "From" | "To", name: string) {
+  const list = page.getByRole("radiogroup", { name: `${slot} account` });
+  if (!(await list.isVisible())) {
+    await page.getByRole("button", { name: new RegExp(`^${slot}:`) }).click();
+  }
+  await list.getByText(name, { exact: true }).click();
+  await expect(list).toHaveCount(0);
+}
 async function createRent(page: Page) {
   await page.goto("/transfers");
-  await page
-    .getByLabel("From", { exact: true })
-    .selectOption("acct_alice_checking");
-  await page
-    .getByLabel("To", { exact: true })
-    .selectOption("rcp_alice_landlord");
+  await page.getByRole("radio", { name: "Pay someone", exact: true }).click();
+  await pickAccount(page, "From", "Everyday Checking");
+  await pickAccount(page, "To", "Oak Street Properties (landlord)");
   await page.getByLabel("Amount", { exact: false }).fill("1850");
   await page
-    .getByRole("button", { name: "Create transfer proposal", exact: true })
+    .getByRole("button", { name: "Review transfer", exact: true })
     .click();
   await expect(page).toHaveURL(/id=/);
 }
@@ -80,7 +86,7 @@ test("all navigation, overview links, evidence and responsive layout", async ({
   }
   await page.getByRole("link", { name: "New transfer", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Create transfer proposal" }),
+    page.getByRole("button", { name: "Review transfer" }),
   ).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -125,9 +131,9 @@ test("accounts search, currency, holdings and preselected transfer source", asyn
   await page.getByLabel("Account type").selectOption("all");
   await page.getByRole("button", { name: /High-Yield Savings/ }).click();
   await page.getByRole("link", { name: "Transfer from this account" }).click();
-  await expect(page.getByLabel("From", { exact: true })).toHaveValue(
-    "acct_alice_savings",
-  );
+  await expect(
+    page.getByRole("button", { name: /^From: High-Yield Savings/ }),
+  ).toBeVisible();
   await page.goto("/accounts");
   await page.getByLabel("Search accounts or activity").fill("Barclays");
   await expect(page.getByRole("button", { name: /£/ }).first()).toBeVisible();
@@ -199,7 +205,7 @@ test("held transfer verification, exact approval, execution and duplicate receip
   await expect(why.getByText(changed.explanation)).toBeVisible();
   await expect(why.getByText(changed.recovery)).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Approve transfer", exact: true }),
+    page.getByRole("button", { name: /^Approve/ }),
   ).toHaveCount(0);
   await page
     .getByRole("button", { name: "Try to execute anyway", exact: true })
@@ -214,10 +220,7 @@ test("held transfer verification, exact approval, execution and duplicate receip
     })
     .click();
   await page.getByRole("button", { name: "Check again", exact: true }).click();
-  await page.getByRole("button", { name: "Approve transfer", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Send demo transfer", exact: true })
-    .click();
+  await page.getByRole("button", { name: /^Approve & send/ }).click();
   await expect(page.getByText("✓ Transfer complete", { exact: true })).toBeVisible();
   await page
     .getByRole("button", {
@@ -239,24 +242,20 @@ test("edit invalidates approval; paused controls stop execution; limits save", a
   request,
 }) => {
   await page.goto("/transfers");
-  await page
-    .getByLabel("From", { exact: true })
-    .selectOption("acct_alice_checking");
-  await page
-    .getByLabel("To", { exact: true })
-    .selectOption("rcp_alice_savings");
+  await pickAccount(page, "From", "Everyday Checking");
+  await pickAccount(page, "To", "High-Yield Savings");
   await page.getByLabel("Amount", { exact: false }).fill("25");
-  await page.getByRole("button", { name: "Create transfer proposal" }).click();
+  await page.getByRole("button", { name: "Review transfer" }).click();
   await expect(page).toHaveURL(/id=/);
-  await page.getByRole("button", { name: "Approve transfer", exact: true }).click();
+  await page.getByRole("button", { name: "Approve only", exact: true }).click();
   await page.getByRole("button", { name: "Edit amount" }).click();
   await page.getByLabel("New amount in dollars").fill("30");
   await page.getByRole("button", { name: "Save new amount", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Approve transfer", exact: true }),
+    page.getByRole("button", { name: "Approve only", exact: true }),
   ).toBeEnabled();
   const actionUrl = page.url();
-  await page.getByRole("button", { name: "Approve transfer", exact: true }).click();
+  await page.getByRole("button", { name: "Approve only", exact: true }).click();
   await page.goto("/control");
   await page.getByRole("button", { name: /Pause all execution/ }).click();
   await expect(page.getByRole("button", { name: /Resume/ })).toBeVisible();

@@ -21,9 +21,9 @@ import { findInstrument } from "./instruments";
 import { createOrderInternal, getOrder } from "./orders";
 import { toMandate, type MandateRow } from "./rows";
 import { AGENT_ID_PATTERN, CreateMandateSchema, MandateOrderSchema } from "./schemas";
-import { assertTradable, loadMandateRow, loadOwnedAccount, mandateUsedTodayCents } from "./store";
+import { assertTradable, brokerLinkFor, loadMandateRow, loadOwnedAccount, mandateUsedTodayCents } from "./store";
 import type { Mandate, MandateOrderResult } from "./types";
-import { msg } from "@/lib/i18n/msg";
+import { msg, tpl } from "@/lib/i18n/msg";
 
 export const MAX_MANDATE_DAYS = 90;
 const DAY_MS = 86_400_000;
@@ -49,16 +49,21 @@ export function getMandate(db: DB, userId: UserId, mandateId: string, now: Date 
 export function createMandate(db: DB, userId: UserId, input: unknown): Mandate {
   const data = CreateMandateSchema.parse(input);
   const now = new Date();
-  assertTradable(loadOwnedAccount(db, userId, data.accountId));
+  const account = loadOwnedAccount(db, userId, data.accountId);
+  // Autonomous trading stays in Onera's simulated paper broker: never against an Alpaca account.
+  if (brokerLinkFor(db, userId, data.accountId)) {
+    throw badRequest(msg("Mandates only cover Onera paper accounts. Alpaca orders always need your approval."));
+  }
+  assertTradable(account);
 
   const symbols = [...new Set(data.symbols)];
   const unknown = symbols.filter((s) => !findInstrument(s));
-  if (unknown.length > 0) throw badRequest(`Unsupported symbols: ${unknown.join(", ")}`);
+  if (unknown.length > 0) throw badRequest(tpl("Unsupported symbols: {symbols}", { symbols: unknown.join(", ") }));
 
   const expires = new Date(data.expiresAt);
   if (expires.getTime() <= now.getTime()) throw badRequest(msg("expiresAt must be in the future"));
   if (expires.getTime() > now.getTime() + MAX_MANDATE_DAYS * DAY_MS) {
-    throw badRequest(`Mandates expire within ${MAX_MANDATE_DAYS} days`);
+    throw badRequest(tpl("Mandates expire within {days} days", { days: MAX_MANDATE_DAYS }));
   }
 
   const id = `mdt_${randomBytes(5).toString("hex")}`;

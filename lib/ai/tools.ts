@@ -43,7 +43,8 @@ import {
   getTradingControls,
   MAX_HISTORY_DAYS,
   ordersExecutedTodayCents,
-  SIMULATED_PRICES_DISCLAIMER,
+  pricesDisclaimer,
+  quoteSource,
 } from "@/lib/markets";
 import { listConnectionAccounts, listConnections } from "@/lib/providers";
 import { detectSubscriptionIncreases } from "@/lib/finance/subscriptions";
@@ -186,11 +187,11 @@ export const TOOL_DEFINITIONS: BetaTool[] = [
   {
     name: "propose_order",
     description:
-      "Create a PAPER-trading order PROPOSAL (simulated money, simulated prices) in one of the user's paper accounts. This does not trade. Onera's policy engine checks it, and the user must review and approve the exact order version in the app. You cannot approve or execute. Buys use notional_cents OR quantity_micros; sells must use quantity_micros. Only use when the user asked for this order.",
+      "Create a trading order PROPOSAL in one of the user's tradable accounts: an Onera paper account (simulated money) or a connected Alpaca paper account (paper money, real market prices). This does not trade. Onera's policy engine checks it, and the user must review and approve the exact order version in the app, then submit it themselves. You cannot approve, execute or submit. Live (real-money) accounts refuse assistant proposals. Buys use notional_cents OR quantity_micros; sells must use quantity_micros. Only use when the user asked for this order.",
     input_schema: {
       type: "object",
       properties: {
-        account_id: { type: "string", description: "A paper account ID from get_portfolio (tradable: true)." },
+        account_id: { type: "string", description: "A tradable account ID from get_portfolio (tradable: true)." },
         symbol: { type: "string", minLength: 1, maxLength: 10 },
         side: { type: "string", enum: ["buy", "sell"] },
         notional_cents: { type: "integer", minimum: 100, description: "Dollar amount in integer cents, e.g. $250.00 = 25000. Buys only." },
@@ -452,6 +453,7 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
       }
       case "get_portfolio": {
         const portfolio = getPortfolio(db, userId);
+        const simulatedPrices = portfolio.quotesSource === "simulated";
         return finish(
           true,
           {
@@ -461,17 +463,17 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
             asOf: portfolio.asOf,
             quotesSource: portfolio.quotesSource,
             disclaimer: portfolio.disclaimer,
-            simulated: true,
+            simulated: simulatedPrices,
           },
           `${portfolio.accounts.length} investment account(s), ${portfolio.accounts.reduce((n, a) => n + a.positions.length, 0)} position(s)`,
         );
       }
       case "get_quotes": {
         const p = parsed.data as z.infer<typeof Inputs.get_quotes>;
-        const { quotes, unknown } = getQuotes(p.symbols);
+        const { quotes, unknown } = getQuotes(p.symbols, new Date(), db);
         return finish(
           true,
-          { quotes, unknown, simulated: true, disclaimer: SIMULATED_PRICES_DISCLAIMER },
+          { quotes, unknown, simulated: quoteSource() === "simulated", disclaimer: pricesDisclaimer() },
           `${quotes.length} quote(s)${unknown.length ? `, unknown: ${unknown.join(", ")}` : ""}`,
         );
       }
@@ -494,12 +496,13 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
       }
       case "get_price_history": {
         const p = parsed.data as z.infer<typeof Inputs.get_price_history>;
-        const history = getPriceHistory(p.symbol, p.days ?? 30);
-        if (!history) return finish(false, { error: "Symbol not in the simulated catalog" }, `Unknown symbol ${p.symbol}`);
+        const history = getPriceHistory(p.symbol, p.days ?? 30, new Date(), db);
+        if (!history) return finish(false, { error: "Symbol not in the supported catalog" }, `Unknown symbol ${p.symbol}`);
+        const simulated = history.source === "simulated";
         return finish(
           true,
-          { ...history, simulated: true },
-          `${history.symbol}: ${history.points.length} simulated price point(s)`,
+          { ...history, simulated },
+          `${history.symbol}: ${history.points.length} ${simulated ? "simulated" : "Alpaca"} price point(s)`,
         );
       }
       case "get_trading_controls": {
@@ -533,10 +536,13 @@ export function runTool(ctx: ToolContext, name: string, rawInput: unknown): Tool
             hold_reasons: order.holdReasons,
             failed_checks: order.policy?.checks.filter((c) => !c.passed).map((c) => c.detail) ?? [],
             price_bound_cents: order.priceBoundCents,
-            paper: true,
-            note: "Paper-order proposal only. The user must review and approve it in the app. You cannot approve or execute it.",
+            venue: order.venue,
+            paper: order.paper,
+            note: order.venue === "onera_paper"
+              ? "Paper-order proposal only. The user must review and approve it in the app. You cannot approve or execute it."
+              : "Proposal only. If the user approves it, they submit it to Alpaca themselves as a limit order at the price bound. You cannot approve or submit it.",
           },
-          `Proposed paper order ${order.id} → ${order.state}${order.holdReasons.length ? ` (${order.holdReasons.join(", ")})` : ""}`,
+          `Proposed ${order.venue === "onera_paper" ? "paper" : "Alpaca"} order ${order.id} → ${order.state}${order.holdReasons.length ? ` (${order.holdReasons.join(", ")})` : ""}`,
         );
       }
       case "propose_transfer": {

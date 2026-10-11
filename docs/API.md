@@ -101,7 +101,10 @@ All private operations derive the user from the session and return 404 for anoth
 | POST | `/api/connections/:id/reconnect` | `{ connection }` — simulated reauthentication |
 | POST | `/api/connections/:id/disconnect` | `{ connection }` — retains history, removes transfer capabilities |
 | POST | `/api/connections/:id/simulate` | `{ scenario: "login_required" \| "error" }` → `{ connection }` |
-| GET | `/api/portfolio` | `{ portfolio }` — simulated holdings, paper value separate |
+| GET | `/api/portfolio` | `{ portfolio }` — holdings at simulated (or Alpaca) prices, paper value separate |
+| GET | `/api/brokers/alpaca` | `{ connection }` — Alpaca link status, never keys |
+| POST | `/api/brokers/alpaca/connect` | `{ connection }` — links the server-configured Alpaca account to the session user |
+| POST | `/api/orders/:id/cancel` | `{ order }` — asks Alpaca to cancel an open order |
 
 Account/transaction amounts retain their own USD, GBP, CAD or EUR currency. Transfers and limits remain USD. `/api/accounts` also returns `netWorth`, including its cash/debt, simulated investments and dated FX rates. Paper balances are excluded. UI account values use cash plus positions where available; unavailable holdings are labeled rather than silently presented as total account value.
 

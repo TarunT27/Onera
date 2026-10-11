@@ -98,7 +98,7 @@ export function OrderTicket({
       </header>
 
       {!account ? (
-        <p className="row-meta">{t("No paper trading account is available for this user.")}</p>
+        <p className="row-meta">{t("No trading account is available for this user.")}</p>
       ) : side === "buy" ? (
         <>
           <div className="ticket-amount">
@@ -164,8 +164,8 @@ export function OrderTicket({
             <dd>{controls ? formatCents(controls.perOrderLimitCents) : "—"}</dd>
           </div>
           <div>
-            <dt>{t("Paper buying power")}</dt>
-            <dd>{formatCents(account.cashCents)}</dd>
+            <dt>{account.venue === "onera_paper" ? t("Paper buying power") : t("Buying power (no margin)")}</dt>
+            <dd>{formatCents(account.buyingPowerCents)}</dd>
           </div>
         </dl>
       )}
@@ -178,7 +178,13 @@ export function OrderTicket({
           <ArrowRight size={16} weight="bold" />
         </span>
       </button>
-      <p className="ticket-foot">{t("Nothing executes until you approve this exact version.")}</p>
+      <p className="ticket-foot">
+        {account?.venue === "alpaca_live"
+          ? t("Real money. Nothing is sent to Alpaca until you approve this exact version and submit it.")
+          : account?.venue === "alpaca_paper"
+            ? t("Nothing is sent to Alpaca until you approve this exact version and submit it.")
+            : t("Nothing executes until you approve this exact version.")}
+      </p>
     </form>
   );
 }
