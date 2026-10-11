@@ -1,4 +1,25 @@
 import type { Account, CurrencyCode, FxRate, Transaction } from "@/lib/types";
+import { msg } from "@/lib/i18n/msg";
+
+/** Display labels; render with `t(...)`. */
+export const ACCOUNT_TYPE_LABEL = {
+  checking: msg("Checking"),
+  savings: msg("Savings"),
+  brokerage: msg("Brokerage"),
+  credit: msg("Credit card"),
+} as const;
+
+export const CONNECTION_STATUS_LABEL = {
+  healthy: msg("healthy"),
+  login_required: msg("login required"),
+  error: msg("error"),
+  disconnected: msg("disconnected"),
+} as const;
+
+export const TXN_STATUS_LABEL = {
+  posted: msg("posted"),
+  pending: msg("pending"),
+} as const;
 
 /** Defense-in-depth for display; session ownership remains enforced by the server. */
 export function filterAccountActivity<T extends Pick<Transaction, "accountId" | "description" | "merchant" | "category">>(transactions: T[], accountId: string | undefined, query: string, allowedAccountIds?: readonly string[]): T[] {

@@ -1,6 +1,7 @@
 "use client";
 
 import { ApiRequestError, errorMessage } from "./api";
+import { useT } from "./I18nContext";
 
 /**
  * Shows the server's exact refusal. For API errors the status + code is
@@ -19,6 +20,7 @@ export function ErrorBox({
   onRetry?: () => void;
   className?: string;
 }) {
+  const t = useT();
   if (error === null || error === undefined || error === false) return null;
   const isApi = error instanceof ApiRequestError;
   return (
@@ -31,27 +33,27 @@ export function ErrorBox({
           ✕
         </span>
         <div className="min-w-0 flex-1">
-          {title && <p className="font-semibold">{title}</p>}
+          {title && <p className="font-semibold">{t(title)}</p>}
           {isApi ? (
             <p className="break-words">
               <code className="mr-1.5 rounded-md bg-red-400/20 px-1.5 py-0.5 font-mono text-xs font-semibold text-red-100">
                 {error.status > 0 ? `${error.status} ${error.code}` : error.code}
               </code>
-              {error.serverMessage}
+              {t(error.serverMessage)}
             </p>
           ) : (
-            <p className="break-words">{errorMessage(error)}</p>
+            <p className="break-words">{errorMessage(error, t)}</p>
           )}
           {(onRetry || onDismiss) && (
             <div className="mt-2 flex gap-3 text-xs font-medium">
               {onRetry && (
                 <button type="button" onClick={onRetry} className="underline underline-offset-2 hover:no-underline">
-                  Retry
+                  {t("Retry")}
                 </button>
               )}
               {onDismiss && (
                 <button type="button" onClick={onDismiss} className="underline underline-offset-2 hover:no-underline">
-                  Dismiss
+                  {t("Dismiss")}
                 </button>
               )}
             </div>

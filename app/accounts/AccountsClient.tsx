@@ -26,9 +26,12 @@ import "./account-explorer.css";
 import "./accounts-screen.css";
 import { AccountPanel } from "./AccountPanel";
 import { CurrencyValue } from "./CurrencyValue";
-import { directoryActivityScope } from "./presentation";
+import { directoryActivityScope, CONNECTION_STATUS_LABEL } from "./presentation";
+import { useI18n } from "../components/I18nContext";
+import { formatDateTime } from "../components/format";
 
 export function AccountsClient() {
+  const { t, tp } = useI18n();
   const search = useSearchParams();
   const router = useRouter();
   const selected = search.get("id");
@@ -77,10 +80,10 @@ export function AccountsClient() {
       const result = await api.post<{ sync?: SyncSummary }>(path, body);
       setNotice(
         result.sync
-          ? `Sync complete. ${result.sync.added} added, ${result.sync.modified} updated.`
+          ? t("Sync complete. {added} added, {modified} updated.", { added: result.sync.added, modified: result.sync.modified })
           : key.startsWith("link")
-            ? "Demo bank linked. Accounts are ready."
-            : "Connection updated.",
+            ? t("Demo bank linked. Accounts are ready.")
+            : t("Connection updated."),
       );
       await Promise.all([
         accounts.reload(),
@@ -108,21 +111,21 @@ export function AccountsClient() {
     return (
       <div className="account-detail-page screen">
         <div className="account-detail-head">
-          <Button variant="ghost" className="account-back" onClick={() => choose(null)}><ArrowLeft size={18} aria-hidden />All accounts</Button>
+          <Button variant="ghost" className="account-back" onClick={() => choose(null)}><ArrowLeft size={18} aria-hidden />{t("All accounts")}</Button>
           <div className="page-intro account-detail-intro">
-            <h1 id="account-heading" tabIndex={-1}>{openedAccount?.name ?? "Account details"}</h1>
-            <p>{openedAccount ? `${openedAccount.institution} · ••${openedAccount.mask} · ${openedAccount.currency}` : "Your account information"}</p>
+            <h1 id="account-heading" tabIndex={-1}>{openedAccount?.name ?? t("Account details")}</h1>
+            <p>{openedAccount ? `${openedAccount.institution} · ••${openedAccount.mask} · ${openedAccount.currency}` : t("Your account information")}</p>
           </div>
         </div>
-        <p className="account-disclaimer">{openedAccount?.paper ? "Paper account · Excluded from total balance. " : ""}Synthetic account and transaction data. No real funds or bank credentials are used.</p>
+        <p className="account-disclaimer">{openedAccount?.paper ? `${t("Paper account · Excluded from total balance.")} ` : ""}{t("Synthetic account and transaction data. No real funds or bank credentials are used.")}</p>
         <ErrorBox error={accounts.error} onRetry={() => void accounts.reload()} />
         <ErrorBox error={connections.error} onRetry={() => void connections.reload()} />
-        {!accounts.data ? <Loading label="Loading account…" /> : !openedAccount ? (
-          <ErrorBox error={new Error("This account is not available. Return to All accounts to choose another.")} />
+        {!accounts.data ? <Loading label={t("Loading account…")} /> : !openedAccount ? (
+          <ErrorBox error={new Error(t("This account is not available. Return to All accounts to choose another."))} />
         ) : (
           <>
-            <label className="sr-only" htmlFor="account-activity-search">Search this account's transactions</label>
-            <input id="account-activity-search" className={`${inputClass} account-activity-search`} placeholder="Search this account’s transactions" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <label className="sr-only" htmlFor="account-activity-search">{t("Search this account's transactions")}</label>
+            <input id="account-activity-search" className={`${inputClass} account-activity-search`} placeholder={t("Search this account’s transactions")} value={query} onChange={(event) => setQuery(event.target.value)} />
             <AccountPanel key={`${selected}:${activityRevision}`} account={openedAccount} preview={false}
               holding={portfolio.data?.portfolio.accounts.find((a) => a.accountId === selected)} rates={rates}
               connection={connections.data?.connections.find((c) => c.id === openedAccount.connectionId)}
@@ -136,22 +139,21 @@ export function AccountsClient() {
     <div className="account-directory screen">
       <div className="page-intro screen-title flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1>Your accounts</h1>
-          <p>One clear view. Every balance, every bank.</p>
+          <h1>{t("Your accounts")}</h1>
+          <p>{t("One clear view. Every balance, every bank.")}</p>
         </div>
         <Button
           variant="primary"
           onClick={() => setShowBanks(!showBanks)}
           aria-expanded={showBanks}
-          aria-label={showBanks ? "Close bank picker" : "Link demo bank"}
+          aria-label={showBanks ? t("Close bank picker") : t("Link demo bank")}
         >
           <Plus size={18} aria-hidden />
-          {showBanks ? "Close bank picker" : "Link demo bank"}
+          {showBanks ? t("Close bank picker") : t("Link demo bank")}
         </Button>
       </div>
       <p className="account-disclaimer">
-        Simulated connections only. No bank credentials or real funds are used.
-        International accounts are view-only; totals use dated demo exchange rates.
+        {t("Simulated connections only. No bank credentials or real funds are used. International accounts are view-only; totals use dated demo exchange rates.")}
       </p>
       <ErrorBox error={error} />
       <ErrorBox error={accounts.error} onRetry={() => void accounts.reload()} />
@@ -172,8 +174,8 @@ export function AccountsClient() {
       <div className="screen-body account-screen-body">
       {showBanks && (
         <Card
-          title="Choose a demo bank"
-          subtitle="Explore realistic synthetic accounts and 90 days of activity."
+          title={t("Choose a demo bank")}
+          subtitle={t("Explore realistic synthetic accounts and 90 days of activity.")}
           className="account-bank-picker mb-6"
         >
           <ErrorBox error={institutions.error} />
@@ -194,8 +196,8 @@ export function AccountsClient() {
                       {i.country} · {i.currency} · {i.products.join(", ")}
                       <br />
                       {i.supportsTransfers
-                        ? "Simulated transfers supported"
-                        : "View-only accounts"}
+                        ? t("Simulated transfers supported")
+                        : t("View-only accounts")}
                     </p>
                     <Button
                       disabled={linked || !!busy || !connections.data}
@@ -206,9 +208,9 @@ export function AccountsClient() {
                         })
                       }
                     >
-                      {linked ? "Already linked" : `Link ${i.brand}`}
+                      {linked ? t("Already linked") : t("Link {brand}", { brand: i.brand })}
                     </Button>
-                    <p className="!mb-0 text-xs">{i.disclaimer}</p>
+                    <p className="!mb-0 text-xs">{t(i.disclaimer)}</p>
                   </article>
                 );
               })}
@@ -218,7 +220,7 @@ export function AccountsClient() {
       )}
       <div className="account-toolbar">
         <label className="sr-only" htmlFor="account-search">
-          Search accounts or activity
+          {t("Search accounts or activity")}
         </label>
         <div className="relative flex-1">
           <MagnifyingGlass
@@ -229,13 +231,13 @@ export function AccountsClient() {
           <input
             id="account-search"
             className={`${inputClass} !pl-10`}
-            placeholder="Search accounts or activity"
+            placeholder={t("Search accounts or activity")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
         <label className="sr-only" htmlFor="account-type">
-          Account type
+          {t("Account type")}
         </label>
         <select
           id="account-type"
@@ -243,29 +245,29 @@ export function AccountsClient() {
           value={kind}
           onChange={(e) => setKind(e.target.value)}
         >
-          <option value="all">All account types</option>
-          <option value="checking">Checking</option>
-          <option value="savings">Savings</option>
-          <option value="credit">Credit</option>
-          <option value="brokerage">Brokerage</option>
+          <option value="all">{t("All account types")}</option>
+          <option value="checking">{t("Checking")}</option>
+          <option value="savings">{t("Savings")}</option>
+          <option value="credit">{t("Credit")}</option>
+          <option value="brokerage">{t("Brokerage")}</option>
         </select>
       </div>
       <div className="account-workspace">
         <Card
-          title="Accounts"
-          subtitle={`${accounts.data?.accounts.length ?? "…"} synthetic accounts`}
+          title={t("Accounts")}
+          subtitle={accounts.data ? tp(accounts.data.accounts.length, "{n} synthetic account", "{n} synthetic accounts") : t("{n} synthetic accounts", { n: "…" })}
           className="account-list-card"
           bodyClassName="account-list-body"
         >
           <p className="account-list-hint">
-            <span className="account-hint-desktop">Click an account to view its details and transactions.</span>
-            <span className="account-hint-mobile">Tap an account to view its details and transactions.</span>
+            <span className="account-hint-desktop">{t("Click an account to view its details and transactions.")}</span>
+            <span className="account-hint-mobile">{t("Tap an account to view its details and transactions.")}</span>
           </p>
           {accounts.loading && !accounts.data ? (
             <Loading />
           ) : rows.length === 0 ? (
             <EmptyState>
-              No matching accounts. Try another search or link a demo bank.
+              {t("No matching accounts. Try another search or link a demo bank.")}
             </EmptyState>
           ) : (
             rows.map((a) => (
@@ -289,8 +291,8 @@ export function AccountsClient() {
                 <span className="row-value">
                   {a.type === "brokerage" && !portfolio.data
                     ? portfolio.error
-                      ? "Unavailable"
-                      : "Loading…"
+                      ? t("Unavailable")
+                      : t("Loading…")
                     : <CurrencyValue cents={portfolio.data?.portfolio.accounts.find(
                           (p) => p.accountId === a.id,
                         )?.totalCents ?? a.balanceCents} currency={a.currency} rates={rates} />}
@@ -300,9 +302,9 @@ export function AccountsClient() {
             ))
           )}
         </Card>
-        <div id="account-detail" className="account-panel-column" tabIndex={-1} role="region" aria-label={preview ? "Account activity preview" : "Account details and activity"}>
+        <div id="account-detail" className="account-panel-column" tabIndex={-1} role="region" aria-label={preview ? t("Account activity preview") : t("Account details and activity")}>
           {activeId && !account ? (
-            accounts.data ? <ErrorBox error={new Error("This account is not available. Choose another account.")} /> : <Loading label="Loading account…" />
+            accounts.data ? <ErrorBox error={new Error(t("This account is not available. Choose another account."))} /> : <Loading label={t("Loading account…")} />
           ) : <AccountPanel
             key={`${activeId ?? "all"}:${kind}:${activityRevision}`}
             account={account}
@@ -319,14 +321,14 @@ export function AccountsClient() {
       </div>
       <div className="account-connections mt-8">
         <Card
-          title="Bank connections"
-          subtitle="Sync, reconnect or disconnect your simulated institutions."
+          title={t("Bank connections")}
+          subtitle={t("Sync, reconnect or disconnect your simulated institutions.")}
         >
           {connections.loading && !connections.data ? (
             <Loading />
           ) : connections.data?.connections.length === 0 ? (
             <EmptyState>
-              No banks linked yet. Use “Link demo bank” to explore.
+              {t("No banks linked yet. Use “Link demo bank” to explore.")}
             </EmptyState>
           ) : (
             <div className="space-y-4">
@@ -343,17 +345,17 @@ export function AccountsClient() {
                         {c.institutionName}
                       </h3>
                       <p className="mt-1 text-sm text-brand-200">
-                        {c.status.replace("_", " ")} · {c.accountIds.length}{" "}
-                        accounts
+                        {t(CONNECTION_STATUS_LABEL[c.status])} ·{" "}
+                        {tp(c.accountIds.length, "{n} account", "{n} accounts")}
                       </p>
                       <p className="mt-1 text-xs text-zinc-400">
                         {c.lastSyncedAt
-                          ? `Last synced ${new Date(c.lastSyncedAt).toLocaleString()}`
-                          : "Not synced yet"}
+                          ? t("Last synced {date}", { date: formatDateTime(c.lastSyncedAt, { full: true }) })
+                          : t("Not synced yet")}
                       </p>
                       {c.lastError && (
                         <p className="mt-2 max-w-lg text-sm text-amber-200">
-                          {c.lastError}
+                          {t(c.lastError)}
                         </p>
                       )}
                       </div>
@@ -368,7 +370,7 @@ export function AccountsClient() {
                             })
                           }
                         >
-                          Relink
+                          {t("Relink")}
                         </Button>
                       ) : (
                         <>
@@ -384,15 +386,15 @@ export function AccountsClient() {
                           >
                             <ArrowsClockwise size={17} aria-hidden />
                             {c.status === "login_required"
-                              ? "Reconnect"
-                              : "Sync now"}
+                              ? t("Reconnect")
+                              : t("Sync now")}
                           </Button>
                           <Button
                             disabled={!!busy}
                             onClick={() => {
                               if (
                                 confirm(
-                                  "Disconnect this simulated bank? Existing activity stays visible; transfers from these accounts will be unavailable.",
+                                  t("Disconnect this simulated bank? Existing activity stays visible; transfers from these accounts will be unavailable."),
                                 )
                               )
                                 void run(
@@ -401,7 +403,7 @@ export function AccountsClient() {
                                 );
                             }}
                           >
-                            Disconnect
+                            {t("Disconnect")}
                           </Button>
                         </>
                       )}
@@ -409,9 +411,9 @@ export function AccountsClient() {
                   </div>
                   {c.status === "healthy" && (
                     <details className="mt-4 text-xs text-zinc-400">
-                      <summary className="min-h-8 py-2">Demo scenarios</summary>
+                      <summary className="min-h-8 py-2">{t("Demo scenarios")}</summary>
                       <p className="my-2">
-                        Test how a simulated connection recovers.
+                        {t("Test how a simulated connection recovers.")}
                       </p>
                       <div className="flex gap-2">
                         <Button
@@ -425,7 +427,7 @@ export function AccountsClient() {
                             )
                           }
                         >
-                          Simulate expired login
+                          {t("Simulate expired login")}
                         </Button>
                         <Button
                           size="sm"
@@ -438,7 +440,7 @@ export function AccountsClient() {
                             )
                           }
                         >
-                          Simulate outage
+                          {t("Simulate outage")}
                         </Button>
                       </div>
                     </details>

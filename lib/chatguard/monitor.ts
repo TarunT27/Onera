@@ -30,6 +30,7 @@ import { upsertFinding } from "./findings";
 import { reviewerEnabled, reviewerFromEnv, type Reviewer } from "./reviewer";
 import { applyRules } from "./rules";
 import type { BatchReport, ChatSecurityEvent, FindingDraft, MonitorHealth, MonitorStatus } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 export const MONITOR_SETTINGS = {
   /** Catch-up poll while the app process is running. */
@@ -178,11 +179,11 @@ export async function processChatSecurityBatch(db: DB, opts: BatchOptions = {}):
               drafts.push({
                 ruleId: "reviewer_flagged",
                 severity: verdict.verdict === "suspicious" ? "warning" : "info",
-                title: verdict.verdict === "suspicious" ? "AI reviewer flagged this message" : "AI reviewer couldn't decide",
+                title: verdict.verdict === "suspicious" ? msg("AI reviewer flagged this message") : msg("AI reviewer couldn't decide"),
                 signal: verdict.rationale,
                 explanation:
-                  "An AI reviewer read a redacted excerpt with no tools. Its opinion is advisory: it can't confirm a " +
-                  "violation or authorize anything, and the server's fixed checks ran regardless.",
+                  msg("An AI reviewer read a redacted excerpt with no tools. Its opinion is advisory: it can't confirm a " +
+                  "violation or authorize anything, and the server's fixed checks ran regardless."),
                 method: "ai_review",
                 status: event.stage === "input" && verdict.verdict === "suspicious" ? "suspected" : "needs_review",
                 enforcement: "observed_after_event",
@@ -282,7 +283,7 @@ export function getMonitorStatus(db: DB, userId: UserId, now: Date = new Date())
   const last = s.last_completed_at ? clockLabel(s.last_completed_at) : "never";
   const label =
     health === "not_running"
-      ? "Monitoring not running — no background check has completed yet"
+      ? msg("Monitoring not running — no background check has completed yet")
       : health === "degraded"
         ? heartbeatAge > MONITOR_SETTINGS.staleAfterMs
           ? `Monitoring degraded — last completed check ${last}`
@@ -308,9 +309,9 @@ export function getMonitorStatus(db: DB, userId: UserId, now: Date = new Date())
     staleAfterSeconds: MONITOR_SETTINGS.staleAfterMs / 1000,
     pollSeconds: MONITOR_SETTINGS.pollMs / 1000,
     limitations: [
-      "Pattern matching and AI review are fallible. No finding does not prove no attack happened.",
-      "Inline gates, not this monitor, prevent disclosure and unauthorized tool use; a finding can't undo what was shown.",
-      "Monitoring runs only while the app or worker process is running.",
+      msg("Pattern matching and AI review are fallible. No finding does not prove no attack happened."),
+      msg("Inline gates, not this monitor, prevent disclosure and unauthorized tool use; a finding can't undo what was shown."),
+      msg("Monitoring runs only while the app or worker process is running."),
     ],
   };
 }

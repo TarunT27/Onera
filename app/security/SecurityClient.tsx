@@ -28,6 +28,9 @@ import { Button } from "../components/Button";
 import { Card, EmptyState, Loading, PageHeader } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatDateTime } from "../components/format";
+import { useT } from "../components/I18nContext";
+import { msg } from "@/lib/i18n/msg";
+import type { Translate } from "@/lib/i18n/translate";
 import { InsightCard } from "../components/InsightCard";
 import { useApiData } from "../components/useApiData";
 import "./security-screen.css";
@@ -41,25 +44,26 @@ const AUDIT_LIMIT = 500;
 const SECURITY_EVENT = /^(request\.refused|action\.(execute_refused|execute_duplicate|approval_invalidated|held|failed)|order\.(execute_refused|execute_duplicate|approval_invalidated|failed)|recipient\.(changed|verified)|controls\.|trading_controls\.|mandate\.|assistant\.untrusted_instructions|agent\.(scope_violation|job_dead))/;
 
 const SIGNAL_LABEL: Record<string, string> = {
-  CROSS_USER_PROBE: "Cross-user probe",
-  UNAPPROVED_EXECUTION: "Unapproved execution",
-  STALE_APPROVAL_REPLAY: "Stale approval",
-  RECIPIENT_SWAP: "Recipient swap",
-  REPLAY_EXECUTION: "Replay",
-  LIMIT_PROBING: "Limit probing",
-  CONTROLS_LOOSENED_THEN_SPEND: "Controls loosened",
-  PROMPT_INJECTION: "Prompt injection",
-  ASSISTANT_PRIVILEGE_ATTEMPT: "Privilege attempt",
-  EXECUTION_FAILURE: "Failure",
-  TRANSFER_VELOCITY: "Velocity",
+  CROSS_USER_PROBE: msg("Cross-user probe"),
+  UNAPPROVED_EXECUTION: msg("Unapproved execution"),
+  STALE_APPROVAL_REPLAY: msg("Stale approval"),
+  RECIPIENT_SWAP: msg("Recipient swap"),
+  REPLAY_EXECUTION: msg("Replay"),
+  LIMIT_PROBING: msg("Limit probing"),
+  CONTROLS_LOOSENED_THEN_SPEND: msg("Controls loosened"),
+  PROMPT_INJECTION: msg("Prompt injection"),
+  ASSISTANT_PRIVILEGE_ATTEMPT: msg("Privilege attempt"),
+  EXECUTION_FAILURE: msg("Failure"),
+  TRANSFER_VELOCITY: msg("Velocity"),
 };
 
-function signalLabel(i: AgentInsight): string {
-  if (typeof i.evidence.signal === "string") return SIGNAL_LABEL[i.evidence.signal] ?? i.evidence.signal;
-  return i.agentId === "security_sentinel" ? "Transfer review" : i.type;
+function signalLabel(i: AgentInsight, t: Translate): string {
+  if (typeof i.evidence.signal === "string") return t(SIGNAL_LABEL[i.evidence.signal] ?? i.evidence.signal);
+  return i.agentId === "security_sentinel" ? t("Transfer review") : i.type;
 }
 
 export function SecurityClient() {
+  const t = useT();
   const insights = useApiData<AgentInsightsResponse>(`${paths.agentInsights}?limit=200`);
   const audit = useApiData<AuditResponse>(paths.audit({ limit: AUDIT_LIMIT }));
   const agents = useApiData<AgentsResponse>(paths.agents);
@@ -138,11 +142,11 @@ export function SecurityClient() {
     <div className="security-screen screen space-y-6">
       <div className="security-head">
         <PageHeader
-          title="Security"
-          description="Background monitors watch your audit log and every assistant conversation for attack patterns and flag them here. They can only raise alerts: they can't pause, approve or move money."
+          title={t("Security")}
+          description={t("Background monitors watch your audit log and every assistant conversation for attack patterns and flag them here. They can only raise alerts: they can't pause, approve or move money.")}
           action={
             <Button onClick={() => void runSweep()} busy={running}>
-              Run sweep now
+              {t("Run sweep now")}
             </Button>
           }
         />
@@ -151,43 +155,42 @@ export function SecurityClient() {
       <p className="security-note flex flex-wrap items-center gap-2 text-[13px] text-white/55">
         <SyntheticLabel />
         <ShieldCheck size={16} weight="fill" aria-hidden />
-        Rule-based monitoring of synthetic activity. Advisory only; it doesn&apos;t block transfers, and it isn&apos;t a
-        guarantee that every attack is detected.
+        {t("Rule-based monitoring of synthetic activity. Advisory only; it doesn't block transfers, and it isn't a guarantee that every attack is detected.")}
       </p>
 
       <ErrorBox error={error} onDismiss={() => setError(null)} />
 
       <div className="security-stats grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <Stat label="Critical" value={count("critical")} tone="text-red-300" />
-        <Stat label="Warnings" value={count("warning")} tone="text-amber-200" />
+        <Stat label={t("Critical")} value={count("critical")} tone="text-red-300" />
+        <Stat label={t("Warnings")} value={count("warning")} tone="text-amber-200" />
         <Stat
-          label="Last sweep"
-          value={lastSweep ? formatDateTime(lastSweep.finishedAt ?? lastSweep.startedAt) : "Not yet"}
-          detail={lastSweep?.summary ?? "Sweeps run shortly after new activity while the worker is running."}
+          label={t("Last sweep")}
+          value={lastSweep ? formatDateTime(lastSweep.finishedAt ?? lastSweep.startedAt) : t("Not yet")}
+          detail={lastSweep?.summary ? t(lastSweep.summary) : t("Sweeps run shortly after new activity while the worker is running.")}
         />
         <Stat
-          label="Transfers"
-          value={controls.data ? (paused ? "Paused" : "Active") : "—"}
+          label={t("Transfers")}
+          value={controls.data ? (paused ? t("Paused") : t("Active")) : "—"}
           tone={paused ? "text-red-300" : "text-green-300"}
-          detail={<Link href="/control" className="underline underline-offset-2">Manage controls</Link>}
+          detail={<Link href="/control" className="underline underline-offset-2">{t("Manage controls")}</Link>}
         />
       </div>
 
       <div className="security-body screen-body space-y-6">
         <div className="security-findings space-y-6">
           <Card
-            title="Alerts"
-            subtitle={`${open.length} open · refreshes every ${POLL_MS / 1000} s`}
+            title={t("Alerts")}
+            subtitle={t("{count} open · refreshes every {seconds} s", { count: open.length, seconds: POLL_MS / 1000 })}
             className="security-card security-alerts"
             bodyClassName="security-card-body"
           >
-            <ErrorBox error={insights.error} title="Couldn't load alerts" className="mb-3" onRetry={() => void insights.reload()} />
+            <ErrorBox error={insights.error} title={t("Couldn't load alerts")} className="mb-3" onRetry={() => void insights.reload()} />
             {insights.loading && !insights.data ? (
-              <Loading label="Loading alerts…" />
+              <Loading label={t("Loading alerts…")} />
             ) : alerts.length === 0 ? (
-              <EmptyState>No security alerts. The monitor flags suspicious activity here as soon as it sees it.</EmptyState>
+              <EmptyState>{t("No security alerts. The monitor flags suspicious activity here as soon as it sees it.")}</EmptyState>
             ) : (
-              <ul className="monitoring-list is-single" aria-label="Security alerts">
+              <ul className="monitoring-list is-single" aria-label={t("Security alerts")}>
                 {alerts.map((i) => (
                   <Alert
                     key={i.id}
@@ -208,18 +211,18 @@ export function SecurityClient() {
         </div>
 
         <Card
-          title="Security events"
-          subtitle="Refused requests, holds, recipient and control changes from your audit log, newest first"
+          title={t("Security events")}
+          subtitle={t("Refused requests, holds, recipient and control changes from your audit log, newest first")}
           className="security-card security-events"
           bodyClassName="security-card-body"
         >
-          <ErrorBox error={audit.error} title="Couldn't load audit log" className="mb-3" />
+          <ErrorBox error={audit.error} title={t("Couldn't load audit log")} className="mb-3" />
           {audit.loading && !audit.data ? (
             <Loading />
           ) : timeline.length > 0 ? (
             <AuditList events={timeline} variant="table" />
           ) : audit.error ? null : (
-            <EmptyState>No security events yet.</EmptyState>
+            <EmptyState>{t("No security events yet.")}</EmptyState>
           )}
         </Card>
       </div>
@@ -251,6 +254,7 @@ function Alert({ insight: i, cited, busy, disabled, paused, onMark, onPause }: {
   onMark: (status: "seen" | "dismissed") => void;
   onPause: () => Promise<void>;
 }) {
+  const t = useT();
   const [confirming, setConfirming] = useState(false);
   const [pausing, setPausing] = useState(false);
   const actionIds = i.evidence.actionIds ?? [];
@@ -265,9 +269,9 @@ function Alert({ insight: i, cited, busy, disabled, paused, onMark, onPause }: {
   return (
     <InsightCard
       insight={i}
-      agentName={i.agentId === "threat_monitor" ? "Threat monitor" : "Security sentinel"}
+      agentName={i.agentId === "threat_monitor" ? t("Threat monitor") : t("Security sentinel")}
       meta={formatDateTime(i.updatedAt)}
-      tags={<Badge tone="violet">{signalLabel(i)}</Badge>}
+      tags={<Badge tone="violet">{signalLabel(i, t)}</Badge>}
       evidenceCount={cited.length + actionIds.length}
       evidence={
         <>
@@ -275,7 +279,7 @@ function Alert({ insight: i, cited, busy, disabled, paused, onMark, onPause }: {
             <ul>
               {actionIds.map((id) => (
                 <li key={id}>
-                  <Link href={`/transfers?id=${encodeURIComponent(id)}`}>Transfer {id}</Link>
+                  <Link href={`/transfers?id=${encodeURIComponent(id)}`}>{t("Transfer {id}", { id })}</Link>
                 </li>
               ))}
             </ul>
@@ -288,27 +292,27 @@ function Alert({ insight: i, cited, busy, disabled, paused, onMark, onPause }: {
           {i.severity === "critical" && !paused && (
             confirming ? (
               <>
-                <span className="text-xs text-red-200">Pause all transfer execution, including approved ones?</span>
+                <span className="text-xs text-red-200">{t("Pause all transfer execution, including approved ones?")}</span>
                 <Button size="sm" variant="danger" busy={pausing} onClick={() => void confirmPause()}>
-                  Yes, pause transfers
+                  {t("Yes, pause transfers")}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>Cancel</Button>
+                <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>{t("Cancel")}</Button>
               </>
             ) : (
               <Button size="sm" variant="danger" onClick={() => setConfirming(true)}>
                 <ShieldWarning size={14} weight="fill" aria-hidden />
-                Pause transfers
+                {t("Pause transfers")}
               </Button>
             )
           )}
-          {i.severity === "critical" && paused && <Badge tone="red">Transfers paused</Badge>}
+          {i.severity === "critical" && paused && <Badge tone="red">{t("Transfers paused")}</Badge>}
           {i.status === "new" && (
             <Button size="sm" disabled={disabled} busy={busy} onClick={() => onMark("seen")}>
-              Mark seen
+              {t("Mark seen")}
             </Button>
           )}
-          <Button size="sm" variant="ghost" disabled={disabled} onClick={() => onMark("dismissed")} aria-label={`Dismiss: ${i.title}`}>
-            Dismiss
+          <Button size="sm" variant="ghost" disabled={disabled} onClick={() => onMark("dismissed")} aria-label={t("Dismiss: {title}", { title: i.title })}>
+            {t("Dismiss")}
           </Button>
         </>
       }

@@ -12,6 +12,7 @@ import {
   type RecipientsResponse,
 } from "../components/api";
 import { PageHeader } from "../components/Card";
+import { useT } from "../components/I18nContext";
 import { useApiData } from "../components/useApiData";
 import { ActionDetail } from "./ActionDetail";
 import { ActionList } from "./ActionList";
@@ -19,6 +20,7 @@ import { NewTransferForm } from "./NewTransferForm";
 import "./transfers-screen.css";
 
 export function TransfersClient() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedId = searchParams.get("id");
@@ -62,18 +64,18 @@ export function TransfersClient() {
     <div className="screen transfers-screen">
       <div className="screen-title tf-title">
         <PageHeader
-          title="Transfers"
-          description="Move money between your banks and Onera in a couple of taps. Onera checks every transfer against your limits and sends nothing without your OK. All money here is simulated."
+          title={t("Transfers")}
+          description={t("Move money between your banks and Onera in a couple of taps. Onera checks every transfer against your limits and sends nothing without your OK. All money here is simulated.")}
         />
       </div>
 
       {paused && (
         <div className="tf-paused mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-red-400/10 px-4 py-3 text-sm text-red-100 shadow-[inset_0_0_0_1px_rgb(248_113_113/0.25)]">
           <span>
-            <strong>Transfers are paused.</strong> Even approved transfers can’t be sent until you resume.
+            <strong>{t("Transfers are paused.")}</strong> {t("Even approved transfers can’t be sent until you resume.")}
           </span>
           <Link href="/control" className="font-medium underline underline-offset-2">
-            Open Control
+            {t("Open Control")}
           </Link>
         </div>
       )}

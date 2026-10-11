@@ -187,6 +187,8 @@ export interface AlpacaAccountConfig {
 
 export interface AlpacaAsset {
   symbol: string;
+  name?: string;
+  exchange?: string;
   tradable: boolean;
   fractionable: boolean;
   status: string;
@@ -245,6 +247,9 @@ export const getAccount = () => call<AlpacaAccount>("trading", "/v2/account");
 export const getAccountConfig = () => call<AlpacaAccountConfig>("trading", "/v2/account/configurations");
 export const getAsset = (symbol: string) =>
   call<AlpacaAsset>("trading", `/v2/assets/${encodeURIComponent(symbol)}`);
+/** Every active US equity Alpaca lists (stocks and ETFs), about 10,000 rows. */
+export const listAssets = () =>
+  call<AlpacaAsset[]>("trading", "/v2/assets?status=active&asset_class=us_equity");
 export const listPositions = () => call<AlpacaPosition[]>("trading", "/v2/positions");
 export const getClock = () => call<AlpacaClock>("trading", "/v2/clock");
 

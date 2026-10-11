@@ -1,4 +1,7 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { useT } from "./I18nContext";
 
 export function Card({
   title,
@@ -54,12 +57,13 @@ export function Spinner({ className = "" }: { className?: string }) {
 }
 
 export function Loading({ label = "Loading…" }: { label?: string }) {
+  const t = useT();
   return (
     <div role="status" className="skeleton">
       <i />
       <i />
       <i />
-      <span className="sr-only">{label}</span>
+      <span className="sr-only">{t(label)}</span>
     </div>
   );
 }

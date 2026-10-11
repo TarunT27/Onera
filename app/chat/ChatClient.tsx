@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { ChatRequest, ChatResponse, ToolTraceEntry } from "@/lib/types";
 import { clearfi, paths, type ActionDetailResponse, type ChatSecurityResponse, type ResearchResponse } from "../components/api";
+import { msg } from "@/lib/i18n/msg";
 import { monitorLabel } from "../security/AssistantMonitor";
 import { AssistantTabs } from "../components/AssistantTabs";
 import { ActionStateBadge, Badge } from "../components/Badge";
@@ -12,6 +13,7 @@ import { Card, EmptyState, Loading, PageHeader, Spinner } from "../components/Ca
 import { ErrorBox } from "../components/ErrorBox";
 import { formatTxnDate, prettyJson } from "../components/format";
 import { Money } from "../components/Money";
+import { useI18n, useT } from "../components/I18nContext";
 import { useApiData } from "../components/useApiData";
 import "./chat-screen.css";
 
@@ -20,10 +22,10 @@ type UiMessage =
   | { id: number; role: "assistant"; content: string; response: ChatResponse };
 
 const SUGGESTIONS = [
-  "What changed in my spending this month?",
-  "Which subscriptions went up in price?",
-  "Pay Oak Street Properties $1,850 for rent",
-  "Move $500 from checking to savings",
+  msg("What changed in my spending this month?"),
+  msg("Which subscriptions went up in price?"),
+  msg("Pay Oak Street Properties $1,850 for rent"),
+  msg("Move $500 from checking to savings"),
 ];
 
 const INJECTION_PROMPT =
@@ -73,17 +75,18 @@ function loadStored(): UiMessage[] {
   }
 }
 
-function toRequest(history: UiMessage[], conversationId: string | undefined): ChatRequest {
+function toRequest(history: UiMessage[], conversationId: string | undefined, locale: ChatRequest["locale"]): ChatRequest {
   let msgs = history
     .filter((m) => m.role !== "user" || m.delivery !== "unknown")
     .map((m) => ({ role: m.role, content: (m.content.trim() || "(empty reply)").slice(0, MAX_CONTENT) }))
     .slice(-MAX_MESSAGES);
   // Conversation must start with a user turn.
   while (msgs.length > 0 && msgs[0].role !== "user") msgs = msgs.slice(1);
-  return { messages: msgs, ...(conversationId ? { conversationId } : {}) };
+  return { messages: msgs, ...(conversationId ? { conversationId } : {}), locale };
 }
 
 export function ChatClient() {
+  const { t, tp, tr, locale } = useI18n();
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
@@ -124,8 +127,8 @@ export function ChatClient() {
     if (!pending) return;
     setElapsed(0);
     const started = Date.now();
-    const t = window.setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
-    return () => window.clearInterval(t);
+    const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => window.clearInterval(timer);
   }, [pending]);
 
   useEffect(() => {
@@ -152,7 +155,7 @@ export function ChatClient() {
     setError(null);
     setPending(true);
     try {
-      const response = await clearfi.chat(toRequest(history, conversationId.current));
+      const response = await clearfi.chat(toRequest(history, conversationId.current, locale));
       if (response.conversationId) conversationId.current = storeConversationId(response.conversationId);
       // The background monitor reviews the turn within moments; refresh its status chip.
       window.setTimeout(() => void monitor.reload(), 1500);
@@ -190,8 +193,8 @@ export function ChatClient() {
       <div className="screen-title chat-title">
         <AssistantTabs />
         <PageHeader
-          title="Ask Onera"
-          description="Ask about your synthetic accounts in plain English. The assistant can read your data and propose transfers — it cannot approve, execute, change limits or verify recipients."
+          title={t("Ask Onera")}
+          description={t("Ask about your synthetic accounts in plain English. The assistant can read your data and propose transfers — it cannot approve, execute, change limits or verify recipients.")}
           action={
             messages.length > 0 ? (
               <Button
@@ -204,7 +207,7 @@ export function ChatClient() {
                   conversationId.current = storeConversationId(newConversationId());
                 }}
               >
-                Clear conversation
+                {t("Clear conversation")}
               </Button>
             ) : undefined
           }
@@ -218,9 +221,9 @@ export function ChatClient() {
             <div ref={logRef} className="chat-log space-y-4">
               {messages.length === 0 && !pending ? (
                 <div className="py-6 text-center">
-                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Start with a suggestion or ask your own question.</p>
+                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t("Start with a suggestion or ask your own question.")}</p>
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    Answers can take 10–30 seconds while the assistant calls tools.
+                    {t("Answers can take 10–30 seconds while the assistant calls tools.")}
                   </p>
                 </div>
               ) : (
@@ -236,11 +239,11 @@ export function ChatClient() {
                     <li className="flex items-center gap-3 rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300">
                       <Spinner className="text-brand-600" />
                       <span>
-                        Onera is thinking and calling tools…{" "}
+                        {t("Onera is thinking and calling tools…")}{" "}
                         <span aria-hidden className="tabular-nums text-zinc-400">
-                          {elapsed}s
+                          {t("{seconds}s", { seconds: elapsed })}
                         </span>
-                        <span className="block text-xs text-zinc-500 dark:text-zinc-400">This can take 10–30 seconds.</span>
+                        <span className="block text-xs text-zinc-500 dark:text-zinc-400">{t("This can take 10–30 seconds.")}</span>
                       </span>
                     </li>
                   )}
@@ -250,14 +253,16 @@ export function ChatClient() {
             </div>
 
             <div className="chat-composer space-y-4">
-              <ErrorBox error={error} title="The assistant request failed" onDismiss={() => setError(null)} />
+              <ErrorBox error={error} title={t("The assistant request failed")} onDismiss={() => setError(null)} />
               {error !== null && (
                 <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-                  A tool call may have completed before the response was lost. Check{" "}
-                  <Link href="/transfers" className="font-semibold underline underline-offset-2">
-                    Transfers
-                  </Link>{" "}
-                  before repeating an action request.
+                  {tr("A tool call may have completed before the response was lost. Check {link} before repeating an action request.", {
+                    link: (
+                      <Link href="/transfers" className="font-semibold underline underline-offset-2">
+                        {t("Transfers")}
+                      </Link>
+                    ),
+                  })}
                 </p>
               )}
 
@@ -268,24 +273,24 @@ export function ChatClient() {
                   onClick={() => void send(INJECTION_PROMPT)}
                   className="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-left text-xs font-semibold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70"
                 >
-                  🚨 Red-Team: Injected Invoice Attack
+                  🚨 {t("Red-Team: Injected Invoice Attack")}
                 </button>
                 {SUGGESTIONS.map((s) => (
                   <button
                     key={s}
                     type="button"
                     disabled={pending}
-                    onClick={() => void send(s)}
+                    onClick={() => void send(t(s))}
                     className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-left text-xs font-medium text-zinc-700 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-brand-700 dark:hover:bg-brand-950/50 dark:hover:text-brand-300"
                   >
-                    {s}
+                    {t(s)}
                   </button>
                 ))}
               </div>
 
               <form onSubmit={onSubmit} className="space-y-2">
                 <label htmlFor="chat-input" className="sr-only">
-                  Message
+                  {t("Message")}
                 </label>
                 <textarea
                   id="chat-input"
@@ -296,13 +301,13 @@ export function ChatClient() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={onKeyDown}
-                  placeholder="Ask about spending, subscriptions, or say “Pay Oak Street Properties $1,850 for rent”…"
+                  placeholder={t("Ask about spending, subscriptions, or say “Pay Oak Street Properties $1,850 for rent”…")}
                   className="block w-full min-w-0 resize-y rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Enter to send · Shift+Enter for a new line</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">{t("Enter to send · Shift+Enter for a new line")}</p>
                   <Button type="submit" variant="primary" busy={pending} disabled={!input.trim()}>
-                    Send
+                    {t("Send")}
                   </Button>
                 </div>
               </form>
@@ -311,49 +316,49 @@ export function ChatClient() {
         </div>
 
         <aside className="screen-pane screen-stack chat-aside min-w-0 space-y-6 lg:col-span-4">
-          <Card title="Security monitor" subtitle="Reviews every turn in the background">
+          <Card title={t("Security monitor")} subtitle={t("Reviews every turn in the background")}>
             {monitor.data ? (
               <div className="space-y-2 text-sm">
-                <p className="text-zinc-100">{monitorLabel(monitor.data.status)}</p>
+                <p className="text-zinc-100">{monitorLabel(monitor.data.status, t)}</p>
                 <p className="text-xs text-white/50">
                   {monitor.data.findings.length > 0
-                    ? `Latest finding: ${monitor.data.findings[0].title}.`
-                    : "No findings for your conversations."}{" "}
+                    ? t("Latest finding: {title}.", { title: monitor.data.findings[0].title })
+                    : t("No findings for your conversations.")}{" "}
                   <Link href="/security" className="font-medium text-brand-300 hover:underline">
-                    Open Security →
+                    {t("Open Security")} →
                   </Link>
                 </p>
               </div>
             ) : monitor.error ? (
-              <ErrorBox error={monitor.error} title="Couldn't load monitor status" />
+              <ErrorBox error={monitor.error} title={t("Couldn't load monitor status")} />
             ) : (
               <Loading />
             )}
           </Card>
 
-          <Card title="What the assistant can do">
+          <Card title={t("What the assistant can do")}>
             <ul className="space-y-1.5 text-sm">
               <li className="flex gap-2">
-                <span className="text-green-600 dark:text-green-400">✓</span> Read accounts, transactions, insights and recipients
+                <span className="text-green-600 dark:text-green-400">✓</span> {t("Read accounts, transactions, insights and recipients")}
               </li>
               <li className="flex gap-2">
-                <span className="text-green-600 dark:text-green-400">✓</span> Create transfer <em>proposals</em>
+                <span className="text-green-600 dark:text-green-400">✓</span> {tr("Create transfer {proposals}", { proposals: <em>{t("proposals")}</em> })}
               </li>
               <li className="flex gap-2">
-                <span className="text-red-600 dark:text-red-400">✗</span> Approve or execute transfers
+                <span className="text-red-600 dark:text-red-400">✗</span> {t("Approve or execute transfers")}
               </li>
               <li className="flex gap-2">
-                <span className="text-red-600 dark:text-red-400">✗</span> Change limits, pause, or verify recipients
+                <span className="text-red-600 dark:text-red-400">✗</span> {t("Change limits, pause, or verify recipients")}
               </li>
             </ul>
           </Card>
 
-          <Card title="Research documents" subtitle="Content the assistant can read. Treated as untrusted.">
-            <ErrorBox error={research.error} title="Couldn't load research" className="mb-3" />
+          <Card title={t("Research documents")} subtitle={t("Content the assistant can read. Treated as untrusted.")}>
+            <ErrorBox error={research.error} title={t("Couldn't load research")} className="mb-3" />
             {research.loading && !research.data ? (
               <Loading />
             ) : !research.data || research.data.documents.length === 0 ? (
-              <EmptyState>No research documents.</EmptyState>
+              <EmptyState>{t("No research documents.")}</EmptyState>
             ) : (
               <ul className="space-y-3">
                 {research.data.documents.map((d) => (
@@ -364,8 +369,8 @@ export function ChatClient() {
                     </p>
                     <code className="mt-1 block font-mono text-[11px] break-all text-zinc-400 dark:text-zinc-500">{d.id}</code>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <Badge tone="amber" title="Synthetic document; its contents are untrusted input to the model">
-                        Synthetic · untrusted content
+                      <Badge tone="amber" title={t("Synthetic document; its contents are untrusted input to the model")}>
+                        {t("Synthetic · untrusted content")}
                       </Badge>
                       <button
                         type="button"
@@ -373,7 +378,7 @@ export function ChatClient() {
                         onClick={() => void send(`Summarize the research note ${d.id}`)}
                         className="text-xs font-medium text-brand-700 hover:underline disabled:opacity-50 dark:text-brand-400"
                       >
-                        Ask for a summary →
+                        {t("Ask for a summary")} →
                       </button>
                     </div>
                   </li>
@@ -390,6 +395,7 @@ export function ChatClient() {
 // ---------------------------------------------------------------------------
 
 function UserBubble({ content, delivery }: { content: string; delivery?: "unknown" }) {
+  const t = useT();
   return (
     <li className="flex justify-end">
       <div
@@ -400,7 +406,7 @@ function UserBubble({ content, delivery }: { content: string; delivery?: "unknow
         <p>{content}</p>
         {delivery === "unknown" && (
           <p className="mt-1.5 border-t border-white/30 pt-1.5 text-xs font-medium">
-            Response not received. Outcome unknown; do not repeat an action request until you check Transfers.
+            {t("Response not received. Outcome unknown; do not repeat an action request until you check Transfers.")}
           </p>
         )}
       </div>
@@ -409,20 +415,21 @@ function UserBubble({ content, delivery }: { content: string; delivery?: "unknow
 }
 
 function AssistantMessage({ response }: { response: ChatResponse }) {
+  const t = useT();
   const live = response.mode === "live";
   const trace = response.trace ?? [];
   const proposals = response.proposedActionIds ?? [];
   return (
     <li className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Onera</span>
+        <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{t("Onera")}</span>
         {live ? (
-          <Badge tone="green" title="Real model call">
-            Live · {response.model ?? "model"}
+          <Badge tone="green" title={t("Real model call")}>
+            {t("Live")} · {response.model ?? t("model")}
           </Badge>
         ) : (
-          <Badge tone="amber" title="The model was unavailable; this is a deterministic summary">
-            Fallback — model unavailable, deterministic summary
+          <Badge tone="amber" title={t("The model was unavailable; this is a deterministic summary")}>
+            {t("Fallback — model unavailable, deterministic summary")}
           </Badge>
         )}
       </div>
@@ -431,12 +438,12 @@ function AssistantMessage({ response }: { response: ChatResponse }) {
 
       {response.notice && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
-          {response.notice}
+          {t(response.notice)}
         </p>
       )}
 
       <div className="rounded-2xl rounded-tl-md border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm leading-relaxed break-words whitespace-pre-wrap text-zinc-900 dark:border-zinc-800 dark:bg-zinc-800/50 dark:text-zinc-100">
-        {response.reply || <span className="text-zinc-400 italic">(no reply text)</span>}
+        {response.reply || <span className="text-zinc-400 italic">{t("(no reply text)")}</span>}
       </div>
 
       {proposals.map((id) => (
@@ -453,29 +460,42 @@ const BLOCKED =
   /^(Unknown tool|Refused: not available to this agent|Rejected: invalid input|Refused: tool budget exceeded|Rejected: sensitive data in tool input)$/;
 
 const GUARD_REASON: Record<string, string> = {
-  SENSITIVE_DATA: "it contained data the assistant must never show",
-  UNSUPPORTED_EXECUTION_CLAIM: "it claimed money moved when Onera's records say otherwise",
-  AMOUNT_MISMATCH: "an amount didn't match the proposal",
-  INLINE_CHECK_UNAVAILABLE: "a required safety check couldn't complete",
+  SENSITIVE_DATA: msg("it contained data the assistant must never show"),
+  UNSUPPORTED_EXECUTION_CLAIM: msg("it claimed money moved when Onera's records say otherwise"),
+  AMOUNT_MISMATCH: msg("an amount didn't match the proposal"),
+  INLINE_CHECK_UNAVAILABLE: msg("a required safety check couldn't complete"),
 };
 
 /** What the inline gates did on this turn, in plain words. */
 function GuardNotice({ response }: { response: ChatResponse }) {
+  const { t, tp } = useI18n();
   const g = response.guard;
   if (!g) return null;
   const notes: { tone: "red" | "amber" | "blue"; text: string }[] = [];
   if (g.withheld) {
-    const why = g.reasons.map((r) => GUARD_REASON[r]).filter(Boolean).join("; ");
-    notes.push({ tone: "red", text: `Reply withheld by a safety check${why ? ` because ${why}` : ""}. The text below comes from Onera's records.` });
+    const why = g.reasons.map((r) => GUARD_REASON[r]).filter(Boolean).map((r) => t(r)).join("; ");
+    notes.push({
+      tone: "red",
+      text: why
+        ? t("Reply withheld by a safety check because {reason}. The text below comes from Onera's records.", { reason: why })
+        : t("Reply withheld by a safety check. The text below comes from Onera's records."),
+    });
   }
   if (g.blockedToolCalls > 0) {
-    notes.push({ tone: "amber", text: `Attempted tool use blocked: ${g.blockedToolCalls} call${g.blockedToolCalls === 1 ? " was" : "s were"} refused before running.` });
+    notes.push({
+      tone: "amber",
+      text: tp(
+        g.blockedToolCalls,
+        "Attempted tool use blocked: {n} call was refused before running.",
+        "Attempted tool use blocked: {n} calls were refused before running.",
+      ),
+    });
   }
   if (g.untrustedInstructions) {
-    notes.push({ tone: "amber", text: "Possible unsafe instruction detected in a document the assistant read. It was treated as data and grants no permissions." });
+    notes.push({ tone: "amber", text: t("Possible unsafe instruction detected in a document the assistant read. It was treated as data and grants no permissions.") });
   }
   if (!g.withheld && g.reasons.includes("AMBIGUOUS_CLAIM")) {
-    notes.push({ tone: "blue", text: "This reply mentions a completed payment that couldn't be matched to a record. Check Transfers for the authoritative status." });
+    notes.push({ tone: "blue", text: t("This reply mentions a completed payment that couldn't be matched to a record. Check Transfers for the authoritative status.") });
   }
   if (notes.length === 0) return null;
   const tones = {
@@ -484,7 +504,7 @@ function GuardNotice({ response }: { response: ChatResponse }) {
     blue: "border-sky-400/25 bg-sky-400/10 text-sky-100",
   };
   return (
-    <ul className="space-y-1.5" aria-label="Safety checks">
+    <ul className="space-y-1.5" aria-label={t("Safety checks")}>
       {notes.map((n) => (
         <li key={n.text} className={`rounded-lg border px-3 py-2 text-xs ${tones[n.tone]}`}>
           {n.text}
@@ -495,6 +515,7 @@ function GuardNotice({ response }: { response: ChatResponse }) {
 }
 
 function ToolTrace({ trace }: { trace: ToolTraceEntry[] }) {
+  const { t, tp } = useI18n();
   return (
     <details className="group min-w-0 rounded-xl border border-zinc-200 dark:border-zinc-800">
       <summary className="flex items-center justify-between gap-2 px-3 py-2 text-xs font-medium text-zinc-600 select-none dark:text-zinc-400">
@@ -502,34 +523,34 @@ function ToolTrace({ trace }: { trace: ToolTraceEntry[] }) {
           <span aria-hidden className="inline-block transition-transform group-open:rotate-90">
             ▸
           </span>
-          Tool activity
+          {t("Tool activity")}
           <span className="text-zinc-400">
-            ({trace.length} call{trace.length === 1 ? "" : "s"})
+            ({tp(trace.length, "{n} call", "{n} calls")})
           </span>
         </span>
-        {trace.length > 0 && <span className="truncate font-mono text-[11px] text-zinc-400">{trace.map((t) => t.tool).join(" → ")}</span>}
+        {trace.length > 0 && <span className="truncate font-mono text-[11px] text-zinc-400">{trace.map((entry) => entry.tool).join(" → ")}</span>}
       </summary>
       {trace.length === 0 ? (
-        <p className="border-t border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800">No tools were called for this answer.</p>
+        <p className="border-t border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800">{t("No tools were called for this answer.")}</p>
       ) : (
         <ol className="divide-y divide-zinc-200 border-t border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-          {trace.map((t, i) => (
+          {trace.map((entry, i) => (
             <li key={i} className="min-w-0 px-3 py-2.5">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[11px] text-zinc-400 tabular-nums">{i + 1}.</span>
-                <code className="font-mono text-xs font-semibold break-all">{t.tool}</code>
-                {t.ok ? (
-                  <Badge tone="green">ok</Badge>
-                ) : BLOCKED.test(t.summary) ? (
-                  <Badge tone="red" title="Refused by the tool dispatcher before anything ran">Attempted tool use blocked</Badge>
+                <code className="font-mono text-xs font-semibold break-all">{entry.tool}</code>
+                {entry.ok ? (
+                  <Badge tone="green">{t("ok")}</Badge>
+                ) : BLOCKED.test(entry.summary) ? (
+                  <Badge tone="red" title={t("Refused by the tool dispatcher before anything ran")}>{t("Attempted tool use blocked")}</Badge>
                 ) : (
-                  <Badge tone="red">error</Badge>
+                  <Badge tone="red">{t("error")}</Badge>
                 )}
               </div>
               <pre className="mt-1.5 max-h-48 max-w-full overflow-auto rounded-lg bg-zinc-100 px-2.5 py-2 font-mono text-[11px] leading-relaxed text-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-                {prettyJson(t.input)}
+                {prettyJson(entry.input)}
               </pre>
-              <p className="mt-1.5 text-xs break-words text-zinc-600 dark:text-zinc-400">{t.summary}</p>
+              <p className="mt-1.5 text-xs break-words text-zinc-600 dark:text-zinc-400">{t(entry.summary)}</p>
             </li>
           ))}
         </ol>
@@ -539,6 +560,7 @@ function ToolTrace({ trace }: { trace: ToolTraceEntry[] }) {
 }
 
 function ProposalCard({ id }: { id: string }) {
+  const { t, tr } = useI18n();
   const [data, setData] = useState<ActionDetailResponse | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -558,16 +580,16 @@ function ProposalCard({ id }: { id: string }) {
   return (
     <div className="rounded-xl border-2 border-violet-200 bg-violet-50/60 p-3 sm:p-4 dark:border-violet-900 dark:bg-violet-950/30">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="violet">Proposal created</Badge>
+        <Badge tone="violet">{t("Proposal created")}</Badge>
         {data && <ActionStateBadge state={data.action.state} />}
         {data && (
           <span className="text-sm font-medium">
-            <Money cents={data.action.amountCents} /> to {data.recipient.displayName}
+            {tr("{amount} to {name}", { amount: <Money cents={data.action.amountCents} />, name: data.recipient.displayName })}
           </span>
         )}
       </div>
       <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-        Proposal created — review and approve on the transfer card. The assistant cannot approve or execute.
+        {t("Proposal created — review and approve on the transfer card. The assistant cannot approve or execute.")}
       </p>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <code className="font-mono text-[11px] break-all text-zinc-400">{id}</code>
@@ -575,7 +597,7 @@ function ProposalCard({ id }: { id: string }) {
           href={`/transfers?id=${encodeURIComponent(id)}`}
           className="rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 dark:bg-brand-500 dark:text-zinc-950 dark:hover:bg-brand-400"
         >
-          Open transfer card →
+          {t("Open transfer card")} →
         </Link>
       </div>
     </div>

@@ -15,6 +15,7 @@ import { utcDayWindow } from "./math";
 import { isTradableAccount, type BrokerTerms } from "./policy";
 import { toTradingControls, venueOf, type BrokerLinkRow, type MandateRow, type TradingControlsRow } from "./rows";
 import type { TradingControls } from "./types";
+import { tpl } from "@/lib/i18n/msg";
 
 export function loadOwnedAccount(db: DB, userId: UserId, accountId: string): Account {
   const row = db.prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ?").get(accountId, userId);
@@ -50,11 +51,11 @@ export function assertTradable(account: Account, broker: BrokerTerms | null = nu
   if (!isTradableAccount(account, broker)) {
     if (broker !== null) {
       throw new ServiceError("UNSUPPORTED", broker.connected
-        ? `${account.name} is a live Alpaca account and live trading is turned off.`
-        : `${account.name} is not connected to Alpaca right now. Check the Alpaca keys on the server.`, 400);
+        ? tpl("{name} is a live Alpaca account and live trading is turned off.", { name: account.name })
+        : tpl("{name} is not connected to Alpaca right now. Check the Alpaca keys on the server.", { name: account.name }), 400);
     }
     throw new ServiceError("UNSUPPORTED",
-      `${account.name} is view-only. Orders can only be placed in a paper trading account.`, 400);
+      tpl("{name} is view-only. Orders can only be placed in a paper trading account.", { name: account.name }), 400);
   }
 }
 

@@ -7,6 +7,7 @@
  * leaves the server.
  */
 import { badRequest, ServiceError } from "@/lib/errors";
+import { msg } from "@/lib/i18n/msg";
 
 const API = "https://api.elevenlabs.io/v1";
 
@@ -42,7 +43,7 @@ function requireKey(): string {
   if (!apiKey) {
     throw new ServiceError(
       "UNSUPPORTED",
-      "Voice is not configured. Add ELEVENLABS_API_KEY to .env.local and restart the server.",
+      msg("Voice is not configured. Add ELEVENLABS_API_KEY to .env.local and restart the server."),
       503,
     );
   }
@@ -56,7 +57,7 @@ async function callElevenLabs(url: string, init: RequestInit, what: string): Pro
     res = await fetch(url, { ...init, cache: "no-store" });
   } catch (err) {
     console.warn(`[clearfi] ElevenLabs ${what} unreachable:`, err instanceof Error ? err.message : err);
-    throw new ServiceError("INTERNAL", "ElevenLabs could not be reached.", 502);
+    throw new ServiceError("INTERNAL", msg("ElevenLabs could not be reached."), 502);
   }
   if (res.ok) return res;
 
@@ -72,8 +73,8 @@ async function callElevenLabs(url: string, init: RequestInit, what: string): Pro
   }
   const status = res.status === 429 ? 429 : 502;
   const reason =
-    res.status === 401 || res.status === 403 ? "ElevenLabs rejected the API key. Check ELEVENLABS_API_KEY."
-    : res.status === 429 ? "ElevenLabs rate limit or quota reached."
+    res.status === 401 || res.status === 403 ? msg("ElevenLabs rejected the API key. Check ELEVENLABS_API_KEY.")
+    : res.status === 429 ? msg("ElevenLabs rate limit or quota reached.")
     : `ElevenLabs ${what} failed (${res.status}).`;
   throw new ServiceError("INTERNAL", detail ? `${reason} ${detail}` : reason, status);
 }
@@ -86,9 +87,9 @@ export interface Transcript {
 
 export async function transcribe(audio: Blob): Promise<Transcript> {
   const apiKey = requireKey();
-  if (audio.size === 0) throw badRequest("The recording is empty");
-  if (audio.size > MAX_AUDIO_BYTES) throw badRequest("The recording is too long. Keep voice commands under a minute.");
-  if (audio.type && !/^(audio|video)\//.test(audio.type)) throw badRequest("The recording must be an audio file");
+  if (audio.size === 0) throw badRequest(msg("The recording is empty"));
+  if (audio.size > MAX_AUDIO_BYTES) throw badRequest(msg("The recording is too long. Keep voice commands under a minute."));
+  if (audio.type && !/^(audio|video)\//.test(audio.type)) throw badRequest(msg("The recording must be an audio file"));
 
   const form = new FormData();
   form.append("model_id", config().sttModel);
@@ -110,7 +111,7 @@ export async function transcribe(audio: Blob): Promise<Transcript> {
 export async function synthesize(text: string): Promise<ReadableStream<Uint8Array>> {
   const apiKey = requireKey();
   const spoken = speechText(text);
-  if (!spoken) throw badRequest("There is nothing to say");
+  if (!spoken) throw badRequest(msg("There is nothing to say"));
   const { voiceId, ttsModel } = config();
   const res = await callElevenLabs(
     `${API}/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`,
@@ -121,7 +122,7 @@ export async function synthesize(text: string): Promise<ReadableStream<Uint8Arra
     },
     "speech",
   );
-  if (!res.body) throw new ServiceError("INTERNAL", "ElevenLabs returned no audio.", 502);
+  if (!res.body) throw new ServiceError("INTERNAL", msg("ElevenLabs returned no audio."), 502);
   return res.body;
 }
 

@@ -1,13 +1,15 @@
 /** Public types for market data, portfolios and paper trading. Owned by the markets module. */
 import type { UserId } from "@/lib/types";
+import { msg } from "@/lib/i18n/msg";
 
 /** Shown wherever prices appear. */
-export const SIMULATED_PRICES_DISCLAIMER = "Simulated prices — not real market data";
+export const SIMULATED_PRICES_DISCLAIMER = msg("Simulated prices — not real market data");
 /** The simulated market never closes. */
-export const SIMULATED_MARKET_STATUS = "Simulated market — always open";
+export const SIMULATED_MARKET_STATUS = msg("Simulated market — always open");
 /** Shown wherever prices appear when Alpaca market data is on. */
-export const ALPACA_PRICES_DISCLAIMER =
-  "Real prices from Alpaca (IEX exchange feed) — may differ slightly from consolidated quotes";
+export const ALPACA_PRICES_DISCLAIMER = msg(
+  "Real prices from Alpaca (IEX exchange feed) — may differ slightly from consolidated quotes",
+);
 
 /** Where prices come from for the whole process: Alpaca when keys are configured, else the simulator. */
 export type QuoteSource = "simulated" | "alpaca_iex";
@@ -31,6 +33,15 @@ export interface Instrument {
   name: string;
   type: InstrumentType;
   sector: string | null;
+  /** Listing exchange (Alpaca assets only), e.g. "NASDAQ". */
+  exchange?: string | null;
+}
+
+/** A search hit: an instrument plus whether it is already on the user's watchlist. */
+export interface InstrumentSearchResult extends Instrument {
+  /** Always shown: part of Onera's built-in list. */
+  builtIn: boolean;
+  inWatchlist: boolean;
 }
 
 export interface Quote {

@@ -9,12 +9,15 @@ import { Badge } from "../components/Badge";
 import { Button, inputClass, labelClass } from "../components/Button";
 import { Card, EmptyState, Loading, PageHeader } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
+import { useI18n, useT } from "../components/I18nContext";
+import { msg } from "@/lib/i18n/msg";
 import { centsToDollarInput, formatDateTime, parseDollarsToCents } from "../components/format";
 import { Money } from "../components/Money";
 import { useApiData } from "../components/useApiData";
 import "./control-screen.css";
 
 export function ControlClient() {
+  const t = useT();
   const controls = useApiData<ControlsResponse>(paths.controls);
   const audit = useApiData<AuditResponse>(paths.audit({ limit: 100 }));
 
@@ -45,18 +48,18 @@ export function ControlClient() {
     <div className="control-screen screen space-y-6">
       <div className="control-head screen-title">
         <PageHeader
-          title="Control"
-          description="Your rules, enforced by the server — not by the assistant's good behavior. Every decision lands in the audit log."
+          title={t("Control")}
+          description={t("Your rules, enforced by the server — not by the assistant's good behavior. Every decision lands in the audit log.")}
         />
       </div>
 
       <div className="control-body screen-body space-y-6">
         {/* Left: the live controls (pause, limits, today's usage). */}
         <div className="control-main screen-pane screen-stack space-y-6">
-          <ErrorBox error={controls.error} title="Couldn't load controls" onRetry={() => void controls.reload()} />
+          <ErrorBox error={controls.error} title={t("Couldn't load controls")} onRetry={() => void controls.reload()} />
 
           {controls.loading && !controls.data ? (
-            <Loading label="Loading controls…" />
+            <Loading label={t("Loading controls…")} />
           ) : c ? (
             <>
               <PauseCard controls={c} onSaved={onControlsSaved} />
@@ -74,14 +77,14 @@ export function ControlClient() {
             <div
               className="seg control-seg"
               role="radiogroup"
-              aria-label="Show audit log or permissions"
+              aria-label={t("Show audit log or permissions")}
               style={{ ["--n" as string]: 2, ["--idx" as string]: sideView === "audit" ? 0 : 1 }}
             >
               <span className="seg-lens" aria-hidden />
               {(
                 [
-                  ["audit", "Audit log"],
-                  ["permissions", "Permissions"],
+                  ["audit", t("Audit log")],
+                  ["permissions", t("Permissions")],
                 ] as const
               ).map(([view, label]) => (
                 <button key={view} type="button" role="radio" aria-checked={sideView === view} onClick={() => setSideView(view)}>
@@ -101,21 +104,21 @@ export function ControlClient() {
             <Card
               id="audit"
               className="control-audit scroll-mt-28"
-              title="Audit log"
-              subtitle="Latest 100 events, newest first"
+              title={t("Audit log")}
+              subtitle={t("Latest 100 events, newest first")}
               action={
                 <Button size="sm" variant="ghost" onClick={() => void audit.reload()} busy={audit.loading && !!audit.data}>
-                  ↻ Refresh
+                  ↻ {t("Refresh")}
                 </Button>
               }
             >
-              <ErrorBox error={audit.error} title="Couldn't load audit log" className="mb-3" />
+              <ErrorBox error={audit.error} title={t("Couldn't load audit log")} className="mb-3" />
               {audit.loading && !audit.data ? (
                 <Loading />
               ) : audit.data && audit.data.events.length > 0 ? (
                 <AuditList events={audit.data.events} variant="table" />
               ) : audit.error ? null : (
-                <EmptyState>No audit events yet.</EmptyState>
+                <EmptyState>{t("No audit events yet.")}</EmptyState>
               )}
             </Card>
           </div>
@@ -128,6 +131,7 @@ export function ControlClient() {
 // ---------------------------------------------------------------------------
 
 function PauseCard({ controls, onSaved }: { controls: UserControls; onSaved: (c: UserControls) => void }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const paused = controls.paused;
@@ -160,12 +164,12 @@ function PauseCard({ controls, onSaved }: { controls: UserControls; onSaved: (c:
               aria-hidden
               className={`inline-block size-2.5 rounded-full ${paused ? "bg-red-500" : "bg-green-500"}`}
             />
-            <h2 className="text-lg font-semibold tracking-tight">{paused ? "Execution is paused" : "Execution is active"}</h2>
+            <h2 className="text-lg font-semibold tracking-tight">{paused ? t("Execution is paused") : t("Execution is active")}</h2>
           </div>
           <p className="mt-1 max-w-xl text-sm text-zinc-600 dark:text-zinc-400">
-            Pausing blocks execution of new and already-approved transfers. It does not undo completed ones.
+            {t("Pausing blocks execution of new and already-approved transfers. It does not undo completed ones.")}
           </p>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">Last changed {formatDateTime(controls.updatedAt)}</p>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">{t("Last changed {time}", { time: formatDateTime(controls.updatedAt) })}</p>
         </div>
         <Button
           size="lg"
@@ -175,15 +179,16 @@ function PauseCard({ controls, onSaved }: { controls: UserControls; onSaved: (c:
           aria-pressed={paused}
           className="w-full sm:w-auto"
         >
-          {paused ? "▶ Resume" : "⏸ Pause all execution"}
+          {paused ? `▶ ${t("Resume")}` : `⏸ ${t("Pause all execution")}`}
         </Button>
       </div>
-      <ErrorBox error={error} title="Couldn't change pause state" className="mt-4" />
+      <ErrorBox error={error} title={t("Couldn't change pause state")} className="mt-4" />
     </section>
   );
 }
 
 function LimitsCard({ controls, onSaved }: { controls: UserControls; onSaved: (c: UserControls) => void }) {
+  const t = useT();
   const [perTransfer, setPerTransfer] = useState(centsToDollarInput(controls.perTransferLimitCents));
   const [daily, setDaily] = useState(centsToDollarInput(controls.dailyLimitCents));
   const [fieldErrors, setFieldErrors] = useState<{ perTransfer?: string; daily?: string }>({});
@@ -201,13 +206,13 @@ function LimitsCard({ controls, onSaved }: { controls: UserControls; onSaved: (c
     e.preventDefault();
     setError(null);
     setSaved(false);
-    const p = parseDollarsToCents(perTransfer, { allowZero: true });
-    const d = parseDollarsToCents(daily, { allowZero: true });
+    const p = parseDollarsToCents(perTransfer, { allowZero: true, t });
+    const d = parseDollarsToCents(daily, { allowZero: true, t });
     const errs: { perTransfer?: string; daily?: string } = {};
     if (!p.ok) errs.perTransfer = p.error;
     if (!d.ok) errs.daily = d.error;
     if (p.ok && d.ok && p.cents > d.cents) {
-      errs.perTransfer = "Per-transfer limit cannot exceed daily limit.";
+      errs.perTransfer = t("Per-transfer limit cannot exceed daily limit.");
     }
     setFieldErrors(errs);
     if (!p.ok || !d.ok || errs.perTransfer) return;
@@ -232,12 +237,12 @@ function LimitsCard({ controls, onSaved }: { controls: UserControls; onSaved: (c
   }
 
   return (
-    <Card title="Transfer limits" subtitle="Proposals over a limit are held. Execution re-checks limits at run time.">
+    <Card title={t("Transfer limits")} subtitle={t("Proposals over a limit are held. Execution re-checks limits at run time.")}>
       <form onSubmit={submit} className="space-y-4" noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
           <DollarField
             id="limit-per"
-            label="Per-transfer limit"
+            label={t("Per-transfer limit")}
             value={perTransfer}
             onChange={(v) => {
               setPerTransfer(v);
@@ -248,7 +253,7 @@ function LimitsCard({ controls, onSaved }: { controls: UserControls; onSaved: (c
           />
           <DollarField
             id="limit-daily"
-            label="Daily limit"
+            label={t("Daily limit")}
             value={daily}
             onChange={(v) => {
               setDaily(v);
@@ -258,12 +263,12 @@ function LimitsCard({ controls, onSaved }: { controls: UserControls; onSaved: (c
             current={controls.dailyLimitCents}
           />
         </div>
-        <ErrorBox error={error} title="Limits not saved" />
+        <ErrorBox error={error} title={t("Limits not saved")} />
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" variant="primary" busy={busy}>
-            Save limits
+            {t("Save limits")}
           </Button>
-          {saved && <span className="text-sm text-green-700 dark:text-green-400">✓ Saved</span>}
+          {saved && <span className="text-sm text-green-700 dark:text-green-400">✓ {t("Saved")}</span>}
         </div>
       </form>
     </Card>
@@ -285,6 +290,7 @@ function DollarField({
   error?: string;
   current: number;
 }) {
+  const t = useT();
   return (
     <div>
       <label htmlFor={id} className={labelClass}>
@@ -307,7 +313,7 @@ function DollarField({
         <p role="alert" className="mt-1 text-xs text-red-700 dark:text-red-400">{error}</p>
       ) : (
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          Current: <Money cents={current} />
+          {t("Current:")} <Money cents={current} />
         </p>
       )}
     </div>
@@ -315,16 +321,17 @@ function DollarField({
 }
 
 function UsageCard({ controls, executedTodayCents }: { controls: UserControls; executedTodayCents: number }) {
+  const { t, tr } = useI18n();
   const limit = controls.dailyLimitCents;
   const pct = limit > 0 ? Math.min(100, (executedTodayCents / limit) * 100) : executedTodayCents > 0 ? 100 : 0;
   const remaining = Math.max(0, limit - executedTodayCents);
   const over = executedTodayCents > limit;
   return (
-    <Card title="Today's usage" subtitle="Simulated transfers executed today vs your daily limit">
+    <Card title={t("Today's usage")} subtitle={t("Simulated transfers executed today vs your daily limit")}>
       <p className="text-3xl font-semibold tracking-tight">
         <Money cents={executedTodayCents} />
         <span className="ml-2 text-base font-normal text-zinc-500 dark:text-zinc-400">
-          of <Money cents={limit} />
+          {t("of")} <Money cents={limit} />
         </span>
       </p>
       <div
@@ -333,7 +340,7 @@ function UsageCard({ controls, executedTodayCents }: { controls: UserControls; e
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(pct)}
-        aria-label="Daily limit used"
+        aria-label={t("Daily limit used")}
       >
         <div
           className={`h-full rounded-full ${pct >= 100 ? "bg-red-500" : pct >= 75 ? "bg-amber-500" : "bg-brand-600 dark:bg-brand-500"}`}
@@ -342,17 +349,19 @@ function UsageCard({ controls, executedTodayCents }: { controls: UserControls; e
       </div>
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
         {over ? (
-          <span className="text-red-700 dark:text-red-400">Over the daily limit — further transfers will be held.</span>
+          <span className="text-red-700 dark:text-red-400">{t("Over the daily limit — further transfers will be held.")}</span>
         ) : (
           <>
-            <Money cents={remaining} className="font-medium text-zinc-900 dark:text-zinc-100" /> left today · per-transfer limit{" "}
-            <Money cents={controls.perTransferLimitCents} />
+            {tr("{remaining} left today · per-transfer limit {limit}", {
+              remaining: <Money cents={remaining} className="font-medium text-zinc-900 dark:text-zinc-100" />,
+              limit: <Money cents={controls.perTransferLimitCents} />,
+            })}
           </>
         )}
       </p>
       {controls.paused && (
         <p className="mt-3">
-          <Badge tone="red">Paused — nothing will execute</Badge>
+          <Badge tone="red">{t("Paused — nothing will execute")}</Badge>
         </p>
       )}
     </Card>
@@ -360,44 +369,45 @@ function UsageCard({ controls, executedTodayCents }: { controls: UserControls; e
 }
 
 function PermissionsCard() {
+  const t = useT();
   const can = [
-    "Read your accounts and balances",
-    "Read your transactions",
-    "Read spending and subscription insights",
-    "Read your saved recipients",
-    "Create transfer proposals (which you review)",
+    msg("Read your accounts and balances"),
+    msg("Read your transactions"),
+    msg("Read spending and subscription insights"),
+    msg("Read your saved recipients"),
+    msg("Create transfer proposals (which you review)"),
   ];
   const cannot = [
-    "Approve a transfer",
-    "Execute a transfer",
-    "Change limits or pause/resume",
-    "Verify a recipient",
+    msg("Approve a transfer"),
+    msg("Execute a transfer"),
+    msg("Change limits or pause/resume"),
+    msg("Verify a recipient"),
   ];
   return (
-    <Card title="Assistant permissions" subtitle="Enforced on the server: the assistant simply has no tool for the things it can't do.">
+    <Card title={t("Assistant permissions")} subtitle={t("Enforced on the server: the assistant simply has no tool for the things it can't do.")}>
       <div className="grid gap-6 sm:grid-cols-2">
         <div>
-          <p className="mb-2 text-xs font-semibold tracking-wide text-green-700 uppercase dark:text-green-400">The assistant can</p>
+          <p className="mb-2 text-xs font-semibold tracking-wide text-green-700 uppercase dark:text-green-400">{t("The assistant can")}</p>
           <ul className="space-y-1.5 text-sm">
-            {can.map((t) => (
-              <li key={t} className="flex gap-2">
+            {can.map((item) => (
+              <li key={item} className="flex gap-2">
                 <span className="text-green-600 dark:text-green-400" aria-hidden>
                   ✓
                 </span>
-                {t}
+                {t(item)}
               </li>
             ))}
           </ul>
         </div>
         <div>
-          <p className="mb-2 text-xs font-semibold tracking-wide text-red-700 uppercase dark:text-red-400">It cannot</p>
+          <p className="mb-2 text-xs font-semibold tracking-wide text-red-700 uppercase dark:text-red-400">{t("It cannot")}</p>
           <ul className="space-y-1.5 text-sm">
-            {cannot.map((t) => (
-              <li key={t} className="flex gap-2">
+            {cannot.map((item) => (
+              <li key={item} className="flex gap-2">
                 <span className="text-red-600 dark:text-red-400" aria-hidden>
                   ✗
                 </span>
-                {t}
+                {t(item)}
               </li>
             ))}
           </ul>
@@ -408,64 +418,66 @@ function PermissionsCard() {
 }
 
 const SCOPE_LABELS: Record<string, string> = {
-  accounts: "Accounts",
-  transactions: "Transactions",
-  recipients: "Recipients",
-  actions: "Transfer proposals",
-  portfolio: "Portfolio",
-  connections: "Bank connections",
-  insights: "Insights",
-  jobs: "Follow-up jobs",
-  connection_sync: "Connection sync",
+  accounts: msg("Accounts"),
+  transactions: msg("Transactions"),
+  recipients: msg("Recipients"),
+  actions: msg("Transfer proposals"),
+  portfolio: msg("Portfolio"),
+  connections: msg("Bank connections"),
+  insights: msg("Insights"),
+  jobs: msg("Follow-up jobs"),
+  connection_sync: msg("Connection sync"),
 };
 
 function YesNo({ value }: { value: boolean }) {
-  return value ? <Badge tone="red">Yes</Badge> : <Badge tone="green">No</Badge>;
+  const t = useT();
+  return value ? <Badge tone="red">{t("Yes")}</Badge> : <Badge tone="green">{t("No")}</Badge>;
 }
 
 function AgentPermissionsCard() {
+  const t = useT();
   const agents = useApiData<AgentsResponse>(paths.agents);
   const rows = agents.data?.permissions ?? [];
   return (
     <Card
       id="agents"
       className="scroll-mt-28"
-      title="Monitoring agent permissions"
-      subtitle="Advisory — agents can't approve or move money. Each reads only its listed data and writes insights."
+      title={t("Monitoring agent permissions")}
+      subtitle={t("Advisory — agents can't approve or move money. Each reads only its listed data and writes insights.")}
     >
-      <ErrorBox error={agents.error} title="Couldn't load agent permissions" className="mb-3" onRetry={() => void agents.reload()} />
+      <ErrorBox error={agents.error} title={t("Couldn't load agent permissions")} className="mb-3" onRetry={() => void agents.reload()} />
       {agents.loading && !agents.data ? (
-        <Loading label="Loading agent permissions…" />
+        <Loading label={t("Loading agent permissions…")} />
       ) : rows.length === 0 ? (
-        <EmptyState>No monitoring agents registered.</EmptyState>
+        <EmptyState>{t("No monitoring agents registered.")}</EmptyState>
       ) : (
         <>
           <div className="overflow-x-auto">
-            <table className="agent-matrix" aria-label="Agent permission matrix">
+            <table className="agent-matrix" aria-label={t("Agent permission matrix")}>
               <thead>
                 <tr>
-                  <th scope="col">Agent</th>
-                  <th scope="col">Reads</th>
-                  <th scope="col">Writes</th>
-                  <th scope="col">Can approve</th>
-                  <th scope="col">Can execute</th>
-                  <th scope="col">Verify / controls</th>
-                  <th scope="col">Last run</th>
+                  <th scope="col">{t("Agent")}</th>
+                  <th scope="col">{t("Reads")}</th>
+                  <th scope="col">{t("Writes")}</th>
+                  <th scope="col">{t("Can approve")}</th>
+                  <th scope="col">{t("Can execute")}</th>
+                  <th scope="col">{t("Verify / controls")}</th>
+                  <th scope="col">{t("Last run")}</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((p) => {
                   const def = agents.data?.agents.find((a) => a.id === p.agentId);
-                  const reads = Object.entries(p.reads).filter(([, v]) => v).map(([k]) => SCOPE_LABELS[k] ?? k);
-                  const writes = Object.entries(p.writes).filter(([, v]) => v).map(([k]) => SCOPE_LABELS[k] ?? k);
+                  const reads = Object.entries(p.reads).filter(([, v]) => v).map(([k]) => t(SCOPE_LABELS[k] ?? k));
+                  const writes = Object.entries(p.writes).filter(([, v]) => v).map(([k]) => t(SCOPE_LABELS[k] ?? k));
                   return (
                     <tr key={p.agentId}>
                       <th scope="row" className="min-w-52 font-medium">
                         <span className="flex items-start gap-2.5">
                           <AgentAvatar agentId={p.agentId} size={28} />
                           <span>
-                            {p.name}
-                            {def && <span className="mt-0.5 block text-xs font-normal text-zinc-400">{def.trigger}</span>}
+                            {t(p.name)}
+                            {def && <span className="mt-0.5 block text-xs font-normal text-zinc-400">{t(def.trigger)}</span>}
                           </span>
                         </span>
                       </th>
@@ -481,7 +493,7 @@ function AgentPermissionsCard() {
                         <YesNo value={p.canVerifyRecipients || p.canChangeControls || p.canCreateMandates} />
                       </td>
                       <td className="text-xs whitespace-nowrap text-zinc-400">
-                        {def?.lastRun ? `${def.lastRun.status} · ${formatDateTime(def.lastRun.startedAt)}` : "Never"}
+                        {def?.lastRun ? `${t(def.lastRun.status)} · ${formatDateTime(def.lastRun.startedAt)}` : t("Never")}
                       </td>
                     </tr>
                   );
@@ -489,7 +501,7 @@ function AgentPermissionsCard() {
               </tbody>
             </table>
           </div>
-          {agents.data?.notice && <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">{agents.data.notice}</p>}
+          {agents.data?.notice && <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">{t(agents.data.notice)}</p>}
         </>
       )}
     </Card>

@@ -15,6 +15,7 @@ import { getOwnedAccount } from "@/lib/finance/accounts";
 import { approvalHash } from "@/lib/policy/approval";
 import type { ExecutionReceipt, TransferAction, UserId } from "@/lib/types";
 import { applyEvaluation, getAction, loadActionRow, runPolicy } from "./service";
+import { msg } from "@/lib/i18n/msg";
 
 export interface ExecuteResult {
   action: TransferAction;
@@ -53,7 +54,7 @@ export function executeTransfer(db: DB, userId: UserId, actionId: string): Execu
           detail: { reason: "Action or recipient changed after approval" } });
         applyEvaluation(db, userId, row, "system");
         return { kind: "rejected", error: conflict("APPROVAL_INVALID",
-          "Something material changed after approval. The approval was discarded; review the transfer again.") };
+          msg("Something material changed after approval. The approval was discarded; review the transfer again.")) };
       }
 
       // 2. Current controls, limits and balance must still pass.
@@ -86,13 +87,13 @@ export function executeTransfer(db: DB, userId: UserId, actionId: string): Execu
         `UPDATE actions SET state = 'EXECUTED', executed_at = ?, receipt = ?, updated_at = ?
          WHERE id = ? AND user_id = ? AND state = 'APPROVED' AND version = ?`,
       ).run(now, JSON.stringify(receipt), now, actionId, userId, row.version);
-      if (claimed.changes !== 1) throw new Error("Action changed during execution");
+      if (claimed.changes !== 1) throw new Error(msg("Action changed during execution"));
 
       const debited = db.prepare(
         `UPDATE accounts SET balance_cents = balance_cents - ?, available_cents = available_cents - ?, updated_at = ?
          WHERE id = ? AND user_id = ? AND available_cents >= ?`,
       ).run(amount, amount, now, source.id, userId, amount);
-      if (debited.changes !== 1) throw new Error("Insufficient available balance at execution");
+      if (debited.changes !== 1) throw new Error(msg("Insufficient available balance at execution"));
 
       const groupId = ownDestination ? `tg_${actionId}` : null;
       // Reporting only: internal moves stay transfers; rent goes to housing.
@@ -124,7 +125,7 @@ export function executeTransfer(db: DB, userId: UserId, actionId: string): Execu
   } catch (err) {
     if (err instanceof ServiceError) throw err;
     // Simulation failed and rolled back; record the failure separately.
-    const message = err instanceof Error ? err.message : "Unknown simulation error";
+    const message = err instanceof Error ? err.message : msg("Unknown simulation error");
     db.transaction(() => {
       db.prepare(`UPDATE actions SET state = 'FAILED', failure_reason = ?, updated_at = ?
                   WHERE id = ? AND user_id = ? AND state = 'APPROVED'`)

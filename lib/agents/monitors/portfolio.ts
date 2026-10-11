@@ -10,6 +10,7 @@
  */
 import type { AgentHandler } from "../context";
 import { dayKey, usd } from "./format";
+import { tpl } from "@/lib/i18n/msg";
 
 export const PORTFOLIO_RULES = {
   concentrationPct: 25,
@@ -28,7 +29,7 @@ export const portfolioReview: AgentHandler = (ctx) => {
   let positions = 0;
 
   for (const account of portfolio.accounts) {
-    const label = account.paper ? `${account.name} (paper)` : account.name;
+    const label = account.paper ? tpl("{name} (paper)", { name: account.name }) : account.name;
     for (const p of account.positions) {
       positions++;
       if (p.weightPct > R.concentrationPct) {
@@ -37,11 +38,13 @@ export const portfolioReview: AgentHandler = (ctx) => {
           type: "portfolio_concentration",
           // Paper money is practice: concentration there is informational, never critical.
           severity: account.paper ? "info" : p.weightPct > R.concentrationCriticalPct ? "critical" : "warning",
-          title: `${p.symbol} is ${p.weightPct.toFixed(1)}% of ${label}`,
-          body:
-            `${p.symbol} (${usd(p.marketValueCents)}) is more than ${R.concentrationPct}% of the positions in ${label}. ` +
-            `A single holding this large makes the account sensitive to one company or fund. Simulated prices; ` +
-            `informational, not investment advice.`,
+          title: tpl("{symbol} is {weight}% of {label}", { symbol: p.symbol, weight: p.weightPct.toFixed(1), label }),
+          body: tpl(
+            "{symbol} ({value}) is more than {threshold}% of the positions in {label}. " +
+              "A single holding this large makes the account sensitive to one company or fund. Simulated prices; " +
+              "informational, not investment advice.",
+            { symbol: p.symbol, value: usd(p.marketValueCents), threshold: R.concentrationPct, label },
+          ),
           evidence: { accountIds: [account.accountId], symbols: [p.symbol], weightBandPct: band },
           dedupeKey: `concentration:${account.accountId}:${p.symbol}`,
         });
@@ -55,11 +58,19 @@ export const portfolioReview: AgentHandler = (ctx) => {
         ctx.insights.upsert({
           type: "portfolio_daily_move",
           severity: Math.abs(quote.changePct) >= R.dailyMoveCriticalPct ? "critical" : "warning",
-          title: `${p.symbol} is ${direction} ${Math.abs(quote.changePct).toFixed(1)}% today in ${label}`,
-          body:
-            `${p.symbol} moved from ${usd(quote.previousCloseCents)} to ${usd(quote.priceCents)} ` +
-            `(${quote.source} quote, delayed ${quote.delayedMinutes} min). Your position changed by about ` +
-            `${usd(dayChangeCents)}. Informational, not investment advice.`,
+          title: tpl(
+            quote.changePct > 0 ? "{symbol} is up {pct}% today in {label}" : "{symbol} is down {pct}% today in {label}",
+            { symbol: p.symbol, pct: Math.abs(quote.changePct).toFixed(1), label },
+          ),
+          body: tpl(
+            "{symbol} moved from {previous} to {price} " +
+              "({source} quote, delayed {minutes} min). Your position changed by about " +
+              "{change}. Informational, not investment advice.",
+            {
+              symbol: p.symbol, previous: usd(quote.previousCloseCents), price: usd(quote.priceCents),
+              source: quote.source, minutes: quote.delayedMinutes, change: usd(dayChangeCents),
+            },
+          ),
           evidence: {
             accountIds: [account.accountId],
             symbols: [p.symbol],
@@ -75,7 +86,9 @@ export const portfolioReview: AgentHandler = (ctx) => {
   }
 
   return {
-    summary: `${positions} position(s) reviewed: ${concentrated} concentrated, ${moves} large daily move(s)`,
+    summary: tpl("{positions} position(s) reviewed: {concentrated} concentrated, {moves} large daily move(s)", {
+      positions, concentrated, moves,
+    }),
     data: { positions, concentrated, dailyMoves: moves },
   };
 };

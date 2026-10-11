@@ -23,6 +23,19 @@ describe("chat fallback", () => {
     ]);
   });
 
+  it("writes the fallback reply in the language the UI asked for", async () => {
+    vi.stubEnv("CLEARFI_AI_MODE", "fallback");
+    const spanish = await runChat(freshDb(), "alice", { ...question("How is my spending?"), locale: "es" });
+    const english = await runChat(freshDb(), "alice", question("How is my spending?"));
+
+    expect(english.reply).toContain("Spending in");
+    expect(spanish.reply).not.toContain("Spending in");
+    expect(spanish.reply).toContain("hasta ahora");
+    expect(spanish.notice).not.toContain("Showing a deterministic summary");
+    // Amounts and record IDs are not translated.
+    expect(spanish.reply).toMatch(/\$[\d,]+\.\d{2}/);
+  });
+
   it("acknowledges proposals created before the model became unavailable", () => {
     const response = fallbackReply(
       freshDb(),

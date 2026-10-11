@@ -22,7 +22,7 @@ import type { DB } from "@/lib/db";
 import { badRequest, conflict, notFound } from "@/lib/errors";
 import { ApproveSchema, type Account, type UserId } from "@/lib/types";
 import { orderApprovalHash, type ApprovableOrder } from "./approval";
-import { findInstrument } from "./instruments";
+import { instrumentFor } from "./assets";
 import { quoteFor, quoteSource } from "./marketdata";
 import { priceBoundFor } from "./math";
 import { evaluateOrderPolicy, type MandateTerms, type OrderTerms } from "./policy";
@@ -40,12 +40,13 @@ import {
   readTradingControls,
 } from "./store";
 import type { OrderCreator, OrderPolicyResult, OrderState, PaperOrder, Quote } from "./types";
+import { msg, tpl } from "@/lib/i18n/msg";
 
 const EVALUABLE: OrderState[] = ["PROPOSED", "HELD", "AWAITING_APPROVAL"];
 const EDITABLE: OrderState[] = ["PROPOSED", "HELD", "AWAITING_APPROVAL", "APPROVED"];
 
 /** 409 for an order whose state (or version) changed under us. */
-export function stateConflict(message = "The order changed while it was being updated. Reload it and try again.") {
+export function stateConflict(message: string = msg("The order changed while it was being updated. Reload it and try again.")) {
   return conflict("INVALID_STATE", message);
 }
 
@@ -56,7 +57,7 @@ export function orderActor(createdBy: OrderCreator, userId: UserId): string {
 function assertCreator(createdBy: OrderCreator): void {
   if (createdBy === "user" || createdBy === "assistant") return;
   const agentId = createdBy.startsWith("agent:") ? createdBy.slice("agent:".length) : "";
-  if (!AGENT_ID_PATTERN.test(agentId)) throw badRequest("Invalid order creator");
+  if (!AGENT_ID_PATTERN.test(agentId)) throw badRequest(msg("Invalid order creator"));
 }
 
 // --- Reads ------------------------------------------------------------------
@@ -133,7 +134,7 @@ function policyFor(db: DB, userId: UserId, terms: OrderTerms, quote: Quote | nul
   const policy = evaluateOrderPolicy({
     order: terms,
     account,
-    instrument: findInstrument(terms.symbol),
+    instrument: instrumentFor(db, terms.symbol),
     quote,
     heldQuantityMicros: heldQuantityMicros(db, userId, terms.accountId, terms.symbol),
     paused: getControls(db, userId).paused,
@@ -214,7 +215,7 @@ function authorizeByMandate(db: DB, userId: UserId, row: OrderRow, now: Date): v
        approved_by = ?, updated_at = ?
      WHERE id = ? AND user_id = ? AND state = 'AWAITING_APPROVAL' AND version = ? AND mandate_id IS NOT NULL`,
   ).run(hash, row.version, ts, approvedBy, ts, row.id, userId, row.version);
-  if (claimed.changes !== 1) throw stateConflict("The order changed during mandate authorization");
+  if (claimed.changes !== 1) throw stateConflict(msg("The order changed during mandate authorization"));
   writeAudit(db, { userId, actor: "system", eventType: "order.mandate_authorized", actionId: row.id,
     detail: { version: row.version, mandateId: row.mandate_id, proposedBy: row.created_by, approvedBy,
       approvalHashPrefix: hash.slice(0, 12), paper: true } });
@@ -236,13 +237,13 @@ export function createOrderInternal(
 ): PaperOrder {
   const now = new Date();
   assertCreator(createdBy);
-  if (mandateId !== null && !createdBy.startsWith("agent:")) throw badRequest("Only agent orders can carry a mandate");
+  if (mandateId !== null && !createdBy.startsWith("agent:")) throw badRequest(msg("Only agent orders can carry a mandate"));
   const data = CreateOrderSchema.parse(input);
   assertTradable(loadOwnedAccount(db, userId, data.accountId), brokerTermsFor(db, userId, data.accountId));
   const venue = venueOf(brokerLinkFor(db, userId, data.accountId));
-  if (mandateId !== null && venue !== "onera_paper") throw badRequest("Mandates only cover Onera paper accounts");
+  if (mandateId !== null && venue !== "onera_paper") throw badRequest(msg("Mandates only cover Onera paper accounts"));
   if (venue === "alpaca_live" && createdBy !== "user") {
-    throw badRequest("Live (real-money) orders can only be created by you in the app.");
+    throw badRequest(msg("Live (real-money) orders can only be created by you in the app."));
   }
 
   const id = `ord_${randomBytes(5).toString("hex")}`;
@@ -282,7 +283,7 @@ export function editOrder(db: DB, userId: UserId, orderId: string, input: unknow
   const now = new Date();
   db.transaction(() => {
     const row = loadOrderRow(db, userId, orderId);
-    if (!EDITABLE.includes(row.state)) throw stateConflict(`Order is ${row.state} and cannot be edited`);
+    if (!EDITABLE.includes(row.state)) throw stateConflict(tpl("Order is {state} and cannot be edited", { state: row.state }));
 
     const accountId = patch.accountId ?? row.account_id;
     assertTradable(loadOwnedAccount(db, userId, accountId), brokerTermsFor(db, userId, accountId));
@@ -292,7 +293,7 @@ export function editOrder(db: DB, userId: UserId, orderId: string, input: unknow
     let notionalCents = row.notional_cents;
     if (patch.quantityMicros !== undefined) { quantityMicros = patch.quantityMicros; notionalCents = null; }
     if (patch.notionalCents !== undefined) { notionalCents = patch.notionalCents; quantityMicros = null; }
-    if (side === "sell" && quantityMicros === null) throw badRequest("Sell orders are sized by quantityMicros");
+    if (side === "sell" && quantityMicros === null) throw badRequest(msg("Sell orders are sized by quantityMicros"));
 
     const edited = db.prepare(
       `UPDATE orders SET state = 'PROPOSED', version = version + 1, venue = ?, account_id = ?, symbol = ?, side = ?,
@@ -319,7 +320,7 @@ export function evaluateOrder(db: DB, userId: UserId, orderId: string): PaperOrd
   db.transaction(() => {
     const row = loadOrderRow(db, userId, orderId);
     if (!EVALUABLE.includes(row.state)) {
-      throw stateConflict(`Order is ${row.state}; only proposed, held or awaiting orders are re-evaluated`);
+      throw stateConflict(tpl("Order is {state}; only proposed, held or awaiting orders are re-evaluated", { state: row.state }));
     }
     // Guarded on row.state/row.version, so a concurrent approve or execute is a 409.
     applyOrderEvaluation(db, userId, row, `user:${userId}`, now, { bumpOnReprice: true });
@@ -337,16 +338,16 @@ export function approveOrder(db: DB, userId: UserId, orderId: string, input: unk
   const outcome = db.transaction(() => {
     const row = loadOrderRow(db, userId, orderId);
     if (row.state !== "AWAITING_APPROVAL") {
-      return { error: conflict("INVALID_STATE", `Order is ${row.state}; only AWAITING_APPROVAL can be approved`) };
+      return { error: conflict("INVALID_STATE", tpl("Order is {state}; only AWAITING_APPROVAL can be approved", { state: row.state })) };
     }
     if (row.version !== version) {
       return { error: conflict("STALE_VERSION",
-        `You reviewed v${version} but the order is now v${row.version}. Review it again.`) };
+        tpl("You reviewed v{reviewed} but the order is now v{current}. Review it again.", { reviewed: version, current: row.version })) };
     }
     const { policy } = runOrderPolicy(db, userId, row, now);
     if (policy.decision === "HOLD") {
       applyOrderEvaluation(db, userId, row, "system", now, { bumpOnReprice: true });
-      return { error: conflict("POLICY_HOLD", "Policy checks no longer pass; the order was re-evaluated",
+      return { error: conflict("POLICY_HOLD", msg("Policy checks no longer pass; the order was re-evaluated"),
         { reasons: policy.reasons }) };
     }
     const hash = orderApprovalHash(approvableOrder(row));

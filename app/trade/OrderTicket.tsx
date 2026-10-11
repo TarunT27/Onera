@@ -6,6 +6,7 @@ import type { PaperOrder, PortfolioAccount, Quote, TradingControls } from "@/lib
 import { api } from "../components/api";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatCents, parseDollarsToCents } from "../components/format";
+import { useT } from "../components/I18nContext";
 import { formatShares, parseSharesToMicros } from "./shares";
 
 /** Display-only estimate: the server prices and checks the real order. */
@@ -24,6 +25,7 @@ export function OrderTicket({
   controls: TradingControls | null;
   onProposed: (order: PaperOrder) => void;
 }) {
+  const t = useT();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("250");
   const [sharesText, setSharesText] = useState("1");
@@ -32,8 +34,8 @@ export function OrderTicket({
   const [busy, setBusy] = useState(false);
 
   const held = account?.positions.find((p) => p.symbol === symbol)?.quantityMicros ?? 0;
-  const amountParsed = parseDollarsToCents(amount);
-  const sharesParsed = parseSharesToMicros(sharesText);
+  const amountParsed = parseDollarsToCents(amount, { t });
+  const sharesParsed = parseSharesToMicros(sharesText, t);
   const price = quote?.priceCents ?? 0;
   const valueCents =
     side === "buy"
@@ -50,7 +52,7 @@ export function OrderTicket({
     let sizing: { notionalCents: number } | { quantityMicros: number };
     if (side === "buy") {
       if (!amountParsed.ok) return setFieldError(amountParsed.error);
-      if (amountParsed.cents < 100) return setFieldError("Minimum order is $1.00");
+      if (amountParsed.cents < 100) return setFieldError(t("Minimum order is $1.00"));
       sizing = { notionalCents: amountParsed.cents };
     } else {
       if (!sharesParsed.ok) return setFieldError(sharesParsed.error);
@@ -73,10 +75,10 @@ export function OrderTicket({
   }
 
   return (
-    <form className="tile glass ticket" onSubmit={submit} aria-label={`Order ticket for ${symbol}`}>
+    <form className="tile glass ticket" onSubmit={submit} aria-label={t("Order ticket for {symbol}", { symbol })}>
       <header className="ticket-head">
-        <h2>Order · {symbol}</h2>
-        <div className="seg" role="radiogroup" aria-label="Side">
+        <h2>{t("Order")} · {symbol}</h2>
+        <div className="seg" role="radiogroup" aria-label={t("Side")}>
           <span className="seg-lens" data-side={side} aria-hidden />
           {(["buy", "sell"] as const).map((s) => (
             <button
@@ -89,18 +91,18 @@ export function OrderTicket({
                 setFieldError("");
               }}
             >
-              {s === "buy" ? "Buy" : "Sell"}
+              {s === "buy" ? t("Buy") : t("Sell")}
             </button>
           ))}
         </div>
       </header>
 
       {!account ? (
-        <p className="row-meta">No trading account is available for this user.</p>
+        <p className="row-meta">{t("No trading account is available for this user.")}</p>
       ) : side === "buy" ? (
         <>
           <div className="ticket-amount">
-            <label htmlFor="ticket-amount">Amount (USD)</label>
+            <label htmlFor="ticket-amount">{t("Amount (USD)")}</label>
             <input
               id="ticket-amount"
               inputMode="decimal"
@@ -117,19 +119,19 @@ export function OrderTicket({
             step={100}
             value={amountParsed.ok ? Math.min(amountParsed.cents, sliderMax) : 100}
             onChange={(e) => setAmount(String(Number(e.target.value) / 100))}
-            aria-label="Amount"
+            aria-label={t("Amount")}
             style={{ ["--pct" as string]: `${((amountParsed.ok ? Math.min(amountParsed.cents, sliderMax) : 0) / sliderMax) * 100}%` }}
           />
           <p className="ticket-note">
             {price > 0 && amountParsed.ok
-              ? `≈ ${estimateShares(amountParsed.cents, price).toFixed(3)} sh at ${formatCents(price)}`
-              : "Enter a dollar amount"}
+              ? `≈ ${t("{shares} sh at {price}", { shares: estimateShares(amountParsed.cents, price).toFixed(3), price: formatCents(price) })}`
+              : t("Enter a dollar amount")}
           </p>
         </>
       ) : (
         <>
           <div className="ticket-amount">
-            <label htmlFor="ticket-shares">Shares to sell</label>
+            <label htmlFor="ticket-shares">{t("Shares to sell")}</label>
             <input
               id="ticket-shares"
               inputMode="decimal"
@@ -139,7 +141,7 @@ export function OrderTicket({
             />
           </div>
           <p className="ticket-note">
-            You hold {formatShares(held)} sh. Sells are placed in shares.
+            {t("You hold {shares} sh. Sells are placed in shares.", { shares: formatShares(held) })}
             {sharesParsed.ok && price > 0 ? ` ≈ ${formatCents(valueCents)}` : ""}
           </p>
         </>
@@ -154,15 +156,15 @@ export function OrderTicket({
       {account && (
         <dl className="ticket-checks">
           <div>
-            <dt>Price is locked within 1%</dt>
-            <dd>{price > 0 ? formatCents(price) : "—"} now</dd>
+            <dt>{t("Price is locked within 1%")}</dt>
+            <dd>{t("{price} now", { price: price > 0 ? formatCents(price) : "—" })}</dd>
           </div>
           <div className={overLimit ? "warn" : undefined}>
-            <dt>{overLimit ? "Over your per-order limit, it will be held" : "Per-order limit"}</dt>
+            <dt>{overLimit ? t("Over your per-order limit, it will be held") : t("Per-order limit")}</dt>
             <dd>{controls ? formatCents(controls.perOrderLimitCents) : "—"}</dd>
           </div>
           <div>
-            <dt>{account.venue === "onera_paper" ? "Paper buying power" : "Buying power (no margin)"}</dt>
+            <dt>{account.venue === "onera_paper" ? t("Paper buying power") : t("Buying power (no margin)")}</dt>
             <dd>{formatCents(account.buyingPowerCents)}</dd>
           </div>
         </dl>
@@ -171,17 +173,17 @@ export function OrderTicket({
       <ErrorBox error={error} onDismiss={() => setError(null)} />
 
       <button type="submit" className="pill ticket-submit" disabled={!account || busy || !quote}>
-        {busy ? "Proposing…" : side === "buy" ? "Propose buy" : "Propose sell"}
+        {busy ? t("Proposing…") : side === "buy" ? t("Propose buy") : t("Propose sell")}
         <span className="knob" aria-hidden>
           <ArrowRight size={16} weight="bold" />
         </span>
       </button>
       <p className="ticket-foot">
         {account?.venue === "alpaca_live"
-          ? "Real money. Nothing is sent to Alpaca until you approve this exact version and submit it."
+          ? t("Real money. Nothing is sent to Alpaca until you approve this exact version and submit it.")
           : account?.venue === "alpaca_paper"
-            ? "Nothing is sent to Alpaca until you approve this exact version and submit it."
-            : "Nothing executes until you approve this exact version."}
+            ? t("Nothing is sent to Alpaca until you approve this exact version and submit it.")
+            : t("Nothing executes until you approve this exact version.")}
       </p>
     </form>
   );
