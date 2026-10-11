@@ -1,7 +1,8 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+/* eslint-disable @next/next/no-img-element -- small static mascot PNG */
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   Instrument,
   PaperOrder,
@@ -57,6 +58,19 @@ export function TradeClient() {
   const [range, setRange] = useState(1);
   const [selected, setSelected] = useState<PaperOrder | null>(null);
   const [openError, setOpenError] = useState<unknown>(null);
+  // Bottom-right pane when no order is open: 0 = positions, 1 = orders.
+  const [lowerTab, setLowerTab] = useState(0);
+  // Below 1200px the assistant is a slide-over opened from a floating button.
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const fabRef = useRef<HTMLButtonElement>(null);
+  const slotRef = useRef<HTMLDivElement>(null);
+  const closeAssistant = useCallback(() => setAssistantOpen(false), []);
+  // Return focus to the button once it is visible again (it is hidden while open).
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !assistantOpen) fabRef.current?.focus();
+    wasOpen.current = assistantOpen;
+  }, [assistantOpen]);
 
   const instruments = useApiData<InstrumentsResponse>("/api/markets/instruments");
   const quotes = useApiData<{ quotes: Quote[]; disclaimer: string }>("/api/markets/quotes");
@@ -113,6 +127,24 @@ export function TradeClient() {
     void orders.reload();
   }
 
+  // Slide-over: Esc closes, focus moves in on open, and widening the window
+  // past the breakpoint (where the assistant is a column again) closes it.
+  useEffect(() => {
+    if (!assistantOpen) return;
+    slotRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeAssistant();
+    };
+    const wide = window.matchMedia("(min-width: 1201px)");
+    const onWide = () => wide.matches && setAssistantOpen(false);
+    window.addEventListener("keydown", onKey);
+    wide.addEventListener("change", onWide);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      wide.removeEventListener("change", onWide);
+    };
+  }, [assistantOpen, closeAssistant]);
+
   function onOrderChange(order: PaperOrder) {
     setSelected(order);
     void orders.reload();
@@ -124,12 +156,13 @@ export function TradeClient() {
 
   return (
     <div className="trade">
-      <div className="trade-head rise" style={{ ["--i" as string]: 0 }}>
-        <div>
-          <p className="eyebrow">{paper ? `${paper.name} · ••${paper.mask}` : "Paper trading"}</p>
+      <div className="trade-head rise" style={{ ["--i" as string]: 0 }} inert={assistantOpen || undefined}>
+        <div className="trade-title">
           <h1>Trade</h1>
+          <p className="eyebrow">{paper ? `${paper.name} · ••${paper.mask}` : "Paper trading"}</p>
         </div>
         <div className="trade-chips">
+          <span className="chip">Synthetic data · simulated money</span>
           <PaperLabel />
           <span className="chip">{instruments.data?.market.label ?? "Simulated market"}</span>
           {paper && (
@@ -148,7 +181,7 @@ export function TradeClient() {
       <ErrorBox error={openError} onDismiss={() => setOpenError(null)} />
 
       <div className="trade-grid">
-        <section className="watchlist glass rise" style={{ ["--i" as string]: 1 }} aria-label="Watchlist">
+        <section className="watchlist glass rise" style={{ ["--i" as string]: 1 }} aria-label="Watchlist" inert={assistantOpen || undefined}>
           <header>
             <h2>Watchlist</h2>
             <span className="row-meta">{quotes.data?.quotes.length ?? "…"} symbols</span>
@@ -187,7 +220,7 @@ export function TradeClient() {
           )}
         </section>
 
-        <div className="trade-main">
+        <div className="trade-main" inert={assistantOpen || undefined}>
           <section className="tile glass chart-card rise" style={{ ["--i" as string]: 2 }} aria-label={`${symbol} chart`}>
             <header className="chart-head">
               <div>
@@ -241,51 +274,103 @@ export function TradeClient() {
             ) : (
               <section className="tile glass positions" aria-label="Positions and orders">
                 <header className="ticket-head">
-                  <h2>Positions</h2>
+                  <div
+                    className="seg lower-seg"
+                    role="radiogroup"
+                    aria-label="Show positions or orders"
+                    style={{ ["--n" as string]: 2, ["--idx" as string]: lowerTab }}
+                  >
+                    <span className="seg-lens" aria-hidden />
+                    {["Positions", "Orders"].map((label, i) => (
+                      <button key={label} type="button" role="radio" aria-checked={lowerTab === i} onClick={() => setLowerTab(i)}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   {paper && <span className="row-meta">Paper value {formatCents(paper.totalCents)}</span>}
                 </header>
-                <ErrorBox error={portfolio.error} onRetry={() => void portfolio.reload()} />
-                {paper && paper.positions.length === 0 && <p className="row-meta">No paper positions yet.</p>}
-                <ul className="position-list">
-                  {paper?.positions.map((p) => (
-                    <li key={p.symbol}>
-                      <button type="button" className="position-row" onClick={() => setSymbol(p.symbol)}>
-                        <span className="squircle ticker">{p.symbol}</span>
-                        <span className="position-body">
-                          <strong>{formatShares(p.quantityMicros)} sh</strong>
-                          <small>{p.weightPct.toFixed(1)}% of paper portfolio</small>
-                        </span>
-                        <span className="position-value">
-                          <strong>{formatCents(p.marketValueCents)}</strong>
-                          <small className={p.unrealizedPnlCents >= 0 ? "up" : "down"}>
-                            {p.unrealizedPnlCents >= 0 ? "+" : "−"}
-                            {formatCents(Math.abs(p.unrealizedPnlCents))}
-                          </small>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <h3 className="orders-title">Orders</h3>
-                {orders.data?.orders.length === 0 && <p className="row-meta">No orders yet.</p>}
-                <ul className="order-list">
-                  {orders.data?.orders.map((o) => (
-                    <li key={o.id}>
-                      <button type="button" className="order-row" onClick={() => void openOrder(o.id)}>
-                        <span>{orderTitle(o)}</span>
-                        <small>{creatorLabel(o)}</small>
-                        <OrderStateBadge state={o.state} />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                {lowerTab === 0 ? (
+                  <div className="pane-scroll">
+                    <ErrorBox error={portfolio.error} onRetry={() => void portfolio.reload()} />
+                    {paper && paper.positions.length === 0 && <p className="row-meta">No paper positions yet.</p>}
+                    <ul className="position-list">
+                      {paper?.positions.map((p) => (
+                        <li key={p.symbol}>
+                          <button type="button" className="position-row" onClick={() => setSymbol(p.symbol)}>
+                            <span className="squircle ticker">{p.symbol}</span>
+                            <span className="position-body">
+                              <strong>{formatShares(p.quantityMicros)} sh</strong>
+                              <small>{p.weightPct.toFixed(1)}% of paper portfolio</small>
+                            </span>
+                            <span className="position-value">
+                              <strong>{formatCents(p.marketValueCents)}</strong>
+                              <small className={p.unrealizedPnlCents >= 0 ? "up" : "down"}>
+                                {p.unrealizedPnlCents >= 0 ? "+" : "−"}
+                                {formatCents(Math.abs(p.unrealizedPnlCents))}
+                              </small>
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="pane-scroll">
+                    {orders.data?.orders.length === 0 && <p className="row-meta">No orders yet.</p>}
+                    <ul className="order-list">
+                      {orders.data?.orders.map((o) => (
+                        <li key={o.id}>
+                          <button type="button" className="order-row" onClick={() => void openOrder(o.id)}>
+                            <span>{orderTitle(o)}</span>
+                            <small>{creatorLabel(o)}</small>
+                            <OrderStateBadge state={o.state} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </section>
             )}
           </div>
         </div>
 
-        <TradeAssistant symbol={symbol} onReviewOrder={(id) => void openOrder(id)} />
+        <div
+          className={`assistant-scrim${assistantOpen ? " open" : ""}`}
+          onClick={closeAssistant}
+          aria-hidden
+        />
+        <div
+          ref={slotRef}
+          className={`assistant-slot${assistantOpen ? " open" : ""}`}
+          role={assistantOpen ? "dialog" : undefined}
+          aria-modal={assistantOpen || undefined}
+          aria-label={assistantOpen ? "Ask Onera" : undefined}
+          tabIndex={-1}
+        >
+          <TradeAssistant
+            symbol={symbol}
+            onClose={closeAssistant}
+            onReviewOrder={(id) => {
+              // Close the slide-over so the review pane it opens is visible.
+              setAssistantOpen(false);
+              void openOrder(id);
+            }}
+          />
+        </div>
       </div>
+
+      <button
+        ref={fabRef}
+        type="button"
+        className="assistant-fab"
+        aria-expanded={assistantOpen}
+        onClick={() => setAssistantOpen(true)}
+        hidden={assistantOpen}
+      >
+        <img src="/agents/research.png" alt="" width={28} height={28} />
+        Ask Onera
+      </button>
     </div>
   );
 }

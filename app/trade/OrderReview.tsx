@@ -127,33 +127,36 @@ export function OrderReview({
 
       <ErrorBox error={error} onDismiss={() => setError(null)} />
 
-      {order.state === "AWAITING_APPROVAL" && (
-        <HoldButton
-          label={`Hold to approve version ${order.version}`}
-          busyLabel="Approving…"
-          busy={busy === "approve"}
-          onConfirm={() => void run("approve")}
-        />
-      )}
-      {order.state === "APPROVED" && (
-        <button type="button" className="pill review-execute" disabled={busy !== null} onClick={() => void run("execute")}>
-          {busy === "execute" ? "Executing…" : "Execute paper order"}
-        </button>
-      )}
-      {order.state === "HELD" && (
-        <button type="button" className="pill secondary review-execute" disabled={busy !== null} onClick={() => void run("evaluate")}>
-          {busy === "evaluate" ? "Re-checking…" : "Re-check at current price"}
-        </button>
-      )}
-      {fill && (
-        <div className="review-fill" role="status">
-          <strong>Executed · simulated fill{duplicate ? " (already executed)" : ""}</strong>
-          <span>
-            {fill.side === "buy" ? "Bought" : "Sold"} {formatShares(fill.quantityMicros)} sh {fill.symbol} at{" "}
-            {formatCents(fill.priceCents)} for {formatCents(fill.grossCents)}. Paper money only, not counted in net worth.
-          </span>
-        </div>
-      )}
+      {/* Actions stay pinned to the bottom of the pane, so approval never needs a page scroll. */}
+      <div className="review-actions">
+        {order.state === "AWAITING_APPROVAL" && (
+          <HoldButton
+            label={`Hold to approve version ${order.version}`}
+            busyLabel="Approving…"
+            busy={busy === "approve"}
+            onConfirm={() => void run("approve")}
+          />
+        )}
+        {order.state === "APPROVED" && (
+          <button type="button" className="pill review-execute" disabled={busy !== null} onClick={() => void run("execute")}>
+            {busy === "execute" ? "Executing…" : "Execute paper order"}
+          </button>
+        )}
+        {order.state === "HELD" && (
+          <button type="button" className="pill secondary review-execute" disabled={busy !== null} onClick={() => void run("evaluate")}>
+            {busy === "evaluate" ? "Re-checking…" : "Re-check at current price"}
+          </button>
+        )}
+        {fill && (
+          <div className="review-fill" role="status">
+            <strong>Executed · simulated fill{duplicate ? " (already executed)" : ""}</strong>
+            <span>
+              {fill.side === "buy" ? "Bought" : "Sold"} {formatShares(fill.quantityMicros)} sh {fill.symbol} at{" "}
+              {formatCents(fill.priceCents)} for {formatCents(fill.grossCents)}. Paper money only, not counted in net worth.
+            </span>
+          </div>
+        )}
+      </div>
       {order.state === "FAILED" && order.failureReason && <p className="ticket-error">{order.failureReason}</p>}
     </section>
   );

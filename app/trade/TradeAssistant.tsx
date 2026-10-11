@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- small static mascot PNGs, no optimisation needed */
 
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from "react";
-import { ArrowUp, ArrowUpRight, Sparkle } from "@phosphor-icons/react";
+import { ArrowUp, ArrowUpRight, Sparkle, X } from "@phosphor-icons/react";
 import type { AssistantAgentId, ChatRequest, ChatResponse } from "@/lib/types";
 import { api } from "../components/api";
 import { Badge } from "../components/Badge";
@@ -61,7 +61,16 @@ function toRequest(agent: TradeAgent, history: Msg[]): ChatRequest {
   return { agent, messages };
 }
 
-export function TradeAssistant({ symbol, onReviewOrder }: { symbol: string; onReviewOrder: (orderId: string) => void }) {
+export function TradeAssistant({
+  symbol,
+  onReviewOrder,
+  onClose,
+}: {
+  symbol: string;
+  onReviewOrder: (orderId: string) => void;
+  /** Shown as a Close button when the assistant is a slide-over (below 1200px). */
+  onClose?: () => void;
+}) {
   const [agent, setAgent] = useState<TradeAgent>("research");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -117,6 +126,11 @@ export function TradeAssistant({ symbol, onReviewOrder }: { symbol: string; onRe
         <Sparkle className="assistant-spark" size={18} weight="fill" aria-hidden />
         <h2>Ask Onera</h2>
         <span className="row-meta">Not financial advice</span>
+        {onClose && (
+          <button type="button" className="icon-btn assistant-close" onClick={onClose} aria-label="Close assistant">
+            <X size={16} aria-hidden />
+          </button>
+        )}
       </header>
 
       <div

@@ -2785,12 +2785,11 @@
   line-height: 1.4;
 }
 
-@media (max-width: 1280px) {
-  .trade-grid {
-    grid-template-columns: 220px minmax(0, 1fr);
+@media (max-width: 900px) {
+  .assistant-slot {
+    grid-column: 1 / -1;
   }
   .trade-assistant {
-    grid-column: 1 / -1;
     position: static;
     height: 640px;
   }
@@ -3180,5 +3179,289 @@
     max-width: 120px;
     opacity: 1;
     margin-left: 8px;
+  }
+}
+
+
+/* ─── Trade: one-screen workspace (no page scroll) ───
+   From 901px up the Trade page fills the window between the top bar and the
+   floating voice button: the watchlist, chart, ticket/positions and
+   assistant each scroll inside themselves instead of the page. Below 1200px
+   the assistant becomes a slide-over. Tablets and phones (≤900px) keep the
+   natural scrolling layout above. */
+.assistant-scrim,
+.assistant-fab,
+.assistant-close {
+  display: none;
+}
+.assistant-slot {
+  min-width: 0;
+  outline: none;
+}
+.pane-scroll {
+  min-height: 0;
+}
+.trade-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+@media (min-width: 901px) {
+  .app-main:has(.trade) {
+    --trade-top: 92px;
+    /* Room for the floating voice button (56px at 20px from the bottom). */
+    --trade-bottom: 88px;
+    padding-top: var(--trade-top);
+    min-height: 0;
+  }
+  .app-main:has(.trade) ~ .app-footer {
+    display: none;
+  }
+  .trade {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--trade-top) - var(--trade-bottom));
+    min-height: 600px;
+  }
+  .trade-head {
+    align-items: center;
+    margin: 0 4px 12px;
+  }
+  .trade-head h1 {
+    margin: 0;
+    font-size: 28px;
+  }
+  .trade-paused {
+    margin-bottom: 10px;
+    padding: 8px 14px;
+  }
+  .trade-grid {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: 220px minmax(0, 1fr) 340px;
+    align-items: stretch;
+  }
+  .watchlist {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .watchlist ul {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .trade-main {
+    min-height: 0;
+  }
+  .chart-card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 20px 10px;
+  }
+  .chart-big {
+    font-size: 34px;
+  }
+  .trade-chart {
+    flex: 1;
+    height: auto;
+    min-height: 140px;
+    margin-top: 10px;
+  }
+  .chart-foot {
+    margin-top: 6px;
+    padding-top: 8px;
+  }
+  .trade-lower {
+    flex: 0 0 auto;
+    height: clamp(250px, 34vh, 320px);
+    align-items: stretch;
+  }
+  /* Panes scroll inside; the hairline moves to an inset shadow so it doesn't scroll away. */
+  .trade-lower > .glass {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.08),
+      inset 0 1px 0 rgb(255 255 255 / 0.08);
+  }
+  .trade-lower > .glass::before {
+    display: none;
+  }
+  .ticket,
+  .review,
+  .positions {
+    gap: 10px;
+    padding: 14px 18px;
+  }
+  .ticket-amount input {
+    font-size: 26px;
+  }
+  .ticket-checks {
+    gap: 2px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .ticket-foot {
+    display: none;
+  }
+  /* Never squash ticket rows (it flattened the slider track); the pane scrolls instead. */
+  .ticket > * {
+    flex-shrink: 0;
+  }
+  .ticket {
+    gap: 8px;
+  }
+  .lower-seg {
+    grid-template-columns: repeat(2, 84px);
+  }
+  /* The Propose button and review actions stay pinned to the pane bottom. */
+  .ticket-submit {
+    flex-shrink: 0;
+    margin-top: auto;
+    position: sticky;
+    bottom: 0;
+  }
+  .review-actions {
+    position: sticky;
+    bottom: -14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: auto -18px -14px;
+    padding: 14px 18px;
+    background: linear-gradient(rgb(15 18 21 / 0), rgb(15 18 21 / 0.96) 18px);
+  }
+  .review-actions:empty {
+    display: none;
+  }
+  .review-title {
+    font-size: 22px;
+  }
+  .positions .pane-scroll {
+    flex: 1;
+    overflow-y: auto;
+  }
+  .assistant-slot {
+    display: flex;
+    min-height: 0;
+  }
+  .trade-assistant {
+    position: static;
+    flex: 1;
+    height: auto;
+    min-height: 0;
+  }
+}
+@media (min-width: 901px) and (max-height: 860px) {
+  .ticket-checks div:nth-child(3) {
+    display: none;
+  }
+  .ticket .ticket-amount input {
+    font-size: 24px;
+  }
+}
+@media (min-width: 901px) and (max-width: 1360px) {
+  .trade-grid {
+    grid-template-columns: 200px minmax(0, 1fr) 320px;
+  }
+}
+@media (min-width: 901px) and (max-width: 1200px) {
+  .trade-grid {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+  /* Slide-over assistant. */
+  .assistant-slot {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: calc(var(--z-nav) + 3);
+    width: min(400px, calc(100vw - 24px));
+    /* A short slide + fade (not parked off-screen, which would add a sideways scroll). */
+    opacity: 0;
+    transform: translateX(32px) scale(0.98);
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      transform 0.45s var(--ease),
+      opacity 0.3s var(--ease),
+      visibility 0s linear 0.45s;
+  }
+  .assistant-slot.open {
+    opacity: 1;
+    transform: none;
+    visibility: visible;
+    pointer-events: auto;
+    transition:
+      transform 0.5s var(--ease),
+      opacity 0.3s var(--ease);
+  }
+  .assistant-slot .trade-assistant {
+    background: linear-gradient(180deg, rgb(16 26 33 / 0.97), rgb(12 14 17 / 0.98) 40%);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.1),
+      0 30px 80px -20px rgb(0 0 0 / 0.8);
+  }
+  .assistant-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-nav) + 2);
+    background: rgb(4 6 8 / 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s var(--ease);
+  }
+  .assistant-scrim.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .assistant-close {
+    display: grid;
+    margin-left: 4px;
+  }
+  .assistant-head .row-meta {
+    margin-left: auto;
+  }
+  .assistant-fab {
+    position: fixed;
+    right: 24px;
+    bottom: max(20px, env(safe-area-inset-bottom));
+    z-index: calc(var(--z-nav) + 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 56px;
+    padding: 6px 20px 6px 8px;
+    border-radius: 999px;
+    background: rgb(18 23 27 / 0.86);
+    backdrop-filter: blur(24px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.12),
+      0 16px 40px -12px rgb(0 0 0 / 0.7);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+    transition: transform 0.45s var(--ease-spring), background-color 0.3s var(--ease);
+  }
+  .assistant-fab[hidden] {
+    display: none;
+  }
+  .assistant-fab:hover {
+    background: rgb(26 32 38 / 0.92);
+  }
+  .assistant-fab:active {
+    transform: scale(0.96);
+  }
+  .assistant-fab img {
+    width: 34px;
+    height: 34px;
   }
 }
