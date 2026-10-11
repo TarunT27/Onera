@@ -220,11 +220,11 @@ export function buildAgentContext(
       },
       quote(symbol) {
         needRead("portfolio", "portfolio.quote");
-        return getQuote(symbol, now);
+        return getQuote(symbol, now, db);
       },
       history(symbol, days) {
         needRead("portfolio", "portfolio.history");
-        return getPriceHistory(symbol, days, now);
+        return getPriceHistory(symbol, days, now, db);
       },
       instruments() {
         needRead("portfolio", "portfolio.instruments");

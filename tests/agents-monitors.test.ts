@@ -341,8 +341,8 @@ describe("portfolio monitor", () => {
     mocks.getPortfolio.mockImplementation((_db: DB, userId: UserId): Portfolio => ({
       userId, paperValueCents: 0, disclaimer: "Simulated prices", investedValueCents: 1_000_000, asOf: now.toISOString(), quotesSource: "simulated",
       accounts: [{
-        accountId: "acct_alice_brokerage", name: "Individual Brokerage", institution: "Northwind", mask: "3091", label: "View-only demo import", tradable: false, paper: false,
-        cashCents: 0, positionsValueCents: 1_000_000, totalCents: 1_000_000,
+        accountId: "acct_alice_brokerage", name: "Individual Brokerage", institution: "Northwind", mask: "3091", label: "View-only demo import", tradable: false, venue: null, paper: false,
+        cashCents: 0, buyingPowerCents: 0, positionsValueCents: 1_000_000, totalCents: 1_000_000,
         positions: [pos("VTI", 60, 600_000), pos("AAPL", 30, 300_000), pos("BND", 10, 100_000)],
       }],
     }));

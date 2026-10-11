@@ -9,6 +9,7 @@ import { getSessionUserId } from "@/lib/session";
 export const GET = handler(async () => {
   const db = getDb();
   const userId = await getSessionUserId();
+  // Executed today plus the worst-case value of orders still open at Alpaca.
   return NextResponse.json({
     controls: getTradingControls(db, userId),
     paused: getControls(db, userId).paused,

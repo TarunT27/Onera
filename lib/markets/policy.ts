@@ -1,7 +1,7 @@
 /**
  * Deterministic order policy. Pure function: same inputs, same decision.
- * Model or agent output never feeds into it — only stored records, simulated
- * quotes and user controls.
+ * Model or agent output never feeds into it — only stored records, quotes
+ * (simulated, or cached Alpaca market data), the broker link and user controls.
  */
 import type { Account } from "@/lib/types";
 import { shares, usd, valueCents } from "./math";
@@ -12,7 +12,9 @@ import type {
   OrderPolicyCheck,
   OrderPolicyResult,
   OrderSide,
+  OrderVenue,
   Quote,
+  QuoteSource,
   TradingControls,
 } from "./types";
 
@@ -40,6 +42,17 @@ export interface MandateTerms {
   revokedAt: string | null;
 }
 
+/** The account's Alpaca link as policy sees it. Null for Onera paper accounts. */
+export interface BrokerTerms {
+  venue: Exclude<OrderVenue, "onera_paper">;
+  /** Keys are configured, for the same environment (paper/live) the account was linked in. */
+  connected: boolean;
+  /** ALPACA_ALLOW_LIVE_TRADING=true. Only matters for live. */
+  liveTradingAllowed: boolean;
+  /** Hard cap for one live order (ALPACA_LIVE_MAX_ORDER_CENTS). */
+  liveMaxOrderCents: number;
+}
+
 export interface OrderPolicyInput {
   order: OrderTerms;
   account: Account;
@@ -55,6 +68,10 @@ export interface OrderPolicyInput {
   mandate: MandateTerms | null;
   mandateUsedTodayCents: number;
   now: Date;
+  /** Alpaca link of the order's account (omitted or null: Onera paper). */
+  broker?: BrokerTerms | null;
+  /** Where quotes come from in this process (omitted: simulated). */
+  quoteSource?: QuoteSource;
 }
 
 /**
@@ -76,8 +93,18 @@ export function estimatedOrderValueCents(
   return price === null ? 0 : valueCents(qty, price, "floor");
 }
 
-export function isTradableAccount(account: Pick<Account, "paper" | "capabilities" | "type">): boolean {
-  return account.paper && account.type === "brokerage" && account.capabilities.includes("trade");
+/**
+ * Orders can be placed in a brokerage account with the "trade" capability that is either
+ * Onera paper, Alpaca paper (keys connected), or Alpaca live with live trading explicitly allowed.
+ */
+export function isTradableAccount(
+  account: Pick<Account, "paper" | "capabilities" | "type">,
+  broker: BrokerTerms | null = null,
+): boolean {
+  if (account.type !== "brokerage" || !account.capabilities.includes("trade")) return false;
+  if (broker === null) return account.paper;
+  if (!broker.connected) return false;
+  return broker.venue === "alpaca_paper" ? account.paper : broker.liveTradingAllowed;
 }
 
 export function evaluateOrderPolicy(input: OrderPolicyInput): OrderPolicyResult {
@@ -89,12 +116,33 @@ export function evaluateOrderPolicy(input: OrderPolicyInput): OrderPolicyResult 
   const value = estimatedOrderValueCents(order, quote?.priceCents ?? null);
   const sizeText = order.notionalCents !== null ? usd(order.notionalCents) : `${shares(order.quantityMicros ?? 0)} sh`;
 
-  const tradable = isTradableAccount(account);
-  add("tradable_account", "Paper trading account", tradable,
-    tradable
-      ? `${account.name} ••${account.mask} is a paper account (simulated money).`
-      : `${account.name} ••${account.mask} is view-only. Orders can only execute in a paper trading account.`,
-    "NOT_TRADABLE");
+  const broker = input.broker ?? null;
+  const tradable = isTradableAccount(account, broker);
+  if (broker === null) {
+    add("tradable_account", "Paper trading account", tradable,
+      tradable
+        ? `${account.name} ••${account.mask} is a paper account (simulated money).`
+        : `${account.name} ••${account.mask} is view-only. Orders can only execute in a paper trading account.`,
+      "NOT_TRADABLE");
+  } else {
+    const live = broker.venue === "alpaca_live";
+    add("tradable_account", live ? "Alpaca live account connected" : "Alpaca paper account connected", tradable,
+      tradable
+        ? `${account.name} ••${account.mask} is connected to Alpaca ${live ? "LIVE (real money)" : "paper trading"}.`
+        : !broker.connected
+          ? `${account.name} ••${account.mask} is not connected: Alpaca keys for this environment are not configured.`
+          : `Live trading is turned off (ALPACA_ALLOW_LIVE_TRADING). ${account.name} cannot place orders.`,
+      "NOT_TRADABLE");
+    if (live) {
+      add("live_user_only", "Live orders are created by you", order.createdBy === "user",
+        order.createdBy === "user"
+          ? "You created this live order yourself."
+          : "Live (real-money) orders can only be created by you in the app, never by the assistant or an agent.",
+        "NOT_TRADABLE");
+      add("live_order_cap", "Live order cap", value <= broker.liveMaxOrderCents,
+        `${usd(value)} vs the live cap of ${usd(broker.liveMaxOrderCents)} per order.`, "ORDER_LIMIT_EXCEEDED");
+    }
+  }
 
   const allowed = instrument !== null && (instrument.type === "stock" || instrument.type === "etf");
   add("instrument_allowed", "Supported stock or ETF", allowed,
@@ -103,9 +151,17 @@ export function evaluateOrderPolicy(input: OrderPolicyInput): OrderPolicyResult 
       : `${order.symbol} is not on the supported list of stocks and ETFs.`,
     "INSTRUMENT_NOT_ALLOWED");
 
-  add("quote_available", "Simulated quote available", quote !== null,
-    quote ? `${quote.symbol} at ${usd(quote.priceCents)} (simulated, as of ${quote.asOf}).` : `No simulated quote for ${order.symbol}.`,
-    "QUOTE_UNAVAILABLE");
+  if ((input.quoteSource ?? "simulated") === "simulated") {
+    add("quote_available", "Simulated quote available", quote !== null,
+      quote ? `${quote.symbol} at ${usd(quote.priceCents)} (simulated, as of ${quote.asOf}).` : `No simulated quote for ${order.symbol}.`,
+      "QUOTE_UNAVAILABLE");
+  } else {
+    add("quote_available", "Live quote available", quote !== null,
+      quote
+        ? `${quote.symbol} at ${usd(quote.priceCents)} (Alpaca IEX, last trade ${quote.asOf}).`
+        : `No fresh Alpaca quote for ${order.symbol}. Prices are never guessed; try again in a moment.`,
+      "QUOTE_UNAVAILABLE");
+  }
 
   if (quote) {
     const bound = order.priceBoundCents;
@@ -127,7 +183,8 @@ export function evaluateOrderPolicy(input: OrderPolicyInput): OrderPolicyResult 
     "DAILY_ORDER_LIMIT_EXCEEDED");
 
   if (order.side === "buy") {
-    add("available_cash", "Paper cash available", value <= account.availableCents,
+    add("available_cash", broker === null ? "Paper cash available" : "Cash available (no margin)",
+      value <= account.availableCents,
       `${sizeText} needs up to ${usd(value)}; ${usd(account.availableCents)} available in ${account.name}.`,
       "INSUFFICIENT_CASH");
   } else {
@@ -143,6 +200,7 @@ export function evaluateOrderPolicy(input: OrderPolicyInput): OrderPolicyResult 
 
   if (order.mandateId !== null) {
     const problems = mandateProblems(order, input.mandate, value, input.mandateUsedTodayCents, input.now);
+    if (broker !== null) problems.push("Mandates only cover Onera paper accounts, not Alpaca.");
     add("mandate_valid", "Agent mandate covers this order", problems.length === 0,
       problems.length === 0
         ? `Mandate ${order.mandateId} covers ${order.side} ${order.symbol} up to ${usd(input.mandate!.maxOrderCents)} per order.`

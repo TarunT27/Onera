@@ -1,6 +1,8 @@
 /**
- * Paper order lifecycle — the same governance as transfers:
+ * Order lifecycle — the same governance as transfers:
  *   PROPOSED → HELD | AWAITING_APPROVAL → APPROVED → EXECUTED   (FAILED on broker error)
+ * Orders in an Alpaca-linked account go APPROVED → SUBMITTING → SUBMITTED →
+ * EXECUTED | CANCELED | FAILED instead (brokerage.ts).
  *
  * Approval is either the user approving the exact version (user route only)
  * or, for an agent's order that carries a mandate, automatic authorization at
@@ -21,13 +23,15 @@ import { badRequest, conflict, notFound } from "@/lib/errors";
 import { ApproveSchema, type Account, type UserId } from "@/lib/types";
 import { orderApprovalHash, type ApprovableOrder } from "./approval";
 import { findInstrument } from "./instruments";
+import { quoteFor, quoteSource } from "./marketdata";
 import { priceBoundFor } from "./math";
 import { evaluateOrderPolicy, type MandateTerms, type OrderTerms } from "./policy";
-import { toOrder, type OrderRow } from "./rows";
+import { toOrder, venueOf, type OrderRow } from "./rows";
 import { AGENT_ID_PATTERN, CreateOrderSchema, EditOrderSchema } from "./schemas";
-import { simulateQuote } from "./simulator";
 import {
   assertTradable,
+  brokerLinkFor,
+  brokerTermsFor,
   heldQuantityMicros,
   loadMandateRow,
   loadOwnedAccount,
@@ -95,6 +99,7 @@ export function approvableOrder(row: OrderRow): ApprovableOrder {
     notionalCents: row.notional_cents,
     priceBoundCents: row.price_bound_cents,
     mandateId: row.mandate_id,
+    venue: row.venue,
   };
 }
 
@@ -137,22 +142,24 @@ function policyFor(db: DB, userId: UserId, terms: OrderTerms, quote: Quote | nul
     mandate,
     mandateUsedTodayCents: terms.mandateId ? mandateUsedTodayCents(db, userId, terms.mandateId, now) : 0,
     now,
+    broker: brokerTermsFor(db, userId, terms.accountId),
+    quoteSource: quoteSource(),
   });
   return { policy, account };
 }
 
-/** Current policy for the stored version: its captured price bound against the current simulated quote. */
+/** Current policy for the stored version: its captured price bound against the current quote. */
 export function runOrderPolicy(db: DB, userId: UserId, row: OrderRow, now: Date): {
   policy: OrderPolicyResult;
   account: Account;
   quote: Quote | null;
 } {
-  const quote = simulateQuote(row.symbol, now);
+  const quote = quoteFor(db, row.symbol, now);
   return { ...policyFor(db, userId, termsOf(row, row.price_bound_cents), quote, now), quote };
 }
 
 /**
- * Re-prices at the current simulated quote, evaluates and stores the outcome.
+ * Re-prices at the current quote, evaluates and stores the outcome.
  * Must run inside a transaction. Always clears any approval. When `bumpOnReprice`
  * is set and the price bound changes, the order gets a new version (the bound is
  * part of what the user approves). The UPDATE only applies if the order is still
@@ -167,7 +174,7 @@ export function applyOrderEvaluation(
   now: Date,
   opts: { bumpOnReprice: boolean },
 ): OrderPolicyResult {
-  const quote = simulateQuote(row.symbol, now);
+  const quote = quoteFor(db, row.symbol, now);
   const bound = quote ? priceBoundFor(row.side, quote.priceCents) : null;
   const repriced = opts.bumpOnReprice && row.price_bound_cents !== null && bound !== row.price_bound_cents;
   const version = repriced ? row.version + 1 : row.version;
@@ -186,7 +193,8 @@ export function applyOrderEvaluation(
   if (repriced) {
     writeAudit(db, { userId, actor: "system", eventType: "order.repriced", actionId: row.id,
       detail: { fromVersion: row.version, toVersion: version, fromPriceBoundCents: row.price_bound_cents,
-        toPriceBoundCents: bound, quotePriceCents: quote?.priceCents ?? null, simulated: true } });
+        toPriceBoundCents: bound, quotePriceCents: quote?.priceCents ?? null,
+        quoteSource: quote?.source ?? quoteSource(), simulated: quote?.source === "simulated" } });
   }
   writeAudit(db, {
     userId, actor, eventType: state === "HELD" ? "order.held" : "order.awaiting_approval", actionId: row.id,
@@ -230,21 +238,27 @@ export function createOrderInternal(
   assertCreator(createdBy);
   if (mandateId !== null && !createdBy.startsWith("agent:")) throw badRequest("Only agent orders can carry a mandate");
   const data = CreateOrderSchema.parse(input);
-  assertTradable(loadOwnedAccount(db, userId, data.accountId));
+  assertTradable(loadOwnedAccount(db, userId, data.accountId), brokerTermsFor(db, userId, data.accountId));
+  const venue = venueOf(brokerLinkFor(db, userId, data.accountId));
+  if (mandateId !== null && venue !== "onera_paper") throw badRequest("Mandates only cover Onera paper accounts");
+  if (venue === "alpaca_live" && createdBy !== "user") {
+    throw badRequest("Live (real-money) orders can only be created by you in the app.");
+  }
 
   const id = `ord_${randomBytes(5).toString("hex")}`;
   const ts = now.toISOString();
   db.transaction(() => {
     db.prepare(
-      `INSERT INTO orders (id, user_id, state, version, account_id, symbol, side, quantity_micros, notional_cents,
+      `INSERT INTO orders (id, user_id, state, venue, version, account_id, symbol, side, quantity_micros, notional_cents,
          created_by, mandate_id, created_at, updated_at)
-       VALUES (?, ?, 'PROPOSED', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(id, userId, data.accountId, data.symbol, data.side, data.quantityMicros ?? null, data.notionalCents ?? null,
-      createdBy, mandateId, ts, ts);
+       VALUES (?, ?, 'PROPOSED', ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(id, userId, venue, data.accountId, data.symbol, data.side, data.quantityMicros ?? null,
+      data.notionalCents ?? null, createdBy, mandateId, ts, ts);
     writeAudit(db, {
       userId, actor: orderActor(createdBy, userId), eventType: "order.proposed", actionId: id,
       detail: { accountId: data.accountId, symbol: data.symbol, side: data.side,
-        quantityMicros: data.quantityMicros ?? null, notionalCents: data.notionalCents ?? null, mandateId, paper: true },
+        quantityMicros: data.quantityMicros ?? null, notionalCents: data.notionalCents ?? null, mandateId,
+        venue, paper: venue !== "alpaca_live" },
     });
     const policy = applyOrderEvaluation(db, userId, loadOrderRow(db, userId, id), "system", now, { bumpOnReprice: false });
     if (mandateId !== null && policy.decision === "ALLOW") {
@@ -271,7 +285,8 @@ export function editOrder(db: DB, userId: UserId, orderId: string, input: unknow
     if (!EDITABLE.includes(row.state)) throw stateConflict(`Order is ${row.state} and cannot be edited`);
 
     const accountId = patch.accountId ?? row.account_id;
-    assertTradable(loadOwnedAccount(db, userId, accountId));
+    assertTradable(loadOwnedAccount(db, userId, accountId), brokerTermsFor(db, userId, accountId));
+    const venue = venueOf(brokerLinkFor(db, userId, accountId));
     const side = patch.side ?? row.side;
     let quantityMicros = row.quantity_micros;
     let notionalCents = row.notional_cents;
@@ -280,12 +295,12 @@ export function editOrder(db: DB, userId: UserId, orderId: string, input: unknow
     if (side === "sell" && quantityMicros === null) throw badRequest("Sell orders are sized by quantityMicros");
 
     const edited = db.prepare(
-      `UPDATE orders SET state = 'PROPOSED', version = version + 1, account_id = ?, symbol = ?, side = ?,
+      `UPDATE orders SET state = 'PROPOSED', version = version + 1, venue = ?, account_id = ?, symbol = ?, side = ?,
          quantity_micros = ?, notional_cents = ?, quote_price_cents = NULL, price_bound_cents = NULL,
          mandate_id = NULL, approval_hash = NULL, approved_version = NULL, approved_at = NULL, approved_by = NULL,
          updated_at = ?
        WHERE id = ? AND user_id = ? AND version = ? AND state IN (${EDITABLE.map(() => "?").join(", ")})`,
-    ).run(accountId, patch.symbol ?? row.symbol, side, quantityMicros, notionalCents, now.toISOString(), orderId, userId,
+    ).run(venue, accountId, patch.symbol ?? row.symbol, side, quantityMicros, notionalCents, now.toISOString(), orderId, userId,
       row.version, ...EDITABLE);
     if (edited.changes !== 1) throw stateConflict();
     writeAudit(db, {

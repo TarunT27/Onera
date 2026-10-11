@@ -1,16 +1,25 @@
 /**
- * Portfolio valuation at simulated prices. Covers every brokerage account the
- * user has: imported (view-only) holdings and paper trading accounts. Only
- * non-paper positions count toward investedValueCents (and so net worth).
+ * Portfolio valuation at current prices (simulated, or cached Alpaca quotes).
+ * Covers every brokerage account the user has: imported (view-only) holdings,
+ * Onera paper accounts and a linked Alpaca account (positions and cash mirrored
+ * from the broker). Only non-paper positions count toward investedValueCents
+ * (and so net worth); Alpaca live counts, Alpaca paper does not.
  */
 import type { DB } from "@/lib/db";
 import { toAccount, type AccountRow } from "@/lib/db/rows";
 import type { UserId } from "@/lib/types";
+import { pricesDisclaimer, quoteFor, quoteSource } from "./marketdata";
 import { MICROS_PER_SHARE, mulDiv, valueCents } from "./math";
 import { isTradableAccount } from "./policy";
-import type { PositionRow } from "./rows";
-import { simulateQuote } from "./simulator";
-import { SIMULATED_PRICES_DISCLAIMER, type Portfolio, type PortfolioAccount, type Position } from "./types";
+import { venueOf, type PositionRow } from "./rows";
+import { brokerLinkFor, brokerTermsFor } from "./store";
+import type { OrderVenue, Portfolio, PortfolioAccount, Position } from "./types";
+
+function accountLabel(venue: OrderVenue | null, paper: boolean): string {
+  if (venue === "alpaca_paper") return "Alpaca paper trading";
+  if (venue === "alpaca_live") return "Alpaca LIVE — real money";
+  return paper ? "Paper trading (simulated)" : "Imported holdings (view-only)";
+}
 
 export function computePortfolio(db: DB, userId: UserId, now: Date): Portfolio {
   const accounts = (db
@@ -22,7 +31,7 @@ export function computePortfolio(db: DB, userId: UserId, now: Date): Portfolio {
 
   const prices = new Map<string, number | null>();
   const priceOf = (symbol: string) => {
-    if (!prices.has(symbol)) prices.set(symbol, simulateQuote(symbol, now)?.priceCents ?? null);
+    if (!prices.has(symbol)) prices.set(symbol, quoteFor(db, symbol, now)?.priceCents ?? null);
     return prices.get(symbol)!;
   };
 
@@ -50,15 +59,20 @@ export function computePortfolio(db: DB, userId: UserId, now: Date): Portfolio {
       p.weightPct = positionsValueCents > 0 ? Math.round((p.marketValueCents * 10_000) / positionsValueCents) / 100 : 0;
     }
     positions.sort((x, y) => y.marketValueCents - x.marketValueCents || x.symbol.localeCompare(y.symbol));
+    const link = brokerLinkFor(db, userId, a.id);
+    const tradable = isTradableAccount(a, brokerTermsFor(db, userId, a.id));
+    const venue = link ? venueOf(link) : a.paper ? "onera_paper" : null;
     return {
       accountId: a.id,
       name: a.name,
       institution: a.institution,
       mask: a.mask,
-      tradable: isTradableAccount(a),
+      tradable,
       paper: a.paper,
-      label: a.paper ? "Paper trading (simulated)" : "Imported holdings (view-only)",
+      venue,
+      label: accountLabel(venue, a.paper),
       cashCents: a.balanceCents,
+      buyingPowerCents: a.availableCents,
       positionsValueCents,
       totalCents: a.balanceCents + positionsValueCents,
       positions,
@@ -71,7 +85,7 @@ export function computePortfolio(db: DB, userId: UserId, now: Date): Portfolio {
     investedValueCents: result.filter((a) => !a.paper).reduce((s, a) => s + a.positionsValueCents, 0),
     paperValueCents: result.filter((a) => a.paper).reduce((s, a) => s + a.totalCents, 0),
     asOf: now.toISOString(),
-    quotesSource: "simulated",
-    disclaimer: SIMULATED_PRICES_DISCLAIMER,
+    quotesSource: quoteSource(),
+    disclaimer: pricesDisclaimer(),
   };
 }

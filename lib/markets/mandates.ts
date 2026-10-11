@@ -21,7 +21,7 @@ import { findInstrument } from "./instruments";
 import { createOrderInternal, getOrder } from "./orders";
 import { toMandate, type MandateRow } from "./rows";
 import { AGENT_ID_PATTERN, CreateMandateSchema, MandateOrderSchema } from "./schemas";
-import { assertTradable, loadMandateRow, loadOwnedAccount, mandateUsedTodayCents } from "./store";
+import { assertTradable, brokerLinkFor, loadMandateRow, loadOwnedAccount, mandateUsedTodayCents } from "./store";
 import type { Mandate, MandateOrderResult } from "./types";
 
 export const MAX_MANDATE_DAYS = 90;
@@ -48,7 +48,12 @@ export function getMandate(db: DB, userId: UserId, mandateId: string, now: Date 
 export function createMandate(db: DB, userId: UserId, input: unknown): Mandate {
   const data = CreateMandateSchema.parse(input);
   const now = new Date();
-  assertTradable(loadOwnedAccount(db, userId, data.accountId));
+  const account = loadOwnedAccount(db, userId, data.accountId);
+  // Autonomous trading stays in Onera's simulated paper broker: never against an Alpaca account.
+  if (brokerLinkFor(db, userId, data.accountId)) {
+    throw badRequest("Mandates only cover Onera paper accounts. Alpaca orders always need your approval.");
+  }
+  assertTradable(account);
 
   const symbols = [...new Set(data.symbols)];
   const unknown = symbols.filter((s) => !findInstrument(s));
