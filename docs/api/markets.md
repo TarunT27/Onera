@@ -1,4 +1,6 @@
-# Markets API: simulated quotes, portfolio, paper orders, mandates
+# Markets API: quotes, portfolio, paper and Alpaca orders, mandates
+
+> **Two modes.** Without Alpaca keys everything below runs on the deterministic simulator, exactly as documented. With `ALPACA_API_KEY_ID` / `ALPACA_API_SECRET_KEY` set, prices, history and the market clock come from Alpaca, and a user can connect the Alpaca account and submit approved orders to it. See [Alpaca brokerage](#alpaca-brokerage) at the end. Onera paper accounts keep filling locally in both modes.
 
 This file documents the routes under `app/api/markets`, `app/api/portfolio`, `app/api/orders` and `app/api/mandates` as they are implemented. Service code lives in `lib/markets/`. Types come from `lib/markets/types.ts` and are re-exported by `@/lib/markets`.
 
@@ -195,6 +197,79 @@ Agents must not call `approveOrder`, `createMandate`, `revokeMandate`, `updateTr
 
 Product notes (unchanged): `agentId` is checked for format only, not against the agents registry (a mismatched agent is `HELD` with `MANDATE_INVALID`); sells count against the per-order and daily limits like buys.
 
+## Alpaca brokerage
+
+Code: `lib/markets/alpaca.ts` (HTTP client), `marketdata.ts` (quote/bar/clock cache), `brokerage.ts` (connect, mirror, submit, sync, cancel). Configuration is server-only; see `.env.example`.
+
+| Variable | Meaning |
+|---|---|
+| `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | One key pair. Both set ⇒ Alpaca mode for the whole process. Redacted from chat output and broker errors |
+| `ALPACA_ENV` | `paper` (default) or `live` |
+| `ALPACA_ALLOW_LIVE_TRADING` | Must be `true` for live. Live orders are user-created only and capped by `ALPACA_LIVE_MAX_ORDER_CENTS` (default `10000`) |
+| `ALPACA_DATA_FEED` | `iex` (default, free) or `sip` |
+| `ALPACA_USER_ID` | The demo user the keys belong to (default `alice`). Anyone else gets `404` from connect |
+
+### Market data in Alpaca mode
+
+- Routes `await refreshMarketData()` first. Snapshots are cached for 15s, the clock for 60s and daily bars for 1h, all in markets-owned tables (`market_quotes`, `market_bars`, `market_data_state`). The synchronous services then read that cache.
+- A quote older than 60s is **unavailable** (`null`), and orders hold with `QUOTE_UNAVAILABLE`. Alpaca mode never falls back to simulated prices, so a made-up price can never become a real limit price.
+- Labels: `source`/`quotesSource` = `"alpaca_iex"`. `disclaimer` = `ALPACA_PRICES_DISCLAIMER`. `market` = `{ status: "open"|"closed", label, source, nextOpen, nextClose }` from the Alpaca clock.
+
+### Connecting
+
+`POST /api/brokers/alpaca/connect` (user only) validates the keys:
+- the account number prefix must match `ALPACA_ENV` (`PA…` is paper);
+- the account must be ACTIVE and USD.
+
+It then creates `acct_<user>_alpaca_<env>` (brokerage, `is_paper` = 1 for paper, institution "Alpaca") plus a `broker_links` row, and mirrors the account:
+- cash goes to `balance_cents`;
+- `min(cash, non_marginable_buying_power)` goes to `available_cents`, so Onera never uses margin;
+- long positions are copied to `positions`; shorts are skipped.
+
+`GET /api/brokers/alpaca` returns `{ connection: BrokerConnection }` and never includes keys. The mirror refreshes at most every 10s, and after each fill.
+
+### Order lifecycle at Alpaca
+
+```
+… → APPROVED ─POST /execute→ SUBMITTING ─Alpaca accepted→ SUBMITTED ─sync→ EXECUTED | CANCELED | FAILED
+```
+
+- **Same governance.** Orders for an Alpaca account (`venue: "alpaca_paper" | "alpaca_live"`) are proposed, evaluated and approved like any other order. The approval hash also binds the venue (schema 2). A link is only "connected" when the configured env matches the env it was linked in, so switching `ALPACA_ENV` holds the order instead of routing a paper approval to live.
+- **Submission.** `POST /api/orders/:id/execute` calls `placeOrder`:
+  - Onera paper orders execute locally (unchanged).
+  - Alpaca orders first refresh the quote and the account. One IMMEDIATE transaction then re-verifies the hash and policy and claims `APPROVED → SUBMITTING` with `client_order_id = <id>-v<version>`. It reserves the worst-case value against the daily limit.
+  - The order is then POSTed as a **limit order at the approved price bound**, `time_in_force: day`, `extended_hours: false`.
+  - Notional buys are converted to `floor(notional / bound)` micro-shares, so the spend can't exceed the approved amount. Non-fractionable symbols round down to whole shares.
+  - Response: `{ order, fill: OrderFill | null, duplicate, venue }`. Repeats return the current order.
+- **Outcomes of the POST:**
+
+  | Alpaca response | Order state |
+  |---|---|
+  | `403`/`422` | `FAILED`, with Alpaca's message |
+  | `401`/`429` | back to `APPROVED`; the route returns `503`/`429` |
+  | Timeout or `5xx` | Looked up by `client_order_id`, never re-posted. If Alpaca still doesn't have it after 2 minutes, `FAILED` ("nothing was traded") |
+
+- **Sync.** `syncOrders` runs on `GET /api/orders`, on `GET /api/orders/:id`, and in the background poller (every 10s while orders are open). Status mapping:
+
+  | Alpaca status | Order state |
+  |---|---|
+  | `filled` | `EXECUTED`, with Alpaca's `filled_avg_price`/`filled_qty` |
+  | `canceled`/`expired`, after a partial fill | `EXECUTED` with `fill.partial: true` |
+  | `canceled`/`expired`, nothing filled | `CANCELED` |
+  | `rejected` | `FAILED` |
+  | anything else | stays `SUBMITTED`, with the raw `broker.status` |
+
+  Alpaca fills have `simulated: false`. Their `cashAfterCents`, `positionQuantityAfterMicros` and `realizedPnlCents` are `null`; balances are re-read from Alpaca instead.
+- **Cancel.** `POST /api/orders/:id/cancel` (user only, `SUBMITTED` only) asks Alpaca to cancel. The order becomes `CANCELED` only once Alpaca confirms it. If the order already filled, the route returns it as `EXECUTED`.
+- **Not allowed on Alpaca accounts:**
+  - `executeOrder` returns `409 INVALID_STATE`; use `/execute`, which dispatches correctly.
+  - `createMandate` returns `400`.
+  - In live mode, assistant- and agent-created orders return `400`.
+- **Daily limit and shares.** `usage.executedTodayCents` includes the reservations of open orders. Held shares exclude shares in open sells.
+- **Demo reset.** Resetting the database forgets the link and the local orders. Orders still open at Alpaca stay open there; cancel them in the Alpaca dashboard if needed.
+
 ## Audit events
+
+Alpaca adds `broker.connected`, `order.submitting`, `order.broker_rejected`, `order.canceled`, `order.cancel_requested` and `order.cancel_refused`.
 
 `order.proposed`, `order.held`, `order.awaiting_approval`, `order.repriced`, `order.edited`, `order.approved`, `order.mandate_authorized`, `order.approval_invalidated`, `order.executed`, `order.execute_duplicate`, `order.execute_refused`, `order.failed`, `mandate.created`, `mandate.revoked`, `trading_controls.updated`. Order events use the order ID as `actionId`, so `GET /api/audit?actionId=<orderId>` returns an order's history.

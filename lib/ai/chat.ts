@@ -40,7 +40,7 @@ import {
 } from "@/lib/chatguard";
 import type { DB } from "@/lib/db";
 import { ServiceError } from "@/lib/errors";
-import { getOrder } from "@/lib/markets";
+import { getOrder, refreshMarketData } from "@/lib/markets";
 import { findInjectionMarkers, looksLikeQuotedOrEducational } from "@/lib/security/injection";
 import { redact } from "@/lib/security/redact";
 import type { ChatRequest, ChatResponse, ToolTraceEntry, UserId } from "@/lib/types";
@@ -58,6 +58,9 @@ const getClient = () => (client ??= new Anthropic());
 // Optional beta: ordinary requests must work without account-specific access.
 // If an opted-in account rejects it, retry once without it for this process.
 let serverFallbackEnabled = process.env.CLEARFI_SERVER_FALLBACK === "true";
+
+/** Tools that read prices, portfolio or propose orders. */
+const MARKET_TOOLS = new Set(["get_portfolio", "get_quotes", "get_price_history", "get_trading_controls", "propose_order"]);
 
 /** Style only: a spoken turn changes how the reply reads aloud, never which tools the agent has. */
 export const VOICE_BRIEF =
@@ -258,6 +261,8 @@ export async function runChat(db: DB, userId: UserId, request: ChatRequest): Pro
   const ctx: ToolContext = {
     db, userId, proposedActionIds: [], proposedOrderIds: [], allowedTools: new Set(agent.tools), security: sec,
   };
+  // Tools run synchronously; refresh cached market data (Alpaca mode) once per turn so they see current prices.
+  if (agent.tools.some((t) => MARKET_TOOLS.has(t))) await refreshMarketData(db, userId);
   const trace: ToolTraceEntry[] = [];
   const messages: BetaMessageParam[] = request.messages.map((m) => ({ role: m.role, content: m.content }));
 

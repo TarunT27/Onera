@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
 import { handler } from "@/lib/http";
-import { listInstruments, SIMULATED_MARKET_STATUS, SIMULATED_PRICES_DISCLAIMER } from "@/lib/markets";
+import { getMarketStatus, listInstruments, pricesDisclaimer, refreshMarketData } from "@/lib/markets";
 
-/** Supported stocks and ETFs. Public catalog data; no user records. */
-export const GET = handler(async () =>
-  NextResponse.json({
+/** Supported stocks and ETFs, plus the market status (simulated, or the real US clock from Alpaca). No user records. */
+export const GET = handler(async () => {
+  const db = getDb();
+  await refreshMarketData(db, null);
+  return NextResponse.json({
     instruments: listInstruments(),
-    market: { status: "open", label: SIMULATED_MARKET_STATUS },
-    disclaimer: SIMULATED_PRICES_DISCLAIMER,
-  }),
-);
+    market: getMarketStatus(db),
+    disclaimer: pricesDisclaimer(),
+  });
+});

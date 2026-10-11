@@ -3,15 +3,18 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type {
+  BrokerConnection,
   Instrument,
+  MarketStatus,
   PaperOrder,
   Portfolio,
+  PortfolioAccount,
   PriceHistory,
   Quote,
   TradingControls,
 } from "@/lib/markets";
 import { api } from "../components/api";
-import { PaperLabel } from "../components/Badge";
+import { Badge, PaperLabel } from "../components/Badge";
 import { Loading } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatCents } from "../components/format";
@@ -31,8 +34,60 @@ const RANGES = [
 
 interface InstrumentsResponse {
   instruments: Instrument[];
-  market: { status: string; label: string };
+  market: MarketStatus;
   disclaimer: string;
+}
+
+function VenueBadge({ account }: { account: PortfolioAccount }) {
+  if (account.venue === "alpaca_live") {
+    return <Badge tone="red" title="Alpaca live account: real money">LIVE · real money</Badge>;
+  }
+  if (account.venue === "alpaca_paper") {
+    return <Badge tone="brand" title="Alpaca paper trading: real market prices, paper money">Alpaca paper</Badge>;
+  }
+  return <PaperLabel />;
+}
+
+/** Shown when the server has Alpaca keys for this user. Connecting is always the user's own click. */
+function AlpacaCard({ connection, onConnected }: { connection: BrokerConnection; onConnected: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const live = connection.env === "live";
+
+  async function connect() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post<{ connection: BrokerConnection }>("/api/brokers/alpaca/connect");
+      onConnected();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (connection.accountId) {
+    return connection.lastSyncError ? (
+      <p className="trade-paused" role="status">Alpaca sync problem: {connection.lastSyncError}</p>
+    ) : null;
+  }
+  return (
+    <section className="trade-connect glass" aria-label="Connect Alpaca">
+      <div>
+        <strong>{live ? "Connect your Alpaca LIVE account" : "Connect your Alpaca paper account"}</strong>
+        <p className="row-meta">
+          {live
+            ? "Real money. Orders you approve are sent to Alpaca as limit orders, capped per order."
+            : "Trade with real market prices and Alpaca paper money. You still approve every order before it's sent."}
+        </p>
+      </div>
+      <button type="button" className="pill" disabled={busy} onClick={() => void connect()}>
+        {busy ? "Connecting…" : "Connect Alpaca"}
+      </button>
+      <ErrorBox error={error} onDismiss={() => setError(null)} />
+    </section>
+  );
 }
 interface ControlsResponse {
   controls: TradingControls;
@@ -57,6 +112,7 @@ export function TradeClient() {
   const [range, setRange] = useState(1);
   const [selected, setSelected] = useState<PaperOrder | null>(null);
   const [openError, setOpenError] = useState<unknown>(null);
+  const [accountId, setAccountId] = useState<string | null>(null);
 
   const instruments = useApiData<InstrumentsResponse>("/api/markets/instruments");
   const quotes = useApiData<{ quotes: Quote[]; disclaimer: string }>("/api/markets/quotes");
@@ -67,15 +123,24 @@ export function TradeClient() {
   const portfolio = useApiData<{ portfolio: Portfolio }>("/api/portfolio");
   const orders = useApiData<{ orders: PaperOrder[] }>("/api/orders?limit=6");
   const controls = useApiData<ControlsResponse>("/api/markets/controls");
+  const broker = useApiData<{ connection: BrokerConnection }>("/api/brokers/alpaca");
 
-  // Simulated quotes move every minute; keep the watchlist fresh.
+  // Quotes move every minute (simulated or real); keep the watchlist fresh.
   const reloadQuotes = quotes.reload;
   useEffect(() => {
     const t = setInterval(() => void reloadQuotes(), 30_000);
     return () => clearInterval(t);
   }, [reloadQuotes]);
 
-  const paper = portfolio.data?.portfolio.accounts.find((a) => a.paper && a.tradable) ?? null;
+  // Tradable accounts: Onera paper and, once connected, Alpaca. Default to Alpaca when it's there.
+  const tradable = portfolio.data?.portfolio.accounts.filter((a) => a.tradable) ?? [];
+  const paper =
+    tradable.find((a) => a.accountId === accountId) ??
+    tradable.find((a) => a.venue === "alpaca_paper" || a.venue === "alpaca_live") ??
+    tradable[0] ??
+    null;
+  const realPrices = portfolio.data?.portfolio.quotesSource === "alpaca_iex";
+  const market = instruments.data?.market;
   const quote = quotes.data?.quotes.find((q) => q.symbol === symbol) ?? history.data?.quote ?? null;
   const instrument = instruments.data?.instruments.find((i) => i.symbol === symbol);
   const points = history.data?.history.points ?? [];
@@ -116,7 +181,7 @@ export function TradeClient() {
   function onOrderChange(order: PaperOrder) {
     setSelected(order);
     void orders.reload();
-    if (order.state === "EXECUTED") {
+    if (["EXECUTED", "SUBMITTED", "CANCELED", "FAILED"].includes(order.state)) {
       void portfolio.reload();
       void controls.reload();
     }
@@ -130,15 +195,53 @@ export function TradeClient() {
           <h1>Trade</h1>
         </div>
         <div className="trade-chips">
-          <PaperLabel />
-          <span className="chip">{instruments.data?.market.label ?? "Simulated market"}</span>
+          {paper ? <VenueBadge account={paper} /> : <PaperLabel />}
+          <span className="chip" title={market?.nextOpen ? `Next open ${new Date(market.nextOpen).toLocaleString()}` : undefined}>
+            {market?.label ?? "Simulated market"}
+          </span>
+          <span className="chip">
+            <span className="chip-dim">Prices</span> {realPrices ? "Alpaca · IEX" : "Simulated"}
+          </span>
           {paper && (
             <span className="chip">
-              <span className="chip-dim">Buying power</span> {formatCents(paper.cashCents)}
+              <span className="chip-dim">Buying power</span> {formatCents(paper.buyingPowerCents)}
             </span>
           )}
         </div>
       </div>
+
+      {tradable.length > 1 && (
+        <div className="trade-accounts" role="radiogroup" aria-label="Trading account">
+          {tradable.map((a) => (
+            <button
+              key={a.accountId}
+              type="button"
+              role="radio"
+              aria-checked={a.accountId === paper?.accountId}
+              className="chip"
+              onClick={() => setAccountId(a.accountId)}
+            >
+              {a.name} ••{a.mask}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {broker.data?.connection.availableToUser && (
+        <AlpacaCard
+          connection={broker.data.connection}
+          onConnected={() => {
+            void broker.reload();
+            void portfolio.reload();
+            void quotes.reload();
+          }}
+        />
+      )}
+      {paper?.venue === "alpaca_live" && (
+        <p className="trade-paused trade-live" role="status">
+          LIVE account: orders you submit here trade real money at Alpaca.
+        </p>
+      )}
 
       {controls.data?.paused && (
         <p className="trade-paused" role="status">
@@ -218,7 +321,7 @@ export function TradeClient() {
               <PriceChart
                 points={points}
                 rising={change >= 0}
-                label={`Simulated ${symbol} price over the ${RANGES[range].desc}`}
+                label={`${history.data?.history.source === "simulated" ? "Simulated" : "Alpaca"} ${symbol} price over the ${RANGES[range].desc}`}
               />
             ) : (
               <div className="trade-chart">
@@ -237,15 +340,24 @@ export function TradeClient() {
               onProposed={(order) => onOrderChange(order)}
             />
             {selected ? (
-              <OrderReview order={selected} onChange={onOrderChange} onClose={() => setSelected(null)} />
+              <OrderReview
+                order={selected}
+                marketOpen={market?.status !== "closed"}
+                onChange={onOrderChange}
+                onClose={() => setSelected(null)}
+              />
             ) : (
               <section className="tile glass positions" aria-label="Positions and orders">
                 <header className="ticket-head">
                   <h2>Positions</h2>
-                  {paper && <span className="row-meta">Paper value {formatCents(paper.totalCents)}</span>}
+                  {paper && (
+                    <span className="row-meta">
+                      {paper.venue === "onera_paper" ? "Paper value" : "Account value"} {formatCents(paper.totalCents)}
+                    </span>
+                  )}
                 </header>
                 <ErrorBox error={portfolio.error} onRetry={() => void portfolio.reload()} />
-                {paper && paper.positions.length === 0 && <p className="row-meta">No paper positions yet.</p>}
+                {paper && paper.positions.length === 0 && <p className="row-meta">No positions yet.</p>}
                 <ul className="position-list">
                   {paper?.positions.map((p) => (
                     <li key={p.symbol}>
@@ -253,7 +365,7 @@ export function TradeClient() {
                         <span className="squircle ticker">{p.symbol}</span>
                         <span className="position-body">
                           <strong>{formatShares(p.quantityMicros)} sh</strong>
-                          <small>{p.weightPct.toFixed(1)}% of paper portfolio</small>
+                          <small>{p.weightPct.toFixed(1)}% of {paper.venue === "onera_paper" ? "paper " : ""}portfolio</small>
                         </span>
                         <span className="position-value">
                           <strong>{formatCents(p.marketValueCents)}</strong>

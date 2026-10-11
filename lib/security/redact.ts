@@ -62,14 +62,16 @@ export const SENSITIVE_PATTERNS: readonly SensitivePattern[] = [
   },
 ];
 
-/** Extra literal secrets configured at runtime: CLEARFI_SECRET_MARKERS (comma-separated) and the API key itself. */
+/** Extra literal secrets configured at runtime: CLEARFI_SECRET_MARKERS (comma-separated) and the API keys themselves. */
 export function configuredSecrets(): string[] {
   const extra = (process.env.CLEARFI_SECRET_MARKERS ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length >= 8);
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
-  return [...extra, ...(apiKey && apiKey.length >= 8 ? [apiKey] : [])];
+  const keys = [process.env.ANTHROPIC_API_KEY, process.env.ALPACA_API_KEY_ID, process.env.ALPACA_API_SECRET_KEY]
+    .map((k) => k?.trim() ?? "")
+    .filter((k) => k.length >= 8);
+  return [...extra, ...keys];
 }
 
 /** IDs of the sensitive patterns found in `text` ("configured_secret" for literal markers). */

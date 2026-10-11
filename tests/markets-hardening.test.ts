@@ -96,7 +96,8 @@ function patchStatement(db: DB, match: string, method: "run" | "get", impl: (ori
 describe("execution entry points", () => {
   it("the public surface exposes only the user executeOrder(db, userId, orderId)", () => {
     expect(markets.executeOrder.length).toBe(3);
-    for (const name of ["executeMandateOrder", "createOrderInternal", "applyOrderEvaluation", "runOrderPolicy"]) {
+    for (const name of ["executeMandateOrder", "createOrderInternal", "applyOrderEvaluation", "runOrderPolicy",
+      "verifyApprovedOrder", "submitOrder", "applyBrokerOrder", "syncBrokerAccount"]) {
       expect(name in markets).toBe(false);
     }
     // Write helpers no longer take a time.

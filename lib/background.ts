@@ -5,7 +5,9 @@
  *  - the agents job worker: schedules and runs the monitoring agents and the
  *    personal assistant (same tick as `npm run worker`);
  *  - the chat security monitor: consumes new chat security events on arrival,
- *    plus a catch-up poll that also heartbeats.
+ *    plus a catch-up poll that also heartbeats;
+ *  - the Alpaca order sync: while orders are open at Alpaca, polls their status
+ *    and records fills, cancellations and rejections (no-op without keys).
  *
  * Both are advisory: they write insights, briefings and findings only. Running
  * `npm run worker` at the same time is safe — jobs are claimed atomically with
@@ -17,6 +19,7 @@
 import { runWorkerLoop } from "@/lib/agents";
 import { startChatSecurityMonitor } from "@/lib/chatguard";
 import type { DB } from "@/lib/db";
+import { startBrokerOrderSync } from "@/lib/markets";
 
 const g = globalThis as unknown as { __clearfiBackground?: { stop(): void } };
 
@@ -42,14 +45,16 @@ export function startBackgroundServices(db: DB, log: (line: string) => void = (l
   }).catch((err) => console.error("[background] agents worker stopped", err));
 
   const monitor = startChatSecurityMonitor(db, { log });
+  const brokerSync = startBrokerOrderSync(db, { log });
   const handle = {
     stop() {
       stopWorker.abort();
       monitor.stop();
+      brokerSync.stop();
       g.__clearfiBackground = undefined;
     },
   };
   g.__clearfiBackground = handle;
-  log("[background] agents worker and chat security monitor started");
+  log("[background] agents worker, chat security monitor and Alpaca order sync started");
   return handle.stop;
 }
