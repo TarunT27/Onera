@@ -70,6 +70,11 @@ const EVENT_LABEL: Record<string, string> = {
   "trading_controls.updated": msg("Trading controls updated"),
 };
 
+/** The untranslated label for an audit event type (pass it through `t`). */
+export function eventLabel(eventType: string): string {
+  return EVENT_LABEL[eventType] ?? eventType.replace(/[._]/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
 function eventTone(eventType: string): string {
   const t = eventType.toLowerCase();
   if (/(refus|reject|denied|fail|block|held|hold|stale|invalid)/.test(t))
@@ -115,9 +120,7 @@ export function AuditList({
         {events.map((e) => {
           const actor = actorMeta(e.actor);
           const detail = compactJson(e.detail, 4000);
-          const eventLabel =
-            EVENT_LABEL[e.eventType] ??
-            e.eventType.replace(/[._]/g, " ").replace(/^./, (c) => c.toUpperCase());
+          const label = eventLabel(e.eventType);
           return (
             <li key={e.id} className={`min-w-0 py-2.5 ${table ? cols : ""}`}>
               {table ? (
@@ -138,7 +141,7 @@ export function AuditList({
                 <span
                   className={`text-sm font-medium ${eventTone(e.eventType)}`}
                 >
-                  {t(eventLabel)}
+                  {t(label)}
                 </span>
                 <span className={table ? "xl:hidden" : ""}>
                   <Badge tone={actor.tone} title={e.actor}>
