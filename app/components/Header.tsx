@@ -11,6 +11,7 @@ import {
   ChartLineUp,
   ArrowCounterClockwise,
   ShieldWarning,
+  UsersThree,
 } from "@phosphor-icons/react";
 import { clearfi, errorMessage } from "./api";
 import { useSession } from "./SessionContext";
@@ -21,6 +22,7 @@ import type { UserId } from "@/lib/types";
 const navigation = [
   { href: "/", label: "Overview", icon: House },
   { href: "/accounts", label: "Accounts", icon: Bank },
+  { href: "/family", label: "Family", icon: UsersThree },
   { href: "/transfers", label: "Transfers", icon: ArrowsLeftRight },
   { href: "/trade", label: "Trade", icon: ChartLineUp },
   { href: "/chat", label: "Assistant", icon: ChatCircle },

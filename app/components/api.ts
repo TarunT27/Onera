@@ -34,6 +34,7 @@ import type {
   RunReport,
   ScheduleReport,
 } from "@/lib/agents";
+import type { CardCharge, FamilyCard, FamilyOverview, SimulatePurchaseInput, UpdateCardInput } from "@/lib/family";
 import { displayCache } from "./readCache";
 
 // ---------------------------------------------------------------------------
@@ -248,6 +249,7 @@ export const paths = {
   action: (id: string) => `/api/actions/${enc(id)}`,
   agents: "/api/agents",
   agentInsights: "/api/agents/insights",
+  family: "/api/family",
 };
 
 export const clearfi = {
@@ -272,7 +274,15 @@ export const clearfi = {
   runAgents: () => api.post<AgentRunResponse>("/api/agents/run"),
   setInsightStatus: (id: string, status: "seen" | "dismissed") =>
     api.patch<{ insight: Insight }>(`/api/agents/insights/${enc(id)}`, { status }),
+
+  // Family cards: parent-only controls and simulated purchases.
+  updateFamilyCard: (id: string, input: UpdateCardInput) =>
+    api.patch<{ card: FamilyCard }>(`/api/family/cards/${enc(id)}`, input),
+  simulateFamilyPurchase: (id: string, input: SimulatePurchaseInput) =>
+    api.post<{ charge: CardCharge; card: FamilyCard }>(`/api/family/cards/${enc(id)}/simulate`, input),
 };
+
+export type { CardCharge, FamilyCard, FamilyOverview };
 
 export function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
