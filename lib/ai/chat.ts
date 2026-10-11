@@ -15,6 +15,7 @@ import { writeAudit } from "@/lib/audit";
 import type { DB } from "@/lib/db";
 import type { ChatRequest, ChatResponse, ToolTraceEntry, UserId } from "@/lib/types";
 import { fallbackReply } from "./fallback";
+import { runOllamaChat } from "./ollama";
 import { SYSTEM_PROMPT } from "./prompt";
 import { runTool, TOOL_DEFINITIONS, type ToolContext } from "./tools";
 
@@ -65,6 +66,7 @@ export async function runChat(db: DB, userId: UserId, request: ChatRequest): Pro
   const messages: BetaMessageParam[] = request.messages.map((m) => ({ role: m.role, content: m.content }));
   const lastUser = request.messages[request.messages.length - 1]?.content ?? "";
   writeAudit(db, { userId, actor: `user:${userId}`, eventType: "assistant.prompt", detail: { text: lastUser.slice(0, 500) } });
+  if (process.env.CLEARFI_AI_PROVIDER === "ollama") return runOllamaChat(ctx, request);
 
   let response: BetaMessage | null = null;
   try {

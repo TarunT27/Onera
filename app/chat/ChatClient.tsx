@@ -11,6 +11,7 @@ import { ErrorBox } from "../components/ErrorBox";
 import { formatTxnDate, prettyJson } from "../components/format";
 import { Money } from "../components/Money";
 import { useApiData } from "../components/useApiData";
+import { useVoice } from "./useVoice";
 
 type UiMessage =
   | { id: number; role: "user"; content: string }
@@ -60,6 +61,8 @@ export function ChatClient() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const research = useApiData<ResearchResponse>(paths.research);
   const restored = useRef(false);
+  const voice = useVoice();
+  const [readAloud, setReadAloud] = useState(false);
 
   useEffect(() => {
     const stored = loadStored();
@@ -91,9 +94,10 @@ export function ChatClient() {
     if (messages.length > 0 || pending) bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages.length, pending]);
 
-  async function send(text: string) {
+  async function send(text: string, viaVoice = false) {
     const content = text.trim();
     if (!content || pending) return;
+    voice.cancelSpeech();
     const userMsg: UiMessage = { id: nextId.current++, role: "user", content: content.slice(0, MAX_CONTENT) };
     const history = [...messages, userMsg];
     setMessages(history);
@@ -102,6 +106,7 @@ export function ChatClient() {
     setPending(true);
     try {
       const response = await clearfi.chat(toRequest(history));
+      if (viaVoice || readAloud) voice.speak(response.reply ?? "");
       setMessages((prev) => [
         ...prev,
         { id: nextId.current++, role: "assistant", content: response.reply ?? "", response },
@@ -114,6 +119,14 @@ export function ChatClient() {
     } finally {
       setPending(false);
     }
+  }
+
+  function toggleMic() {
+    if (voice.listening) {
+      voice.stopListening();
+      return;
+    }
+    voice.startListening(setInput, (finalText) => void send(finalText, true));
   }
 
   function onSubmit(e: FormEvent) {
@@ -210,10 +223,41 @@ export function ChatClient() {
               />
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">Enter to send · Shift+Enter for a new line</p>
-                <Button type="submit" variant="primary" busy={pending} disabled={!input.trim()}>
-                  Send
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {voice.supported && (
+                    <>
+                      <label className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+                        <input
+                          type="checkbox"
+                          checked={readAloud}
+                          onChange={(e) => {
+                            setReadAloud(e.target.checked);
+                            if (!e.target.checked) voice.cancelSpeech();
+                          }}
+                        />
+                        Read replies aloud
+                      </label>
+                      {voice.speaking && (
+                        <Button type="button" size="sm" variant="ghost" onClick={voice.cancelSpeech}>
+                          Stop speaking
+                        </Button>
+                      )}
+                      <Button type="button" variant="secondary" disabled={pending} onClick={toggleMic} aria-pressed={voice.listening}>
+                        {voice.listening ? "Listening… tap to stop" : "Speak"}
+                      </Button>
+                    </>
+                  )}
+                  <Button type="submit" variant="primary" busy={pending} disabled={!input.trim()}>
+                    Send
+                  </Button>
+                </div>
               </div>
+              {voice.voiceError && <p className="text-xs text-red-600 dark:text-red-400">{voice.voiceError}</p>}
+              {voice.supported && (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Voice: your browser turns speech into text (Chrome and Edge send the audio to their speech service). The answer comes from the assistant model; spoken replies never approve or execute anything.
+                </p>
+              )}
             </form>
           </Card>
         </div>
