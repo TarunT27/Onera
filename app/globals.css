@@ -1534,6 +1534,7 @@
     display: none;
   }
 }
+
 @media (max-width: 760px) {
   .topbar {
     grid-template-columns: 1fr auto;
@@ -1545,7 +1546,8 @@
     left: 50%;
     bottom: max(14px, env(safe-area-inset-bottom));
     transform: translateX(-50%);
-    --nav-w: 50px;
+    /* Fit every tab on narrow phones: shrink tabs rather than clip the ends. */
+    --nav-w: min(50px, calc((100vw - 28px) / var(--nav-n, 6)));
     padding: 6px;
   }
   .island a {
@@ -1553,6 +1555,7 @@
     gap: 2px;
     height: 52px;
     font-size: 10px;
+    letter-spacing: -0.01em;
   }
   .island a span {
     position: static;
@@ -2567,4 +2570,18 @@
   .trade-assistant {
     height: 600px;
   }
+}
+
+/* Eight tabs don't leave room for labels on narrow phones: icons only (labels stay for screen readers). */
+@media (max-width: 420px) {
+  .island a { height: 46px; }
+  .island a span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .island a svg { width: 22px; height: 22px; }
+  .lens { height: 46px; }
 }
