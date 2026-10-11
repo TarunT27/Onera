@@ -15,6 +15,7 @@ import { getOwnedAccount } from "@/lib/finance/accounts";
 import { approvalHash } from "@/lib/policy/approval";
 import type { ExecutionReceipt, TransferAction, UserId } from "@/lib/types";
 import { applyEvaluation, getAction, loadActionRow, runPolicy } from "./service";
+import { msg } from "@/lib/i18n/msg";
 
 export interface ExecuteResult {
   action: TransferAction;
@@ -53,7 +54,7 @@ export function executeTransfer(db: DB, userId: UserId, actionId: string): Execu
           detail: { reason: "Action or recipient changed after approval" } });
         applyEvaluation(db, userId, row, "system");
         return { kind: "rejected", error: conflict("APPROVAL_INVALID",
-          "Something material changed after approval. The approval was discarded; review the transfer again.") };
+          msg("Something material changed after approval. The approval was discarded; review the transfer again.")) };
       }
 
       // 2. Current controls, limits and balance must still pass.
@@ -86,22 +87,27 @@ export function executeTransfer(db: DB, userId: UserId, actionId: string): Execu
         `UPDATE actions SET state = 'EXECUTED', executed_at = ?, receipt = ?, updated_at = ?
          WHERE id = ? AND user_id = ? AND state = 'APPROVED' AND version = ?`,
       ).run(now, JSON.stringify(receipt), now, actionId, userId, row.version);
-      if (claimed.changes !== 1) throw new Error("Action changed during execution");
+      if (claimed.changes !== 1) throw new Error(msg("Action changed during execution"));
 
       const debited = db.prepare(
         `UPDATE accounts SET balance_cents = balance_cents - ?, available_cents = available_cents - ?, updated_at = ?
          WHERE id = ? AND user_id = ? AND available_cents >= ?`,
       ).run(amount, amount, now, source.id, userId, amount);
-      if (debited.changes !== 1) throw new Error("Insufficient available balance at execution");
+      if (debited.changes !== 1) throw new Error(msg("Insufficient available balance at execution"));
 
       const groupId = ownDestination ? `tg_${actionId}` : null;
+      // Reporting only: internal moves stay transfers; rent goes to housing.
+      // Unrecognized external payments count as other spending, not transfers.
+      const debitCategory = ownDestination ? "transfer"
+        : /\b(landlord|rent)\b/i.test(`${recipient.displayName} ${row.memo}`) ? "housing"
+        : "other";
       const insertTx = db.prepare(
         `INSERT INTO transactions (id, account_id, user_id, posted_at, description, merchant, category,
            amount_cents, transfer_group_id, action_id)
-         VALUES (?, ?, ?, ?, ?, ?, 'transfer', ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       insertTx.run(`tx_${actionId}_out`, source.id, userId, now, `Transfer to ${receipt.destination}`,
-        ownDestination ? null : recipient.displayName, -amount, groupId, actionId);
+        ownDestination ? null : recipient.displayName, debitCategory, -amount, groupId, actionId);
 
       if (ownDestination) {
         db.prepare(
@@ -109,7 +115,7 @@ export function executeTransfer(db: DB, userId: UserId, actionId: string): Execu
            WHERE id = ? AND user_id = ?`,
         ).run(amount, amount, now, ownDestination.id, userId);
         insertTx.run(`tx_${actionId}_in`, ownDestination.id, userId, now,
-          `Transfer from ${source.name} ••${source.mask}`, null, amount, groupId, actionId);
+          `Transfer from ${source.name} ••${source.mask}`, null, "transfer", amount, groupId, actionId);
       }
 
       writeAudit(db, { userId, actor, eventType: "action.executed", actionId,
@@ -119,7 +125,7 @@ export function executeTransfer(db: DB, userId: UserId, actionId: string): Execu
   } catch (err) {
     if (err instanceof ServiceError) throw err;
     // Simulation failed and rolled back; record the failure separately.
-    const message = err instanceof Error ? err.message : "Unknown simulation error";
+    const message = err instanceof Error ? err.message : msg("Unknown simulation error");
     db.transaction(() => {
       db.prepare(`UPDATE actions SET state = 'FAILED', failure_reason = ?, updated_at = ?
                   WHERE id = ? AND user_id = ? AND state = 'APPROVED'`)

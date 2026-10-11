@@ -1,8 +1,8 @@
-# ClearFi
+# Onera
 
 **Understand your money in one place, with AI that proposes actions and controls that enforce your decisions.**
 
-ClearFi is a HackRU 2026 project: a personal finance hub with a Claude-powered assistant. The assistant can read your accounts and draft transfers. A deterministic governance layer decides what can actually run, and you approve the exact transfer.
+Onera is a HackRU 2026 project: a personal finance hub with a Claude-powered assistant. The assistant can read your accounts and draft transfers. A deterministic governance layer decides what can actually run, and you approve the exact transfer.
 
 The main demo: **a rent transfer to a landlord whose bank details changed after an emailed "new payment instructions" request is held**, and neither the UI, a direct API call, nor the AI can push it through. A normal transfer between your own accounts goes through after you approve it, runs once, and produces a receipt.
 
@@ -21,6 +21,8 @@ cp .env.example .env.local
 ```
 
 Add your `ANTHROPIC_API_KEY` to `.env.local`. Without a key, chat still works in a clearly labeled fallback mode.
+
+For voice, add `ELEVENLABS_API_KEY` too. Then tap **Talk to Onera** at the bottom of any page and speak a command like "Pay Oak Street Properties $1,850 for rent", "Buy $250 of NVDA in my paper account" or "Open transfers". ElevenLabs transcribes it, the assistant runs it with the same tools and approval rules as typed chat, and the reply is read aloud.
 
 ```bash
 npm run dev
@@ -64,7 +66,10 @@ One Next.js app, one SQLite file, no queue or microservices.
 - **Policy** ([lib/policy/evaluate.ts](lib/policy/evaluate.ts)) is a pure function. It holds a transfer for `RECIPIENT_CHANGED`, `RECIPIENT_UNVERIFIED`, `LIMIT_EXCEEDED`, `DAILY_LIMIT_EXCEEDED`, `INSUFFICIENT_FUNDS` or `PAUSED`. Model output never feeds into it.
 - **Approval** ([lib/policy/approval.ts](lib/policy/approval.ts)) stores a SHA-256 hash of a canonical serialization of the user, action ID and version, source account, recipient ID, version and destination, amount and currency. Any edit bumps the version and discards the approval.
 - **Execution** ([lib/actions/simulator.ts](lib/actions/simulator.ts)) runs in one `BEGIN IMMEDIATE` transaction. It recomputes the hash against current records, reruns policy (pause, limits, daily aggregate, balance), moves `APPROVED → EXECUTED` with a conditional update, debits and credits, and writes the receipt and audit event. Repeat calls return the original receipt.
-- **Assistant** ([lib/ai/](lib/ai/)) runs a bounded manual tool loop on `claude-opus-5-5`. Its tools are read-only plus `propose_transfer`. It has no approve, execute, verify or settings tool, and the user ID comes from the server session, never from model input. Research documents come back wrapped as untrusted content. Every tool call is returned to the UI as a trace and written to the audit log. Server-side refusal fallback (`fallbacks: "default"`) is enabled.
+- **Personal assistant** ([lib/agents/monitors/assistant.ts](lib/agents/monitors/assistant.ts)) is a background agent that prepares a briefing every 30 minutes: ways to save, spending that looks off, research notes on each holding (simulated prices) and transfers or connections that need you. Deterministic rules with evidence IDs; it can't move money. See `/briefing`.
+- **Assistant security** ([lib/chatguard/](lib/chatguard/)) adds inline gates to every chat turn (rate limit, tool budget, a buffered output check for secrets and contradicted payment claims) and a background monitor that turns server-recorded chat events into findings on `/security`. Details and the C01–C08 results: [docs/api/chat-security.md](docs/api/chat-security.md).
+- **Background services** start inside the Next.js server ([instrumentation.ts](instrumentation.ts)), so the agents and the chat monitor run without clicking anything. `CLEARFI_BACKGROUND=off` disables that; `npm run worker` runs the same services as a separate process.
+- **Assistant** ([lib/ai/](lib/ai/)) runs a bounded manual tool loop on `claude-opus-5-5`. Its tools are read-only plus `propose_transfer`. It has no approve, execute, verify or settings tool, and the user ID comes from the server session, never from model input. Research documents come back wrapped as untrusted content. Every tool call is returned to the UI as a trace and written to the audit log. Requests use the model's default effort. Server-side refusal fallback (`fallbacks: "default"`) is an optional beta, disabled unless `CLEARFI_SERVER_FALLBACK=true`; unsupported accounts retry without it. Local deterministic fallback stays available regardless of that setting.
 
 ## Project layout
 
@@ -106,7 +111,7 @@ These checks apply to the simulator. They don't establish production authenticat
 ## Three-minute demo
 
 1. **Hub (0:00–0:25):** "These are synthetic accounts. The AI integration and security checks are working." Show net worth and accounts.
-2. **Spending (0:25–0:55):** In Ask ClearFi, ask "What changed in my spending this month?" Show the StreamFlix increase ($15.49 → $22.99) and its evidence transactions.
+2. **Spending (0:25–0:55):** In Ask Onera, ask "What changed in my spending this month?" Show the StreamFlix increase ($15.49 → $22.99) and its evidence transactions.
 3. **Held transfer (0:55–1:55):** Ask "Pay Oak Street Properties $1,850 for rent." Open the proposal. The landlord's bank changed from Summit ••4821 to Harborview ••9930, so it's held for `RECIPIENT_CHANGED`. Click **Try to execute anyway** to show the server refusing.
 4. **Valid transfer (1:55–2:25):** Move $500 from checking to savings, approve the exact version, execute, show the receipt. Click execute again to show there's no duplicate.
 5. **Controls (2:25–3:00):** Ask the assistant to summarize `research_injected_article` and show the tool trace, or edit an approved amount to show the approval being discarded. Then pause execution in Control and show the audit log.

@@ -1,4 +1,4 @@
-# ClearFi Azure implementation
+# Onera Azure implementation
 
 October 10, 2026. Selected direction: Obsidian Flow.
 

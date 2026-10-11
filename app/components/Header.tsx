@@ -1,41 +1,135 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import {
   House,
   ArrowsLeftRight,
   ChatCircle,
   SlidersHorizontal,
   Bank,
+  ChartLineUp,
   ArrowCounterClockwise,
+  ShieldWarning,
+  Robot,
+  UsersThree,
+  GearSix,
 } from "@phosphor-icons/react";
-import { clearfi, errorMessage, type SessionResponse } from "./api";
+import { clearfi, errorMessage } from "./api";
+import { useSession } from "./SessionContext";
+import { useI18n } from "./I18nContext";
+import { msg } from "@/lib/i18n/msg";
+import { LogoLockup } from "./Logo";
+import { DemoUserMenu } from "./DemoUserMenu";
 import type { UserId } from "@/lib/types";
 
 const navigation = [
-  { href: "/", label: "Overview", icon: House },
-  { href: "/accounts", label: "Accounts", icon: Bank },
-  { href: "/transfers", label: "Transfers", icon: ArrowsLeftRight },
-  { href: "/chat", label: "Assistant", icon: ChatCircle },
-  { href: "/control", label: "Controls", icon: SlidersHorizontal },
+  { href: "/", label: msg("Overview"), icon: House },
+  { href: "/accounts", label: msg("Accounts"), icon: Bank },
+  { href: "/family", label: msg("Family"), icon: UsersThree },
+  { href: "/transfers", label: msg("Transfers"), icon: ArrowsLeftRight },
+  { href: "/trade", label: msg("Trade"), icon: ChartLineUp },
+  // The Assistant tab covers the chat and the personal assistant's briefing.
+  { href: "/chat", label: msg("Assistant"), icon: ChatCircle, also: ["/briefing"] },
+  { href: "/agents", label: msg("Agents"), icon: Robot },
+  { href: "/security", label: msg("Security"), icon: ShieldWarning },
+  { href: "/control", label: msg("Controls"), icon: SlidersHorizontal },
 ];
+
+const isActive = (href: string, pathname: string) =>
+  href === "/"
+    ? pathname === "/"
+    : pathname.startsWith(href) ||
+      (navigation.find((n) => n.href === href)?.also ?? []).some((p) => pathname.startsWith(p));
+
+/**
+ * Glides the glass lens under the active tab. Long jumps stretch the lens
+ * mid-flight and let it settle, like a drop of liquid finding its place.
+ */
+function useLiquidLens(activeHref: string | null) {
+  const navRef = useRef<HTMLElement>(null);
+  const lensRef = useRef<HTMLSpanElement>(null);
+  const prevX = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    const lens = lensRef.current;
+    if (!nav || !lens) return;
+    const place = (animate: boolean) => {
+      const link = nav.querySelector<HTMLElement>("a[data-active]");
+      if (!link) {
+        lens.style.opacity = "0";
+        prevX.current = null;
+        return;
+      }
+      lens.style.opacity = "1";
+      const x = link.offsetLeft - lens.offsetLeft;
+      const from = prevX.current;
+      lens.style.transform = `translateX(${x}px)`;
+      prevX.current = x;
+      if (
+        !animate ||
+        from === null ||
+        from === x ||
+        matchMedia("(prefers-reduced-motion: reduce)").matches
+      )
+        return;
+      const hops = Math.min(Math.abs(x - from) / link.offsetWidth, 4);
+      const sx = 1 + 0.14 * hops;
+      const sy = 1 - 0.05 * hops;
+      lens.animate(
+        [
+          { transform: `translateX(${from}px) scale(1, 1)` },
+          {
+            transform: `translateX(${(from + x) / 2}px) scale(${sx}, ${sy})`,
+            offset: 0.42,
+          },
+          { transform: `translateX(${x}px) scale(1, 1)` },
+        ],
+        { duration: 340 + hops * 20, easing: "cubic-bezier(0.32, 0.72, 0, 1)" },
+      );
+    };
+    place(true);
+    const onResize = () => {
+      prevX.current = null;
+      place(false);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [activeHref]);
+  return { navRef, lensRef };
+}
+
 export function Header() {
+  const { t } = useI18n();
   const pathname = usePathname();
-  const [session, setSession] = useState<SessionResponse | null>(null);
+  const { data: session, error: sessionError } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    clearfi
-      .getSession()
-      .then(setSession)
-      .catch((e) => setError(errorMessage(e)));
-  }, []);
+    const update = () => setScrolled(window.scrollY > 24);
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, [pathname]);
+  // Move the lens on tap, before the next route finishes loading.
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  useEffect(() => setPendingHref(null), [pathname]);
+  const activeHref =
+    pendingHref ??
+    navigation.find((n) => isActive(n.href, pathname))?.href ??
+    null;
+  const { navRef, lensRef } = useLiquidLens(activeHref);
+
+  useEffect(() => {
+    if (sessionError) setError(errorMessage(sessionError));
+  }, [sessionError]);
   async function changeUser(id: UserId) {
     setBusy(true);
     try {
       await clearfi.setSession(id);
       sessionStorage.removeItem("clearfi.chat.v1");
+      sessionStorage.removeItem("clearfi.chat.conversation.v1");
       window.location.reload();
     } catch (e) {
       setError(errorMessage(e));
@@ -45,7 +139,7 @@ export function Header() {
   async function reset() {
     if (
       !confirm(
-        "Reset all synthetic demo accounts, connections, transfers and history?",
+        t("Reset all synthetic demo accounts, connections, transfers and history?"),
       )
     )
       return;
@@ -62,71 +156,88 @@ export function Header() {
   return (
     <>
       <a href="#main-content" className="skip-link">
-        Skip to content
+        {t("Skip to content")}
       </a>
-      <aside className="sidebar">
-        <Link className="wordmark" href="/" aria-label="ClearFi home">
-          ClearFi<span className="wordmark-period">.</span>
+      <header className="topbar" data-scrolled={scrolled ? "true" : undefined}>
+        <Link className="wordmark" href="/" aria-label={t("Onera home")}>
+          <LogoLockup />
         </Link>
-        <nav aria-label="Main">
-          {navigation.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              aria-current={
-                (href === "/" ? pathname === "/" : pathname.startsWith(href))
-                  ? "page"
-                  : undefined
-              }
-            >
-              <Icon size={26} weight="light" aria-hidden />
-              <span>{label}</span>
-            </Link>
-          ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <p>
-            Your money.
-            <br />
-            Your decisions.
-          </p>
-          <button onClick={reset} disabled={busy}>
-            <ArrowCounterClockwise size={18} aria-hidden />
-            Reset demo
-          </button>
-        </div>
-      </aside>
-      <div className="session-bar">
-        <span className="demo-label">
-          Demo <span>· simulated money</span>
-        </span>
-        <span className="avatar" aria-hidden>
-          {session?.user.name
-            .split(" ")
-            .map((n) => n[0])
-            .join("") ?? "…"}
-        </span>
-        <label className="sr-only" htmlFor="demo-user">
-          Demo user
-        </label>
-        <select
-          id="demo-user"
-          value={session?.user.id ?? ""}
-          disabled={!session || busy}
-          onChange={(e) => changeUser(e.target.value as UserId)}
+        <nav
+          aria-label={t("Main")}
+          className="island"
+          ref={navRef}
+          style={{ "--nav-n": navigation.length } as CSSProperties}
         >
-          {!session && <option value="">Loading…</option>}
-          {session?.users.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}
-            </option>
-          ))}
-        </select>
-      </div>
+          <span className="lens" ref={lensRef} aria-hidden />
+          {navigation.map(({ href, label, icon: Icon }) => {
+            const current = isActive(href, pathname);
+            return (
+              <Link
+                key={href}
+                href={href}
+                title={t(label)}
+                onClick={(e) => {
+                  // Modified clicks open a new tab; the current page stays put.
+                  if (
+                    e.metaKey ||
+                    e.ctrlKey ||
+                    e.shiftKey ||
+                    e.altKey ||
+                    e.button !== 0
+                  )
+                    return;
+                  if (!isActive(href, pathname)) setPendingHref(href);
+                }}
+                data-active={activeHref === href ? "" : undefined}
+                aria-current={current ? "page" : undefined}
+              >
+                <Icon
+                  size={19}
+                  weight={activeHref === href ? "fill" : "regular"}
+                  aria-hidden
+                />
+                <span>{t(label)}</span>
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="session">
+          <span className="demo-label">
+            {t("Demo")} <span>· {t("simulated money")}</span>
+          </span>
+          <div className="session-user">
+            <span className="avatar" aria-hidden>
+              {session?.user.name
+                .split(" ")
+                .map((n) => n[0])
+                .join("") ?? "…"}
+            </span>
+            <DemoUserMenu session={session} busy={busy} onChange={changeUser} />
+            <Link
+              className="icon-btn"
+              href="/settings"
+              title={t("Settings")}
+              aria-label={t("Settings")}
+              aria-current={pathname.startsWith("/settings") ? "page" : undefined}
+            >
+              <GearSix size={16} aria-hidden />
+            </Link>
+            <button
+              className="icon-btn"
+              onClick={reset}
+              disabled={busy}
+              title={t("Reset demo")}
+              aria-label={t("Reset demo")}
+            >
+              <ArrowCounterClockwise size={16} aria-hidden />
+            </button>
+          </div>
+        </div>
+      </header>
       {error && (
         <div role="alert" className="shell-error">
           {error}
-          <button onClick={() => setError("")}>Dismiss</button>
+          <button onClick={() => setError("")}>{t("Dismiss")}</button>
         </div>
       )}
     </>

@@ -1,0 +1,147 @@
+/* Agents: one-screen layout (desktop only).
+   From 901px up the page fits the window (see "One-screen pages" in
+   globals.css): a compact header and worker strip, then the live map on the
+   left (scaled to fit its pane) and a side column that shows the agent cards
+   or the live activity feed, each scrolling inside itself. Phones and tablets
+   (≤900px) keep the natural scrolling layout. */
+@media (min-width: 901px) {
+  .agents-screen {
+    gap: 12px;
+  }
+  .agents-screen > *,
+  .agents-body > * {
+    margin-block: 0;
+  }
+
+  /* Compact header: title, one-line description and the run button in a row. */
+  .agents-head > div {
+    flex-wrap: nowrap;
+    align-items: center;
+    margin: 0 4px;
+    gap: 6px 24px;
+  }
+  .agents-head > div > :first-child {
+    flex: 1 1 auto;
+  }
+  .agents-head > div > :last-child {
+    flex-shrink: 0;
+  }
+  .agents-head h1 {
+    font-size: 28px;
+    line-height: 1.1;
+  }
+  .agents-head p {
+    max-width: 820px;
+    margin-top: 4px;
+    font-size: 13px;
+  }
+  .agents-note {
+    margin: 0 4px;
+    font-size: 12.5px;
+  }
+
+  /* Worker status and metrics: a shorter strip. */
+  .worker-strip {
+    grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .worker-strip .worker-status {
+    padding: 10px 18px;
+  }
+  .worker-strip .agents-metric {
+    padding: 8px 18px;
+  }
+  .worker-strip .agents-metric > p:nth-child(2) {
+    margin-top: 0;
+    font-size: 20px;
+    line-height: 1.25;
+  }
+
+  .agents-body {
+    grid-template-columns: minmax(0, 1fr) 380px;
+  }
+
+  /* Live map: the card fills its column and the SVG scales to fit inside it. */
+  .agents-map {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .agents-map-body {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-top: 10px;
+  }
+  .agents-map .flow-map-wrap {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  .agents-map .flow-map {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  /* Side column: a segmented control picks agent cards or the live feed. */
+  .agents-side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    min-height: 0;
+  }
+  .agents-side > * {
+    flex-shrink: 0;
+  }
+  .agents-seg-wrap {
+    display: block;
+  }
+  .agents-seg {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .agents-list {
+    flex: 1 1 auto;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 12px;
+  }
+  .agents-feed {
+    position: static;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .agents-feed-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+  }
+  .agents-feed .activity-feed {
+    max-height: none;
+    overflow: visible;
+  }
+  .agents-side[data-tab="agents"] > .agents-feed,
+  .agents-side[data-tab="activity"] > .agents-list {
+    display: none;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1200px) {
+  .agents-body {
+    grid-template-columns: minmax(0, 1fr) 330px;
+  }
+  .worker-strip {
+    grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
+  }
+}

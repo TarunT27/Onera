@@ -1,6 +1,6 @@
 # Broad-market index ETFs: a short primer
 
-*Synthetic research note written for the ClearFi demo. Not investment advice. Figures are illustrative.*
+*Synthetic research note written for the Onera demo. Not investment advice. Figures are illustrative.*
 
 Index ETFs hold a basket of securities that tracks a published index. Investors usually compare them on three things:
 

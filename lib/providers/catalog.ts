@@ -120,8 +120,8 @@ const TD: InstitutionProfile = {
     supportsTransfers: true,
   }),
   accounts: [
-    { key: "checking", name: "Checking", type: "checking", openingCents: 285_000 },
-    { key: "savings", name: "Savings", type: "savings", openingCents: 640_000 },
+    { key: "checking", name: "Checking", type: "checking", openingCents: 980_000 },
+    { key: "savings", name: "Savings", type: "savings", openingCents: 6_200_000 },
     { key: "card", name: "Cash Back Credit Card", type: "credit", creditLimitCents: 500_000 },
   ],
   streams: [
@@ -266,8 +266,8 @@ const BARCLAYS_UK: InstitutionProfile = {
     supportsTransfers: false,
   }),
   accounts: [
-    { key: "current", name: "Current Account", type: "checking", openingCents: 185_000 },
-    { key: "savings", name: "Savings Account", type: "savings", openingCents: 320_000 },
+    { key: "current", name: "Current Account", type: "checking", openingCents: 850_000 },
+    { key: "savings", name: "Savings Account", type: "savings", openingCents: 6_000_000 },
   ],
   streams: [
     { kind: "tx", id: "income", account: "current", description: "NORTHBRIDGE DESIGN LTD",

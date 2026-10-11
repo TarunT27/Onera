@@ -12,20 +12,32 @@ import type { DB } from "@/lib/db";
 import {
   toAccount,
   toAction,
+  toAuditEvent,
   toRecipient,
   toTransaction,
   type AccountRow,
   type ActionRow,
+  type AuditRow,
   type RecipientRow,
   type TransactionRow,
 } from "@/lib/db/rows";
 import { usdConverter } from "@/lib/finance/fx";
 import { detectSubscriptionIncreases } from "@/lib/finance/subscriptions";
-import { getPortfolio, getQuote, type Portfolio, type Quote } from "@/lib/markets";
+import {
+  getPortfolio,
+  getPriceHistory,
+  getQuote,
+  listInstruments,
+  type Instrument,
+  type Portfolio,
+  type PriceHistory,
+  type Quote,
+} from "@/lib/markets";
 import { listConnections, syncConnection, type Connection, type SyncSummary } from "@/lib/providers";
 import type {
   Account,
   ActionState,
+  AuditEvent,
   CurrencyCode,
   Recipient,
   SubscriptionIncrease,
@@ -61,8 +73,19 @@ export interface AgentReads {
     get(id: string): TransferAction | null;
     list(opts?: { recipientId?: string; states?: ActionState[]; excludeId?: string; limit?: number }): TransferAction[];
   };
-  portfolio: { get(): Portfolio; quote(symbol: string): Quote | null };
+  portfolio: {
+    get(): Portfolio;
+    quote(symbol: string): Quote | null;
+    /** Simulated daily closes (reference data), or null for unknown symbols. */
+    history(symbol: string, days: number): PriceHistory | null;
+    /** The simulated instrument catalog (reference data). */
+    instruments(): Instrument[];
+  };
   connections: { list(): Connection[] };
+  audit: {
+    /** The user's own audit events created at or after sinceIso, oldest first. */
+    list(opts?: { sinceIso?: string; limit?: number }): AuditEvent[];
+  };
 }
 
 export interface AgentContext {
@@ -197,13 +220,35 @@ export function buildAgentContext(
       },
       quote(symbol) {
         needRead("portfolio", "portfolio.quote");
-        return getQuote(symbol, now);
+        return getQuote(symbol, now, db);
+      },
+      history(symbol, days) {
+        needRead("portfolio", "portfolio.history");
+        return getPriceHistory(symbol, days, now, db);
+      },
+      instruments() {
+        needRead("portfolio", "portfolio.instruments");
+        return listInstruments();
       },
     },
     connections: {
       list() {
         needRead("connections", "connections.list");
         return listConnections(db, userId);
+      },
+    },
+    audit: {
+      list(opts = {}) {
+        needRead("audit", "audit.list");
+        const limit = Math.min(Math.max(opts.limit ?? 1000, 1), 5000);
+        // Newest `limit` rows in the window, returned oldest first.
+        const rows = db
+          .prepare(
+            `SELECT * FROM (SELECT * FROM audit_events WHERE user_id = ? AND created_at >= ? ORDER BY id DESC LIMIT ?)
+             ORDER BY id ASC`,
+          )
+          .all(userId, opts.sinceIso ?? "", limit);
+        return (rows as AuditRow[]).map(toAuditEvent);
       },
     },
   };

@@ -12,6 +12,7 @@
  */
 import type { AgentDefinition, AgentId, DataScope, JobType, WriteScope } from "./types";
 import { DATA_SCOPES, JOB_TYPES, WRITE_SCOPES } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 const NO_POWERS = {
   canApprove: false,
@@ -25,11 +26,11 @@ const NO_POWERS = {
 const DEFINITIONS: AgentDefinition[] = [
   {
     id: "spending_monitor",
-    name: "Spending monitor",
+    name: msg("Spending monitor"),
     purpose:
-      "Flags categories whose last-30-day spending spikes above the trailing average and unusually large purchases. " +
-      "Internal transfers are excluded; foreign-currency spending is converted with the dated demo FX rate.",
-    trigger: "Daily schedule and after a bank sync imports new transactions",
+      msg("Flags categories whose last-30-day spending spikes above the trailing average and unusually large purchases. " +
+      "Internal transfers are excluded; foreign-currency spending is converted with the dated demo FX rate."),
+    trigger: msg("Daily schedule and after a bank sync imports new transactions"),
     jobTypes: ["spending_review"],
     reads: ["transactions"],
     writes: ["insights"],
@@ -38,9 +39,9 @@ const DEFINITIONS: AgentDefinition[] = [
   },
   {
     id: "subscription_monitor",
-    name: "Subscription monitor",
-    purpose: "Persists recurring-charge price increases with the charges that prove them. Never cancels anything.",
-    trigger: "Daily schedule and after a bank sync imports new transactions",
+    name: msg("Subscription monitor"),
+    purpose: msg("Persists recurring-charge price increases with the charges that prove them. Never cancels anything."),
+    trigger: msg("Daily schedule and after a bank sync imports new transactions"),
     jobTypes: ["subscription_review"],
     reads: ["transactions"],
     writes: ["insights"],
@@ -49,12 +50,12 @@ const DEFINITIONS: AgentDefinition[] = [
   },
   {
     id: "security_sentinel",
-    name: "Security sentinel",
+    name: msg("Security sentinel"),
     purpose:
-      "Advisory review of each transfer proposal: changed or unverified recipient details, first-time external " +
+      msg("Advisory review of each transfer proposal: changed or unverified recipient details, first-time external " +
       "recipient, amount far above the user's typical transfers, assistant-created proposal to an external recipient. " +
-      "It cannot hold, release, approve or execute; deterministic policy holds are enforced separately.",
-    trigger: "Every new transfer proposal (enqueued by lib/actions)",
+      "It cannot hold, release, approve or execute; deterministic policy holds are enforced separately."),
+    trigger: msg("Every new transfer proposal (enqueued by lib/actions)"),
     jobTypes: ["security_review"],
     reads: ["actions", "recipients", "transactions"],
     writes: ["insights"],
@@ -63,9 +64,9 @@ const DEFINITIONS: AgentDefinition[] = [
   },
   {
     id: "portfolio_monitor",
-    name: "Portfolio monitor",
-    purpose: "Flags single positions above 25% of an account and large daily moves at simulated prices. Never trades.",
-    trigger: "Daily schedule",
+    name: msg("Portfolio monitor"),
+    purpose: msg("Flags single positions above 25% of an account and large daily moves at simulated prices. Never trades."),
+    trigger: msg("Daily schedule"),
     jobTypes: ["portfolio_review"],
     reads: ["portfolio"],
     writes: ["insights"],
@@ -74,15 +75,45 @@ const DEFINITIONS: AgentDefinition[] = [
   },
   {
     id: "connection_monitor",
-    name: "Connection monitor",
+    name: msg("Connection monitor"),
     purpose:
-      "Refreshes healthy simulated bank connections, queues spending and subscription reviews when new data arrives, " +
-      "and raises a connection-health insight when a sync fails.",
-    trigger: "Every 15 minutes per healthy connection",
+      msg("Refreshes healthy simulated bank connections, queues spending and subscription reviews when new data arrives, " +
+      "and raises a connection-health insight when a sync fails."),
+    trigger: msg("Every 15 minutes per healthy connection"),
     jobTypes: ["sync_connection"],
     reads: ["connections"],
     writes: ["insights", "jobs", "connection_sync"],
     enqueues: ["spending_review", "subscription_review"],
+    ...NO_POWERS,
+  },
+  {
+    id: "threat_monitor",
+    name: msg("Threat monitor"),
+    purpose:
+      msg("Advisory, rule-based sweep of the user's own audit log for attack patterns over time: repeated not-found " +
+      "probes, execution without approval, stale-approval replays, recipient swaps before a transfer, limit probing, " +
+      "controls loosened right before an approval, prompt-injection attempts and refused assistant tools. " +
+      "It cannot hold, pause, approve or execute anything; it only writes insights."),
+    trigger: msg("Shortly after new user, assistant or system activity appears in the audit log"),
+    jobTypes: ["threat_sweep"],
+    reads: ["audit", "actions"],
+    writes: ["insights"],
+    enqueues: [],
+    ...NO_POWERS,
+  },
+  {
+    id: "personal_assistant",
+    name: msg("Personal assistant"),
+    purpose:
+      msg("Prepares a briefing in the background: where you could save (recurring charges, small habits, fees, idle " +
+      "cash), where spending looks too high or doesn't add up (possible duplicate charges, spending above income), " +
+      "notes on your holdings from simulated price history, and transfers or bank connections that need you. " +
+      "Observation only: it can't move money, propose, approve, trade or change anything. Not financial advice."),
+    trigger: msg("Every 30 minutes per user, and on demand from the Briefing page"),
+    jobTypes: ["assistant_briefing"],
+    reads: ["accounts", "transactions", "actions", "portfolio", "connections"],
+    writes: ["insights"],
+    enqueues: [],
     ...NO_POWERS,
   },
 ];

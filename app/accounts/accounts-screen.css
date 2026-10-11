@@ -1,0 +1,290 @@
+/* Accounts: one-screen layout (desktop only).
+   From 901px up the directory and the account detail view fill the window
+   (see "One-screen pages" in globals.css): the page never scrolls; the account
+   list, activity, bank picker and bank connections each scroll inside
+   themselves. Phones and tablets (≤900px) keep the natural scrolling layout. */
+@media (min-width: 901px) {
+  /* ── Directory ── */
+  .account-directory .page-intro.screen-title {
+    align-items: center;
+    margin: 0 4px 6px;
+  }
+  .account-directory .page-intro.screen-title > div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 14px;
+    min-width: 0;
+  }
+  .account-directory .page-intro.screen-title p {
+    margin-top: 0;
+    font-size: 14px;
+  }
+  .account-directory > .account-disclaimer {
+    margin: 0 4px 12px;
+    line-height: 1.5;
+  }
+  .account-directory > [role="alert"],
+  .account-directory > [role="status"] {
+    margin-bottom: 12px;
+  }
+
+  /* Wide: list | activity | banks. The picker (when open) sits above the
+     connections in the bank column. */
+  .account-screen-body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(300px, 0.78fr);
+    grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .account-screen-body > .account-toolbar {
+    grid-column: 1 / 3;
+    grid-row: 1;
+    margin: 0;
+  }
+  .account-screen-body > .account-workspace {
+    display: contents;
+  }
+  .account-screen-body .account-list-card {
+    grid-column: 1;
+    grid-row: 2 / 4;
+  }
+  .account-screen-body .account-panel-column {
+    grid-column: 2;
+    grid-row: 2 / 4;
+  }
+  .account-screen-body > .account-connections {
+    grid-column: 3;
+    grid-row: 1 / 4;
+  }
+  .account-screen-body > .account-bank-picker {
+    grid-column: 3;
+    grid-row: 1 / 3;
+  }
+  .account-screen-body:has(> .account-bank-picker) > .account-connections {
+    grid-row: 3;
+  }
+
+  /* Cards become fixed-height panes: the header stays, the body scrolls. The
+     scrolling happens inside the glass, so its hairline edge never moves. */
+  .account-screen-body .account-list-card,
+  .account-screen-body > .account-bank-picker,
+  .account-screen-body > .account-connections > section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+  .account-screen-body .account-list-card > header,
+  .account-screen-body > .account-bank-picker > header,
+  .account-screen-body > .account-connections > section > header {
+    flex-shrink: 0;
+  }
+  .account-screen-body .account-list-card > div:last-child,
+  .account-screen-body > .account-bank-picker > div:last-child,
+  .account-screen-body > .account-connections > section > div:last-child {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+  }
+  .account-screen-body > .account-connections {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin: 0;
+  }
+  .account-screen-body > .account-connections > section {
+    flex: 1 1 auto;
+  }
+  .account-screen-body > .account-connections article {
+    padding: 16px;
+  }
+  .account-screen-body > .account-bank-picker .bank-grid {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  }
+
+  /* Recent activity fills its column; the transaction list scrolls. */
+  .account-screen-body .account-panel-column {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .account-screen-body .account-panel-column > .account-panel {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: none;
+    overflow: hidden;
+  }
+  .account-screen-body .account-panel > header {
+    flex-shrink: 0;
+  }
+  .account-screen-body .account-panel > div:last-child {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding-bottom: 8px;
+  }
+  .account-screen-body .account-panel-column > [role="alert"],
+  .account-screen-body .account-panel-column > [role="status"] {
+    flex-shrink: 0;
+  }
+  .account-screen-body .account-activity-content {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .account-screen-body .account-activity-content > * {
+    flex-shrink: 0;
+  }
+  .account-screen-body .account-activity-content > .account-activity-scroll,
+  .account-detail-page .account-activity-content > .account-activity-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+  }
+
+  /* ── Account detail ── */
+  .account-detail-page.screen {
+    position: relative;
+  }
+  .account-detail-head {
+    display: flex;
+    align-items: center;
+    gap: 6px 14px;
+    min-width: 0;
+    /* Room for the transaction search, which sits on this row (right). */
+    padding-right: min(380px, 36%);
+    margin: 0 4px 8px 0;
+  }
+  .account-detail-head .account-back {
+    flex-shrink: 0;
+    margin: 0;
+  }
+  .account-detail-head .account-detail-intro {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 14px;
+    min-width: 0;
+    margin: 0;
+  }
+  .account-detail-head .account-detail-intro h1 {
+    margin: 0;
+    font-size: 28px;
+    line-height: 1.1;
+  }
+  .account-detail-head .account-detail-intro p {
+    margin-top: 0;
+    font-size: 14px;
+  }
+  .account-detail-page > .account-disclaimer {
+    margin: 0 4px 12px;
+    padding-right: min(380px, 36%);
+    line-height: 1.5;
+  }
+  .account-detail-page > [role="alert"] {
+    margin-bottom: 12px;
+  }
+  .account-detail-page > .account-activity-search {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: min(360px, 34%);
+    max-width: none;
+    margin: 0;
+  }
+  /* Overview (left) and transactions (right) each scroll on their own. */
+  .account-detail-page > .account-full-view {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .account-detail-page .account-full-view > .account-full-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.25fr);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 28px;
+    padding: 0;
+  }
+  .account-detail-page .account-overview-content {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+    padding: 2px 8px 2px 2px;
+    margin: -2px;
+  }
+  .account-detail-page .account-overview-content > .account-holdings {
+    margin-bottom: 4px;
+  }
+  .account-detail-page .account-full-layout .account-activity-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0 0 0 28px;
+    border-top: 0;
+    border-left: 1px solid var(--glass-border, var(--hairline));
+  }
+  .account-detail-page .account-activity-content > * {
+    flex-shrink: 0;
+  }
+}
+
+/* 901–1180px: two columns. The list and bank connections share the left
+   column; the picker (when open) and activity share the right. */
+@media (min-width: 901px) and (max-width: 1180px) {
+  .account-screen-body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    /* The account list gets the larger share of the left column. */
+    grid-template-rows: auto minmax(0, 1.7fr) minmax(0, 1fr);
+  }
+  .account-screen-body > .account-toolbar {
+    grid-column: 1 / 3;
+  }
+  .account-screen-body .account-list-card {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .account-screen-body .account-panel-column {
+    grid-column: 2;
+    grid-row: 2 / 4;
+  }
+  .account-screen-body > .account-connections,
+  .account-screen-body:has(> .account-bank-picker) > .account-connections {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .account-screen-body > .account-bank-picker {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .account-screen-body:has(> .account-bank-picker) .account-panel-column {
+    grid-row: 3;
+  }
+  .account-detail-head,
+  .account-detail-page > .account-disclaimer {
+    padding-right: min(300px, 34%);
+  }
+  .account-detail-page > .account-activity-search {
+    width: min(280px, 32%);
+  }
+  .account-detail-page .account-full-view > .account-full-layout {
+    gap: 20px;
+  }
+  .account-detail-page .account-full-layout .account-activity-content {
+    padding-left: 20px;
+  }
+}

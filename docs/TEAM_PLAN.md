@@ -1,4 +1,4 @@
-# ClearFi — Team Roles and Delivery Plan
+# Onera — Team Roles and Delivery Plan
 
 Updated October 10, 2026. Four-person split requested by the team: **two engineering/build roles and two business/AI-governance roles**. This is a planning handoff, not evidence that the product has been built.
 

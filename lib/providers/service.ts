@@ -39,6 +39,7 @@ import {
 } from "./generator";
 import { fnv1a } from "./prng";
 import type { Connection, ConnectionStatus, Institution, SyncSummary } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 /**
  * Each sync re-delivers the last 12 hours of events, as real aggregators may
@@ -80,8 +81,8 @@ interface ConnectionRow {
 
 const SIMULATED_ERRORS: Record<SimulatedScenario, string> = {
   login_required:
-    "Simulated: the institution requires you to sign in again (for example, a changed password or expired MFA). Reconnect to resume syncing.",
-  error: "Simulated: the institution is temporarily unavailable. The next sync retries.",
+    msg("Simulated: the institution requires you to sign in again (for example, a changed password or expired MFA). Reconnect to resume syncing."),
+  error: msg("Simulated: the institution is temporarily unavailable. The next sync retries."),
 };
 
 // ---------------------------------------------------------------------------
@@ -397,7 +398,7 @@ export function matchInternalTransfers(db: DB, userId: UserId): number {
 
 /**
  * Balances as of sync: opening balance at the start of the synced history plus
- * posted activity (including ClearFi-simulated transfers). Available = balance
+ * posted activity (including Onera-simulated transfers). Available = balance
  * plus pending holds/charges; for cards, available credit = limit + balance + pending.
  */
 function refreshBalances(db: DB, userId: UserId, row: ConnectionRow, now: Date): void {
@@ -483,9 +484,9 @@ export function sync(db: DB, userId: UserId, connectionId: string, opts: Provide
       detail: { connectionId, status: row.status, simulated: true },
     });
     throw row.status === "login_required"
-      ? conflict("INVALID_STATE", "This connection needs you to sign in again. Reconnect it before syncing.",
+      ? conflict("INVALID_STATE", msg("This connection needs you to sign in again. Reconnect it before syncing."),
           { status: row.status, requiredAction: "reconnect" })
-      : conflict("INVALID_STATE", "This connection is disconnected. Link the institution again to resume syncing.",
+      : conflict("INVALID_STATE", msg("This connection is disconnected. Link the institution again to resume syncing."),
           { status: row.status, requiredAction: "link" });
   }
   return db.transaction(() => performSync(db, userId, loadConnectionRow(db, userId, connectionId), now, actor,
@@ -525,7 +526,7 @@ export function disconnect(db: DB, userId: UserId, connectionId: string, opts: P
 export function reconnect(db: DB, userId: UserId, connectionId: string, opts: ProviderOpts = {}): Connection {
   const row = loadConnectionRow(db, userId, connectionId);
   if (row.status === "disconnected") {
-    throw conflict("INVALID_STATE", "This connection is disconnected. Link the institution again instead.",
+    throw conflict("INVALID_STATE", msg("This connection is disconnected. Link the institution again instead."),
       { status: row.status, requiredAction: "link" });
   }
   const nowIso = (opts.now ?? new Date()).toISOString();
@@ -551,7 +552,7 @@ export function simulateIssue(
 ): Connection {
   const row = loadConnectionRow(db, userId, connectionId);
   if (row.status === "disconnected") {
-    throw conflict("INVALID_STATE", "This connection is disconnected.", { status: row.status });
+    throw conflict("INVALID_STATE", msg("This connection is disconnected."), { status: row.status });
   }
   const nowIso = (opts.now ?? new Date()).toISOString();
   db.transaction(() => {

@@ -1,4 +1,6 @@
-# Markets API: simulated quotes, portfolio, paper orders, mandates
+# Markets API: quotes, portfolio, paper and Alpaca orders, mandates
+
+> **Two modes.** Without Alpaca keys everything below runs on the deterministic simulator, exactly as documented. With `ALPACA_API_KEY_ID` / `ALPACA_API_SECRET_KEY` set, prices, history and the market clock come from Alpaca, and a user can connect the Alpaca account and submit approved orders to it. See [Alpaca brokerage](#alpaca-brokerage) at the end. Onera paper accounts keep filling locally in both modes.
 
 This file documents the routes under `app/api/markets`, `app/api/portfolio`, `app/api/orders` and `app/api/mandates` as they are implemented. Service code lives in `lib/markets/`. Types come from `lib/markets/types.ts` and are re-exported by `@/lib/markets`.
 
@@ -7,6 +9,8 @@ Conventions shared with [../API.md](../API.md):
 - **Identity.** Every private route gets the user from `getSessionUserId()`. No body or query field can carry a user ID: request schemas are strict objects, so an unknown key such as `userId`, `state`, `version` (on create), `createdBy`, `mandateId` or `approvalHash` is a `400`.
 - **Ownership.** Every SQL query on `orders`, `positions`, `mandates`, `trading_controls` and `accounts` filters on `user_id`. If a record belongs to another user, the route returns `404 NOT_FOUND`, exactly as if the record did not exist.
 - **Errors.** `{ "error": { "code", "message", "details"? } }`. Zod validation failures are `400 BAD_REQUEST`, with message `"Invalid request"` and `details` set to the Zod issues. Unhandled errors are `500 INTERNAL`.
+- **Clock.** Every write (create, edit, evaluate, approve, execute, mandate create/revoke, `proposeMandateOrder`) reads the real server clock. None of them accepts a time, so a stale timestamp can never price an order, reset the daily window or outlive a mandate's expiry. Reads (`getQuote`, `getPortfolio`, `listMandates`, `getMandate`, …) still take an optional `now` for display. Tests move time with Vitest fake timers (`vi.useFakeTimers({ toFake: ["Date"] })` + `vi.setSystemTime`).
+- **Concurrency.** Every load-then-write runs in one `BEGIN IMMEDIATE` transaction, and every `UPDATE` is guarded by the expected state (and version where it matters). If the order changed underneath, the call is `409 INVALID_STATE` and nothing is written, never a lost update or a `500`.
 - **Money and shares.** Money is integer cents in USD. Share quantities are integer **micro-shares** (`quantityMicros`, shares × 1,000,000). Every share × price product goes through `mulDiv` (BigInt) in `lib/markets/math.ts`. Floats appear only inside the price simulator and in display-only percentages (`changePct`, `weightPct`).
 
 ## Simulation labels (must stay visible)
@@ -121,12 +125,12 @@ The bound is part of the approval hash (`lib/markets/approval.ts`). The hash cov
 | GET | `/api/orders` | `?state=&limit=` | `{ orders: PaperOrder[] }`, newest first. `limit` defaults to 50, clamped to 1–500. An unrecognized `state` returns `[]` | – |
 | POST | `/api/orders` | `{ accountId, symbol, side: "buy"\|"sell", quantityMicros? , notionalCents? }` | `201 { order }`, with `createdBy: "user"` and state `HELD` or `AWAITING_APPROVAL` | `400 BAD_REQUEST` (validation), `404 NOT_FOUND` (account), `400 UNSUPPORTED` (view-only/bank account) |
 | GET | `/api/orders/:id` | – | `{ order, instrument: Instrument \| null, quote: Quote \| null }` | `404` |
-| PATCH | `/api/orders/:id` | any of `{ accountId, symbol, side, quantityMicros, notionalCents }` (at least one, at most one sizing field; setting one sizing field clears the other) | `{ order }`: version + 1, approval cleared, mandate detached, re-priced and re-evaluated | `400` (validation, or a sell without `quantityMicros`), `404`, `409 INVALID_STATE` (`EXECUTED`/`FAILED`), `400 UNSUPPORTED` |
-| POST | `/api/orders/:id/evaluate` | – | `{ order }`: re-priced and re-evaluated. Version + 1 only if the bound changed | `404`, `409 INVALID_STATE` unless `PROPOSED`/`HELD`/`AWAITING_APPROVAL` |
+| PATCH | `/api/orders/:id` | any of `{ accountId, symbol, side, quantityMicros, notionalCents }` (at least one, at most one sizing field; setting one sizing field clears the other) | `{ order }`: version + 1, approval cleared, mandate detached, re-priced and re-evaluated | `400` (validation, or a sell without `quantityMicros`), `404`, `409 INVALID_STATE` (`EXECUTED`/`FAILED`, or the order's state/version changed concurrently), `400 UNSUPPORTED` |
+| POST | `/api/orders/:id/evaluate` | – | `{ order }`: re-priced and re-evaluated. Version + 1 only if the bound changed | `404`, `409 INVALID_STATE` unless `PROPOSED`/`HELD`/`AWAITING_APPROVAL` (also if the state changed concurrently) |
 | POST | `/api/orders/:id/approve` | `{ version }` (positive integer; other keys are ignored and are never treated as a hash) | `{ order }` → `APPROVED`, `approvedBy: "user:<id>"`, `hasApproval: true` | `400`, `404`, `409 INVALID_STATE` unless `AWAITING_APPROVAL`, `409 STALE_VERSION` if `version` isn't current, `409 POLICY_HOLD` (`details.reasons`): policy now fails, the order was re-evaluated (it may be `HELD`, or re-priced to a new version) |
-| POST | `/api/orders/:id/execute` | – | `{ order, fill: OrderFill, duplicate: boolean }`. Repeats return the original fill with `duplicate: true` and move nothing | `404`; `409 INVALID_STATE` unless `APPROVED` (`details.state`); `409 APPROVAL_INVALID` if the stored hash no longer matches the current version (the approval is discarded and the order re-evaluated); `409 POLICY_HOLD` (`details.reasons`) if pause, limits, cash/shares, mandate or the price bound now fail (the approval is discarded and the order re-evaluated); `500 INTERNAL` `"Paper order failed: …"` if the broker hits an internal error (the order becomes `FAILED`, with `failureReason`) |
+| POST | `/api/orders/:id/execute` | – | `{ order, fill: OrderFill, duplicate: boolean }`. Repeats return the original fill with `duplicate: true` and move nothing | `404`; `409 INVALID_STATE` unless `APPROVED` (`details.state`); `409 APPROVAL_INVALID` if the stored hash no longer matches the current version (the approval is discarded and the order re-evaluated); `409 POLICY_HOLD` (`details.reasons`) if pause, limits, cash/shares, mandate or the price bound now fail (the approval is discarded and the order re-evaluated); `503 INTERNAL` with `details: { retryable: true }` if the database is locked (`SQLITE_BUSY`/`SQLITE_LOCKED`): nothing executed, the order stays `APPROVED`, retry; `500 INTERNAL` `"Paper order failed: …"` if the broker hits an internal error (the order becomes `FAILED`, with `failureReason`, stamped with the attempt's time) |
 
-The execute route runs as `user:<id>`. A `409` from approve or execute still commits the re-evaluation, so the order's new state is in the database.
+The execute route runs as `user:<id>`, always: `executeOrder(db, userId, orderId)` takes no actor or time. The mandate execution path (`executeMandateOrder` in `lib/markets/broker.ts`) is internal, is not exported from `@/lib/markets`, and is called only by `proposeMandateOrder`. A `409` from approve or execute still commits the re-evaluation, so the order's new state is in the database.
 
 **Approval hash.** The server computes the hash and stores it in `orders.approval_hash`. It is never serialized: `toOrder()` exposes only `hasApproval: boolean`. No route accepts a hash. Audit events record only `approvalHashPrefix` (first 12 hex characters), the same as core transfers.
 
@@ -173,8 +177,7 @@ proposeMandateOrder(
   mandateId: string,
   agentId: string,         // the calling agent's registry id, e.g. "dca-bot"
   input: { symbol: string; notionalCents: number },  // strict; notional $1–$1,000,000
-  now?: Date,
-): MandateOrderResult      // { order: PaperOrder; fill: OrderFill | null; executed: boolean; refusal: { code; message } | null }
+): MandateOrderResult      // no `now`: real clock. { order: PaperOrder; fill: OrderFill | null; executed: boolean; refusal: { code; message } | null }
 ```
 
 | Outcome | Result |
@@ -187,10 +190,102 @@ proposeMandateOrder(
 | Well-formed `agentId` that isn't the mandate's agent | not thrown: the order is created as `agent:<agentId>` and `HELD` with `MANDATE_INVALID` |
 | Mandate not found for this user | throws `404 NOT_FOUND` |
 | The mandate's account is no longer tradable | throws `400 UNSUPPORTED` |
+| Database locked during execution | throws `503 INTERNAL` (`details.retryable`), order stays `APPROVED` |
 | Paper broker internal error | throws `500 INTERNAL`, order `FAILED` |
 
-Agents must not call `approveOrder`, `createMandate`, `revokeMandate`, `updateTradingControls` or `editOrder`. They must not call `executeOrder` directly either: `proposeMandateOrder` is the only governed path to execution.
+Agents must not call `approveOrder`, `createMandate`, `revokeMandate`, `updateTradingControls` or `editOrder`. They must not call `executeOrder` directly either: `proposeMandateOrder` is the only governed path to execution. Internally it executes through `executeMandateOrder`, which runs as `agent:<agentId>` and refuses (409 `INVALID_STATE`, audit `order.execute_refused` / `AGENT_NOT_AUTHORIZED`) anything but that agent's own order authorized as `mandate:<mandateId>` for the same mandate, so a user-approved order can never be executed through the mandate path. Only `lib/markets` (and tests) may import `@/lib/markets/*` internals (`tests/markets-hardening.test.ts` checks this).
+
+Product notes (unchanged): `agentId` is checked for format only, not against the agents registry (a mismatched agent is `HELD` with `MANDATE_INVALID`); sells count against the per-order and daily limits like buys.
+
+## Alpaca brokerage
+
+Code: `lib/markets/alpaca.ts` (HTTP client), `marketdata.ts` (quote/bar/clock cache), `brokerage.ts` (connect, mirror, submit, sync, cancel). Configuration is server-only; see `.env.example`.
+
+| Variable | Meaning |
+|---|---|
+| `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | One key pair. Both set ⇒ Alpaca mode for the whole process. Redacted from chat output and broker errors |
+| `ALPACA_ENV` | `paper` (default) or `live` |
+| `ALPACA_ALLOW_LIVE_TRADING` | Must be `true` for live. Live orders are user-created only and capped by `ALPACA_LIVE_MAX_ORDER_CENTS` (default `10000`) |
+| `ALPACA_DATA_FEED` | `iex` (default, free) or `sip` |
+| `ALPACA_USER_ID` | The demo user the keys belong to (default `alice`). Anyone else gets `404` from connect |
+
+### Market data in Alpaca mode
+
+- Routes `await refreshMarketData()` first. Snapshots are cached for 15s, the clock for 60s and daily bars for 1h, all in markets-owned tables (`market_quotes`, `market_bars`, `market_data_state`). The synchronous services then read that cache.
+- A quote older than 60s is **unavailable** (`null`), and orders hold with `QUOTE_UNAVAILABLE`. Alpaca mode never falls back to simulated prices, so a made-up price can never become a real limit price.
+- Labels: `source`/`quotesSource` = `"alpaca_iex"`. `disclaimer` = `ALPACA_PRICES_DISCLAIMER`. `market` = `{ status: "open"|"closed", label, source, nextOpen, nextClose }` from the Alpaca clock.
+
+### Search and watchlist
+
+| Method | Path | Body / response |
+|---|---|---|
+| GET | `/api/markets/search?q=` | `{ results: InstrumentSearchResult[], scope: "built_in" \| "us_equities" }`. Up to 20 matches by ticker or name: exact ticker, then ticker prefix, then name |
+| GET | `/api/markets/watchlist` | `{ watchlist: string[] }`, the symbols the session user added |
+| POST | `/api/markets/watchlist` | `{ symbol }` → `201 { watchlist }`. `404` for unknown or untradable symbols. At most 50 |
+| DELETE | `/api/markets/watchlist/:symbol` | `{ watchlist }` |
+
+- **Simulated mode** searches only the 12 built-in symbols.
+- **Alpaca mode** searches every active, tradable US stock and ETF from `GET /v2/assets`, cached in `market_assets` and refreshed daily.
+  - Leveraged and inverse funds (2×, −1×, UltraPro, "Daily Target") are excluded, because Onera offers no leverage or shorting.
+  - A searched symbol is a valid instrument for quotes, history and orders. Policy's `instrument_allowed` check uses the same lookup.
+- `/api/markets/instruments` and `/api/markets/quotes` (without `symbols`) return the built-in list plus the user's watchlist.
+- Routes that price a symbol (history, order create/edit/evaluate/approve/execute) refresh that symbol's quote and bars first.
+
+### Connecting
+
+`POST /api/brokers/alpaca/connect` (user only) validates the keys:
+- the account number prefix must match `ALPACA_ENV` (`PA…` is paper);
+- the account must be ACTIVE and USD.
+
+It then creates `acct_<user>_alpaca_<env>` (brokerage, `is_paper` = 1 for paper, institution "Alpaca") plus a `broker_links` row, and mirrors the account:
+- cash goes to `balance_cents`;
+- `min(cash, non_marginable_buying_power)` goes to `available_cents`, so Onera never uses margin;
+- long positions are copied to `positions`; shorts are skipped.
+
+`GET /api/brokers/alpaca` returns `{ connection: BrokerConnection }` and never includes keys. The mirror refreshes at most every 10s, and after each fill.
+
+### Order lifecycle at Alpaca
+
+```
+… → APPROVED ─POST /execute→ SUBMITTING ─Alpaca accepted→ SUBMITTED ─sync→ EXECUTED | CANCELED | FAILED
+```
+
+- **Same governance.** Orders for an Alpaca account (`venue: "alpaca_paper" | "alpaca_live"`) are proposed, evaluated and approved like any other order. The approval hash also binds the venue (schema 2). A link is only "connected" when the configured env matches the env it was linked in, so switching `ALPACA_ENV` holds the order instead of routing a paper approval to live.
+- **Submission.** `POST /api/orders/:id/execute` calls `placeOrder`:
+  - Onera paper orders execute locally (unchanged).
+  - Alpaca orders first refresh the quote and the account. One IMMEDIATE transaction then re-verifies the hash and policy and claims `APPROVED → SUBMITTING` with `client_order_id = <id>-v<version>`. It reserves the worst-case value against the daily limit.
+  - The order is then POSTed as a **limit order at the approved price bound**, `time_in_force: day`, `extended_hours: false`.
+  - Notional buys are converted to `floor(notional / bound)` micro-shares, so the spend can't exceed the approved amount. Non-fractionable symbols round down to whole shares.
+  - Response: `{ order, fill: OrderFill | null, duplicate, venue }`. Repeats return the current order.
+- **Outcomes of the POST:**
+
+  | Alpaca response | Order state |
+  |---|---|
+  | `403`/`422` | `FAILED`, with Alpaca's message |
+  | `401`/`429` | back to `APPROVED`; the route returns `503`/`429` |
+  | Timeout or `5xx` | Looked up by `client_order_id`, never re-posted. If Alpaca still doesn't have it after 2 minutes, `FAILED` ("nothing was traded") |
+
+- **Sync.** `syncOrders` runs on `GET /api/orders`, on `GET /api/orders/:id`, and in the background poller (every 10s while orders are open). Status mapping:
+
+  | Alpaca status | Order state |
+  |---|---|
+  | `filled` | `EXECUTED`, with Alpaca's `filled_avg_price`/`filled_qty` |
+  | `canceled`/`expired`, after a partial fill | `EXECUTED` with `fill.partial: true` |
+  | `canceled`/`expired`, nothing filled | `CANCELED` |
+  | `rejected` | `FAILED` |
+  | anything else | stays `SUBMITTED`, with the raw `broker.status` |
+
+  Alpaca fills have `simulated: false`. Their `cashAfterCents`, `positionQuantityAfterMicros` and `realizedPnlCents` are `null`; balances are re-read from Alpaca instead.
+- **Cancel.** `POST /api/orders/:id/cancel` (user only, `SUBMITTED` only) asks Alpaca to cancel. The order becomes `CANCELED` only once Alpaca confirms it. If the order already filled, the route returns it as `EXECUTED`.
+- **Not allowed on Alpaca accounts:**
+  - `executeOrder` returns `409 INVALID_STATE`; use `/execute`, which dispatches correctly.
+  - `createMandate` returns `400`.
+  - In live mode, assistant- and agent-created orders return `400`.
+- **Daily limit and shares.** `usage.executedTodayCents` includes the reservations of open orders. Held shares exclude shares in open sells.
+- **Demo reset.** Resetting the database forgets the link and the local orders. Orders still open at Alpaca stay open there; cancel them in the Alpaca dashboard if needed.
 
 ## Audit events
+
+Alpaca adds `broker.connected`, `order.submitting`, `order.broker_rejected`, `order.canceled`, `order.cancel_requested` and `order.cancel_refused`.
 
 `order.proposed`, `order.held`, `order.awaiting_approval`, `order.repriced`, `order.edited`, `order.approved`, `order.mandate_authorized`, `order.approval_invalidated`, `order.executed`, `order.execute_duplicate`, `order.execute_refused`, `order.failed`, `mandate.created`, `mandate.revoked`, `trading_controls.updated`. Order events use the order ID as `actionId`, so `GET /api/audit?actionId=<orderId>` returns an order's history.

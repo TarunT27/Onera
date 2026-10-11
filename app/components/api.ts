@@ -1,5 +1,5 @@
 /**
- * Tiny typed fetch helper for the ClearFi HTTP API (see docs/API.md).
+ * Tiny typed fetch helper for the Onera HTTP API (see docs/API.md).
  *
  * The UI talks to the server ONLY through these calls. Failures throw an
  * ApiRequestError whose message mirrors the server's refusal exactly, e.g.
@@ -14,6 +14,7 @@ import type {
   CreateTransferInput,
   EditTransferInput,
   ExecutionReceipt,
+  NetWorth,
   Recipient,
   RecipientStatus,
   SpendingSummary,
@@ -24,6 +25,22 @@ import type {
   UserControls,
   UserId,
 } from "@/lib/types";
+// Type-only: erased at build time, so no server code reaches the client bundle.
+import type {
+  AgentDefinition,
+  AgentRun,
+  Briefing,
+  AgentsLive,
+  Insight,
+  PermissionRow,
+  RunReport,
+  ScheduleReport,
+} from "@/lib/agents";
+import type { ChatSecurityEvent, ChatSecurityFinding, MonitorStatus } from "@/lib/chatguard";
+import type { CardCharge, FamilyCard, FamilyOverview, SimulatePurchaseInput, UpdateCardInput } from "@/lib/family";
+import { identityT, type Translate } from "@/lib/i18n/translate";
+import { msg } from "@/lib/i18n/msg";
+import { displayCache } from "./readCache";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -62,9 +79,26 @@ function isErrorEnvelope(v: unknown): v is { error: { code: ApiErrorCode; messag
 // Core request
 // ---------------------------------------------------------------------------
 
-type Method = "GET" | "POST" | "PATCH";
+type Method = "GET" | "POST" | "PATCH" | "DELETE";
 
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  if (method === "GET") {
+    const result = await fetchJson<T>(method, path, body);
+    if (path === "/api/session") {
+      displayCache.setSession((result as SessionResponse).user.id);
+    }
+    return result;
+  }
+  // A failed write may still change state (e.g. a refusal can hold a transfer).
+  displayCache.invalidate(false);
+  try {
+    return await fetchJson<T>(method, path, body);
+  } finally {
+    displayCache.invalidate(true, path === "/api/session" || path === "/api/demo/reset");
+  }
+}
+
+async function fetchJson<T>(method: Method, path: string, body?: unknown): Promise<T> {
   let res: Response;
   try {
     res = await fetch(path, {
@@ -75,7 +109,7 @@ async function request<T>(method: Method, path: string, body?: unknown): Promise
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (err) {
-    throw new ApiRequestError(0, "NETWORK", err instanceof Error ? err.message : "Network request failed");
+    throw new ApiRequestError(0, "NETWORK", err instanceof Error ? err.message : msg("Network request failed"));
   }
 
   const text = await res.text();
@@ -96,7 +130,7 @@ async function request<T>(method: Method, path: string, body?: unknown): Promise
     throw new ApiRequestError(
       res.status,
       fallbackCode,
-      json === undefined ? `${method} ${path} returned a non-JSON response (${res.statusText || "error"})` : res.statusText || "Request failed",
+      json === undefined ? `${method} ${path} returned a non-JSON response (${res.statusText || "error"})` : res.statusText || msg("Request failed"),
     );
   }
 
@@ -106,10 +140,29 @@ async function request<T>(method: Method, path: string, body?: unknown): Promise
   return json as T;
 }
 
+/**
+ * POSTs a non-JSON body or reads a non-JSON reply (voice audio). Errors use the
+ * same envelope as fetchJson. Voice endpoints change no state, so the display
+ * cache is left alone.
+ */
+async function postRaw(path: string, body: BodyInit, headers: Record<string, string> = {}): Promise<Response> {
+  let res: Response;
+  try {
+    res = await fetch(path, { method: "POST", cache: "no-store", credentials: "same-origin", headers, body });
+  } catch (err) {
+    throw new ApiRequestError(0, "NETWORK", err instanceof Error ? err.message : msg("Network request failed"));
+  }
+  if (res.ok) return res;
+  const json: unknown = await res.json().catch(() => undefined);
+  if (isErrorEnvelope(json)) throw new ApiRequestError(res.status, json.error.code, json.error.message, json.error.details);
+  throw new ApiRequestError(res.status, "INTERNAL", res.statusText || msg("Request failed"));
+}
+
 export const api = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
   patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, body),
+  del: <T>(path: string) => request<T>("DELETE", path),
 };
 
 // ---------------------------------------------------------------------------
@@ -127,6 +180,8 @@ export interface SessionResponse {
 export interface AccountsResponse {
   accounts: Account[];
   netWorthCents: number;
+  /** Dated demo FX metadata already returned by the server. */
+  netWorth?: NetWorth;
   asOf: string;
 }
 export interface TransactionsResponse {
@@ -170,6 +225,51 @@ export interface ActionDetailResponse {
   recipient: RecipientWithStatus;
   sourceAccount: Account;
 }
+export interface AgentsResponse {
+  agents: (AgentDefinition & { lastRun: AgentRun | null })[];
+  permissions: PermissionRow[];
+  notice: string;
+}
+export interface AgentInsightsResponse {
+  insights: Insight[];
+}
+export interface AgentRunResponse {
+  scheduled: ScheduleReport;
+  report: RunReport;
+  insights: Insight[];
+}
+export type { Insight as AgentInsight };
+export type {
+  Briefing,
+  BriefingAttentionItem,
+  BriefingResearchNote,
+  BriefingTip,
+} from "@/lib/agents";
+export interface BriefingResponse {
+  /** null until the personal assistant has run once for this user. */
+  briefing: Briefing | null;
+  preparedAt: string | null;
+  lastRun: AgentRun | null;
+  agent: AgentDefinition | undefined;
+  report?: RunReport;
+}
+export type { ChatSecurityFinding, MonitorStatus };
+export interface ChatSecurityResponse {
+  status: MonitorStatus;
+  findings: ChatSecurityFinding[];
+  events: ChatSecurityEvent[];
+}
+export type AgentsLiveResponse = AgentsLive;
+export interface VoiceStatusResponse {
+  configured: boolean;
+  provider: "ElevenLabs";
+  sttModel: string;
+  ttsModel: string;
+}
+export interface TranscriptResponse {
+  text: string;
+  languageCode: string | null;
+}
 export interface ExecuteResponse {
   action: TransferAction;
   receipt: ExecutionReceipt;
@@ -202,6 +302,12 @@ export const paths = {
   audit: (opts: { actionId?: string; limit?: number } = {}) => withQuery("/api/audit", opts),
   actions: "/api/actions",
   action: (id: string) => `/api/actions/${enc(id)}`,
+  agents: "/api/agents",
+  agentInsights: "/api/agents/insights",
+  briefing: "/api/agents/briefing",
+  chatSecurity: "/api/security/chat",
+  agentsLive: "/api/agents/live",
+  family: "/api/family",
 };
 
 export const clearfi = {
@@ -220,10 +326,40 @@ export const clearfi = {
   updateControls: (input: UpdateControlsInput) => api.patch<{ controls: UserControls }>(paths.controls, input),
 
   chat: (req: ChatRequest) => api.post<ChatResponse>("/api/chat", req),
+
+  // Voice is transport only: a transcript is sent through chat like typed text.
+  voiceStatus: () => api.get<VoiceStatusResponse>("/api/voice"),
+  transcribe: async (audio: Blob, filename: string) => {
+    const form = new FormData();
+    form.append("audio", audio, filename);
+    return (await postRaw("/api/voice/transcribe", form, { Accept: "application/json" })).json() as Promise<TranscriptResponse>;
+  },
+  speak: async (text: string) =>
+    (await postRaw("/api/voice/speak", JSON.stringify({ text }), { "Content-Type": "application/json" })).blob(),
+
+  // Monitoring agents are advisory: these calls only run read-only monitors and
+  // mark their findings. Nothing here approves, executes or changes controls.
+  runAgents: () => api.post<AgentRunResponse>("/api/agents/run"),
+  setInsightStatus: (id: string, status: "seen" | "dismissed") =>
+    api.patch<{ insight: Insight }>(`/api/agents/insights/${enc(id)}`, { status }),
+  // The personal assistant only reads and writes its briefing and insights.
+  refreshBriefing: () => api.post<BriefingResponse>(paths.briefing),
+
+  // Family cards: parent-only controls and simulated purchases.
+  updateFamilyCard: (id: string, input: UpdateCardInput) =>
+    api.patch<{ card: FamilyCard }>(`/api/family/cards/${enc(id)}`, input),
+  simulateFamilyPurchase: (id: string, input: SimulatePurchaseInput) =>
+    api.post<{ charge: CardCharge; card: FamilyCard }>(`/api/family/cards/${enc(id)}/simulate`, input),
 };
 
-export function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
-  return "Something went wrong";
+export type { CardCharge, FamilyCard, FamilyOverview };
+
+export function errorMessage(err: unknown, t: Translate = identityT): string {
+  if (err instanceof ApiRequestError) {
+    const message = t(err.serverMessage);
+    return err.status > 0 ? `${err.status} ${err.code}: ${message}` : `${err.code}: ${message}`;
+  }
+  if (err instanceof Error) return t(err.message);
+  if (typeof err === "string") return t(err);
+  return t("Something went wrong");
 }

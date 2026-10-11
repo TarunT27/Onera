@@ -42,19 +42,78 @@ CREATE TABLE IF NOT EXISTS mandates (
 );
 CREATE INDEX IF NOT EXISTS idx_mandates_user ON mandates(user_id, created_at DESC);
 
--- Paper orders mirror the actions table lifecycle.
+-- An account linked to Alpaca. Created only by the signed-in user ("Connect Alpaca").
+-- Keys live in the server environment, never here.
+CREATE TABLE IF NOT EXISTS broker_links (
+  account_id          TEXT PRIMARY KEY REFERENCES accounts(id),
+  user_id             TEXT NOT NULL REFERENCES users(id),
+  broker              TEXT NOT NULL CHECK (broker = 'alpaca'),
+  env                 TEXT NOT NULL CHECK (env IN ('paper','live')),
+  external_account_id TEXT NOT NULL,      -- Alpaca account UUID
+  account_number_mask TEXT NOT NULL,      -- last 4 of the Alpaca account number
+  connected_at        TEXT NOT NULL,
+  last_synced_at      TEXT,
+  last_sync_error     TEXT,
+  UNIQUE (user_id, env)
+);
+
+-- Market data cache (Alpaca mode). Shared by the web server and the worker process.
+CREATE TABLE IF NOT EXISTS market_quotes (
+  symbol           TEXT PRIMARY KEY,
+  price_cents      INTEGER NOT NULL CHECK (price_cents > 0),
+  prev_close_cents INTEGER NOT NULL CHECK (prev_close_cents > 0),
+  as_of            TEXT NOT NULL,         -- trade time
+  fetched_at       TEXT NOT NULL,
+  source           TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS market_bars (
+  symbol      TEXT NOT NULL,
+  date        TEXT NOT NULL,              -- UTC YYYY-MM-DD
+  close_cents INTEGER NOT NULL CHECK (close_cents > 0),
+  source      TEXT NOT NULL,
+  PRIMARY KEY (symbol, date)
+);
+-- Searchable US equities from Alpaca (Alpaca mode only; refreshed daily). Catalog symbols live in code.
+CREATE TABLE IF NOT EXISTS market_assets (
+  symbol       TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  exchange     TEXT,
+  type         TEXT NOT NULL CHECK (type IN ('stock','etf')),
+  fractionable INTEGER NOT NULL DEFAULT 0,
+  updated_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_market_assets_name ON market_assets(name);
+
+-- Symbols a user added to their Trade watchlist (on top of the built-in catalog).
+CREATE TABLE IF NOT EXISTS watchlist (
+  user_id  TEXT NOT NULL REFERENCES users(id),
+  symbol   TEXT NOT NULL,
+  added_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, symbol)
+);
+
+CREATE TABLE IF NOT EXISTS market_data_state (
+  key        TEXT PRIMARY KEY,            -- 'clock' | 'bars:<SYMBOL>'
+  value      TEXT NOT NULL,               -- JSON
+  fetched_at TEXT NOT NULL
+);
+
+-- Orders mirror the actions table lifecycle; Alpaca orders add SUBMITTING/SUBMITTED/CANCELED.
 CREATE TABLE IF NOT EXISTS orders (
   id                 TEXT PRIMARY KEY,
   user_id            TEXT NOT NULL REFERENCES users(id),
   state              TEXT NOT NULL CHECK (state IN
-                       ('PROPOSED','HELD','AWAITING_APPROVAL','APPROVED','EXECUTED','FAILED')),
+                       ('PROPOSED','HELD','AWAITING_APPROVAL','APPROVED','SUBMITTING','SUBMITTED',
+                        'EXECUTED','CANCELED','FAILED')),
+  venue              TEXT NOT NULL DEFAULT 'onera_paper'
+                       CHECK (venue IN ('onera_paper','alpaca_paper','alpaca_live')),
   version            INTEGER NOT NULL DEFAULT 1,
   account_id         TEXT NOT NULL REFERENCES accounts(id),
   symbol             TEXT NOT NULL,
   side               TEXT NOT NULL CHECK (side IN ('buy','sell')),
   quantity_micros    INTEGER CHECK (quantity_micros IS NULL OR quantity_micros > 0),
   notional_cents     INTEGER CHECK (notional_cents IS NULL OR notional_cents > 0),
-  quote_price_cents  INTEGER,             -- simulated quote captured at evaluation
+  quote_price_cents  INTEGER,             -- quote captured at evaluation
   price_bound_cents  INTEGER,             -- buy: max price; sell: min price
   created_by         TEXT NOT NULL CHECK (created_by IN ('user','assistant') OR created_by LIKE 'agent:_%'),
   mandate_id         TEXT REFERENCES mandates(id),
@@ -68,6 +127,15 @@ CREATE TABLE IF NOT EXISTS orders (
   filled_gross_cents INTEGER,             -- cash moved by the fill; used for daily limits
   executed_at        TEXT,
   failure_reason     TEXT,
+  -- Alpaca only. client_order_id = '<id>-v<version>' makes a submission idempotent at the broker.
+  client_order_id          TEXT UNIQUE,
+  broker_order_id          TEXT,
+  broker_status            TEXT,
+  broker_qty_micros        INTEGER,       -- quantity sent (notional buys converted at the price bound)
+  broker_filled_qty_micros INTEGER,
+  reserved_cents           INTEGER,       -- worst-case value held against the daily limit while open
+  submitted_at             TEXT,
+  cancel_requested_at      TEXT,
   created_at         TEXT NOT NULL,
   updated_at         TEXT NOT NULL,
   -- Exactly one sizing field.
@@ -79,10 +147,17 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_mandate ON orders(mandate_id, executed_at);
+CREATE INDEX IF NOT EXISTS idx_orders_open ON orders(state) WHERE state IN ('SUBMITTING','SUBMITTED');
 `;
 
 const DROP_SQL = /* sql */ `
 DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS market_data_state;
+DROP TABLE IF EXISTS watchlist;
+DROP TABLE IF EXISTS market_assets;
+DROP TABLE IF EXISTS market_bars;
+DROP TABLE IF EXISTS market_quotes;
+DROP TABLE IF EXISTS broker_links;
 DROP TABLE IF EXISTS mandates;
 DROP TABLE IF EXISTS trading_controls;
 DROP TABLE IF EXISTS positions;
@@ -100,12 +175,12 @@ interface SeedHolding {
   costBasisPct: number;
 }
 
-/** Alice's Northwind import (~$8,000, view-only) and a small paper position. */
+/** Alice's Northwind import (~$355,000, view-only) and a small paper position. */
 const SEED_HOLDINGS: SeedHolding[] = [
-  { accountId: "acct_alice_brokerage", symbol: "VTI", targetValueCents: 320_000, costBasisPct: 82 },
-  { accountId: "acct_alice_brokerage", symbol: "AAPL", targetValueCents: 190_000, costBasisPct: 64 },
-  { accountId: "acct_alice_brokerage", symbol: "MSFT", targetValueCents: 170_000, costBasisPct: 71 },
-  { accountId: "acct_alice_brokerage", symbol: "BND", targetValueCents: 120_000, costBasisPct: 104 },
+  { accountId: "acct_alice_brokerage", symbol: "VTI", targetValueCents: 15_000_000, costBasisPct: 82 },
+  { accountId: "acct_alice_brokerage", symbol: "AAPL", targetValueCents: 7_800_000, costBasisPct: 64 },
+  { accountId: "acct_alice_brokerage", symbol: "MSFT", targetValueCents: 7_000_000, costBasisPct: 71 },
+  { accountId: "acct_alice_brokerage", symbol: "BND", targetValueCents: 5_700_000, costBasisPct: 104 },
   { accountId: "acct_alice_paper", symbol: "VOO", targetValueCents: 60_000, costBasisPct: 97 },
 ];
 

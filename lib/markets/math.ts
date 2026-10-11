@@ -43,3 +43,84 @@ export function utcDayWindow(now: Date): { start: string; end: string } {
   const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   return { start: new Date(start).toISOString(), end: new Date(start + 86_400_000).toISOString() };
 }
+
+// --- Decimal strings (broker API) --------------------------------------------
+// Alpaca sends money and share quantities as decimal strings ("187.2345",
+// "0.123456789"). These convert them exactly with BigInt: never via floats.
+
+const DECIMAL = /^(-)?(\d+)(?:\.(\d+))?$/;
+
+/** A decimal string (or a finite JSON number) scaled by 10^scale, rounded as requested (round = half away from zero). */
+export function decimalToScaled(value: string | number, scale: number, mode: Rounding = "round"): bigint {
+  const text = typeof value === "number" ? numberToDecimal(value) : value.trim();
+  const m = DECIMAL.exec(text);
+  if (!m) throw new Error(`Not a decimal: ${JSON.stringify(value)}`);
+  const negative = m[1] === "-";
+  const frac = m[3] ?? "";
+  const kept = BigInt(m[2] + frac.slice(0, scale).padEnd(scale, "0"));
+  const rest = frac.slice(scale);
+  const hasRest = /[1-9]/.test(rest);
+  let magnitude = kept;
+  if (hasRest) {
+    // Rounding acts on the magnitude; floor/ceil are mirrored for negatives.
+    const up =
+      mode === "round" ? rest[0] >= "5"
+      : mode === "ceil" ? !negative
+      : negative;
+    if (up) magnitude += 1n;
+  }
+  return negative ? -magnitude : magnitude;
+}
+
+/** Exact decimal text of a finite JSON number (handles exponent notation). */
+function numberToDecimal(n: number): string {
+  if (!Number.isFinite(n)) throw new Error(`Not a finite number: ${n}`);
+  const text = String(n);
+  if (!/e/i.test(text)) return text;
+  return n.toFixed(Math.min(20, Math.max(0, -Math.floor(Math.log10(Math.abs(n))) + 15)));
+}
+
+export function decimalToCents(value: string | number, mode: Rounding = "round"): number {
+  return Number(decimalToScaled(value, 2, mode));
+}
+
+export function decimalToMicros(value: string | number, mode: Rounding = "floor"): number {
+  return Number(decimalToScaled(value, 6, mode));
+}
+
+function scaledToDecimal(n: number, scale: number): string {
+  if (!Number.isSafeInteger(n)) throw new Error(`Not a safe integer: ${n}`);
+  const sign = n < 0 ? "-" : "";
+  const digits = String(Math.abs(n)).padStart(scale + 1, "0");
+  const whole = digits.slice(0, -scale);
+  const frac = digits.slice(-scale).replace(/0+$/, "");
+  return `${sign}${whole}${frac ? `.${frac}` : ""}`;
+}
+
+/** 1234567 → "1.234567" (trailing zeros trimmed). */
+export function microsToDecimal(quantityMicros: number): string {
+  return scaledToDecimal(quantityMicros, 6);
+}
+
+/** 12345 → "123.45". Always two decimals, as broker limit prices expect. */
+export function centsToDecimal(cents: number): string {
+  if (!Number.isSafeInteger(cents)) throw new Error(`Not a safe integer: ${cents}`);
+  const sign = cents < 0 ? "-" : "";
+  const digits = String(Math.abs(cents)).padStart(3, "0");
+  return `${sign}${digits.slice(0, -2)}.${digits.slice(-2)}`;
+}
+
+/** Gross cents of a decimal quantity × decimal price (both exact), rounded as requested. */
+export function decimalProductCents(quantity: string | number, price: string | number, mode: Rounding): number {
+  const SCALE = 9;
+  const q = decimalToScaled(quantity, SCALE, "floor");
+  const p = decimalToScaled(price, SCALE, "round");
+  if (q < 0n || p < 0n) throw new Error("decimalProductCents: negative input");
+  const num = q * p * 100n;
+  const den = 10n ** BigInt(SCALE * 2);
+  const whole = num / den;
+  const rem = num % den;
+  if (rem === 0n || mode === "floor") return Number(whole);
+  if (mode === "ceil") return Number(whole + 1n);
+  return Number(rem * 2n >= den ? whole + 1n : whole);
+}

@@ -1,12 +1,28 @@
 import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
 import { handler } from "@/lib/http";
-import { listInstruments, SIMULATED_MARKET_STATUS, SIMULATED_PRICES_DISCLAIMER } from "@/lib/markets";
+import {
+  getMarketStatus,
+  listInstruments,
+  listWatchlist,
+  pricesDisclaimer,
+  refreshMarketData,
+  watchlistInstruments,
+} from "@/lib/markets";
+import { getSessionUserId } from "@/lib/session";
 
-/** Supported stocks and ETFs. Public catalog data; no user records. */
-export const GET = handler(async () =>
-  NextResponse.json({
-    instruments: listInstruments(),
-    market: { status: "open", label: SIMULATED_MARKET_STATUS },
-    disclaimer: SIMULATED_PRICES_DISCLAIMER,
-  }),
-);
+/**
+ * The built-in stocks and ETFs plus the symbols this user added to their watchlist, and the
+ * market status (simulated, or the real US clock from Alpaca).
+ */
+export const GET = handler(async () => {
+  const db = getDb();
+  const userId = await getSessionUserId();
+  await refreshMarketData(db, userId);
+  return NextResponse.json({
+    instruments: [...listInstruments(), ...watchlistInstruments(db, userId)],
+    watchlist: listWatchlist(db, userId),
+    market: getMarketStatus(db),
+    disclaimer: pricesDisclaimer(),
+  });
+});

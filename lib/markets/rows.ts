@@ -9,6 +9,7 @@ import type {
   OrderPolicyResult,
   OrderSide,
   OrderState,
+  OrderVenue,
   PaperOrder,
   TradingControls,
 } from "./types";
@@ -17,6 +18,7 @@ export interface OrderRow {
   id: string;
   user_id: string;
   state: OrderState;
+  venue: OrderVenue;
   version: number;
   account_id: string;
   symbol: string;
@@ -37,6 +39,14 @@ export interface OrderRow {
   filled_gross_cents: number | null;
   executed_at: string | null;
   failure_reason: string | null;
+  client_order_id: string | null;
+  broker_order_id: string | null;
+  broker_status: string | null;
+  broker_qty_micros: number | null;
+  broker_filled_qty_micros: number | null;
+  reserved_cents: number | null;
+  submitted_at: string | null;
+  cancel_requested_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -68,8 +78,36 @@ export function toOrder(r: OrderRow): PaperOrder {
     failureReason: r.failure_reason,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
-    paper: true,
+    venue: r.venue,
+    broker: r.venue === "onera_paper" || r.client_order_id === null ? null : {
+      broker: "alpaca",
+      env: r.venue === "alpaca_live" ? "live" : "paper",
+      clientOrderId: r.client_order_id,
+      brokerOrderId: r.broker_order_id,
+      status: r.broker_status,
+      quantityMicros: r.broker_qty_micros,
+      filledQuantityMicros: r.broker_filled_qty_micros ?? 0,
+      submittedAt: r.submitted_at,
+      cancelRequestedAt: r.cancel_requested_at,
+    },
+    paper: r.venue !== "alpaca_live",
   };
+}
+
+export interface BrokerLinkRow {
+  account_id: string;
+  user_id: string;
+  broker: "alpaca";
+  env: "paper" | "live";
+  external_account_id: string;
+  account_number_mask: string;
+  connected_at: string;
+  last_synced_at: string | null;
+  last_sync_error: string | null;
+}
+
+export function venueOf(link: Pick<BrokerLinkRow, "env"> | null): OrderVenue {
+  return link === null ? "onera_paper" : link.env === "live" ? "alpaca_live" : "alpaca_paper";
 }
 
 export interface PositionRow {

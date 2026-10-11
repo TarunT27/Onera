@@ -10,23 +10,30 @@ import { ServiceError } from "@/lib/errors";
 import type { SyncSummary } from "@/lib/providers";
 import type { AgentContext, AgentHandler } from "../context";
 import { PermanentJobError } from "../errors";
+import { msg, tpl } from "@/lib/i18n/msg";
 
-const STATUS_TEXT: Record<string, string> = {
-  login_required: "needs you to sign in again",
-  error: "is reporting an error",
-  disconnected: "is disconnected",
+const STATUS_TITLE: Record<string, string> = {
+  login_required: msg("A linked bank connection needs you to sign in again"),
+  error: msg("A linked bank connection is reporting an error"),
+  disconnected: msg("A linked bank connection is disconnected"),
 };
 
 function healthInsight(ctx: AgentContext, connectionId: string, status: string, error: string | null) {
   ctx.insights.upsert({
     type: "connection_health",
     severity: "warning",
-    title: `A linked bank connection ${STATUS_TEXT[status] ?? "failed to sync"}`,
-    body:
-      `The last sync of connection ${connectionId} did not complete` +
-      (error ? `: ${error}` : ".") +
-      ` Balances and transactions from it may be out of date, and monitors can't see new activity until it ` +
-      `syncs again. Simulated institution.`,
+    title: STATUS_TITLE[status] ?? msg("A linked bank connection failed to sync"),
+    body: error
+      ? tpl(
+          "The last sync of connection {connectionId} did not complete: {error} Balances and transactions from it may " +
+            "be out of date, and monitors can't see new activity until it syncs again. Simulated institution.",
+          { connectionId, error },
+        )
+      : tpl(
+          "The last sync of connection {connectionId} did not complete. Balances and transactions from it may " +
+            "be out of date, and monitors can't see new activity until it syncs again. Simulated institution.",
+          { connectionId },
+        ),
     evidence: { connectionIds: [connectionId], status, error },
     dedupeKey: `connection_health:${connectionId}`,
   });
@@ -49,7 +56,7 @@ export const syncConnectionJob: AgentHandler = (ctx) => {
 
   if (summary.status !== "healthy") {
     healthInsight(ctx, connectionId, summary.status, null);
-    return { summary: `Connection ${connectionId} is ${summary.status}`, data: { ...summary } };
+    return { summary: tpl("Connection {connectionId} is {status}", { connectionId, status: summary.status }), data: { ...summary } };
   }
 
   const changed = Math.max(summary.added + summary.modified + summary.removed, summary.newTransactionIds.length);
@@ -60,9 +67,12 @@ export const syncConnectionJob: AgentHandler = (ctx) => {
     ctx.jobs.enqueue({ type: "subscription_review", dedupeKey: key, payload });
   }
   return {
-    summary:
-      `Synced ${connectionId}: +${summary.added} ~${summary.modified} -${summary.removed}` +
-      (changed > 0 ? "; spending and subscription reviews queued" : "; no new data"),
+    summary: tpl(
+      changed > 0
+        ? "Synced {connectionId}: +{added} ~{modified} -{removed}; spending and subscription reviews queued"
+        : "Synced {connectionId}: +{added} ~{modified} -{removed}; no new data",
+      { connectionId, added: summary.added, modified: summary.modified, removed: summary.removed },
+    ),
     data: { ...summary },
   };
 };

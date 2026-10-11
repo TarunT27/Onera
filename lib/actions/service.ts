@@ -27,6 +27,7 @@ import {
   type TransferAction,
   type UserId,
 } from "@/lib/types";
+import { msg } from "@/lib/i18n/msg";
 
 export const actorLabel = (createdBy: ActionCreator, userId: UserId) =>
   createdBy === "user" ? `user:${userId}` : "assistant";
@@ -58,17 +59,17 @@ function resolveEndpoints(db: DB, userId: UserId, sourceAccountId: string, recip
     throw new ServiceError("UNSUPPORTED", `${source.name} is view-only and cannot send transfers`, 400);
   }
   if (source.currency !== "USD" || source.paper) {
-    throw new ServiceError("UNSUPPORTED", "Transfers are limited to USD bank accounts in this demo", 400);
+    throw new ServiceError("UNSUPPORTED", msg("Transfers are limited to USD bank accounts in this demo"), 400);
   }
   const recipient = getOwnedRecipient(db, userId, recipientId);
   if (recipient.kind === "own_account") {
-    if (recipient.accountId === source.id) throw badRequest("Source and destination are the same account");
+    if (recipient.accountId === source.id) throw badRequest(msg("Source and destination are the same account"));
     const dest = getOwnedAccount(db, userId, recipient.accountId!);
     if (!dest.capabilities.includes("transfer_destination")) {
       throw new ServiceError("UNSUPPORTED", `${dest.name} cannot receive transfers`, 400);
     }
     if (dest.currency !== "USD" || dest.paper) {
-      throw new ServiceError("UNSUPPORTED", "Transfers are limited to USD bank accounts in this demo", 400);
+      throw new ServiceError("UNSUPPORTED", msg("Transfers are limited to USD bank accounts in this demo"), 400);
     }
   }
   return { source, recipient };
@@ -139,7 +140,7 @@ export function createTransfer(
     });
     applyEvaluation(db, userId, loadActionRow(db, userId, id), "system");
     // Advisory security review by the background sentinel. It can raise findings, never approve.
-    enqueueJob(db, { userId, type: "security_review", dedupeKey: `security_review:${id}:v1`, payload: { actionId: id } });
+    enqueueSecurityReview(db, userId, id, 1);
   })();
   return getAction(db, userId, id);
 }
@@ -175,8 +176,16 @@ export function editTransfer(db: DB, userId: UserId, actionId: string, input: un
         approvalInvalidated: row.approval_hash !== null },
     });
     applyEvaluation(db, userId, loadActionRow(db, userId, actionId), "system");
+    // Each version gets its own advisory review; it updates the same sentinel insight.
+    enqueueSecurityReview(db, userId, actionId, row.version + 1);
   })();
   return getAction(db, userId, actionId);
+}
+
+function enqueueSecurityReview(db: DB, userId: UserId, actionId: string, version: number): void {
+  enqueueJob(db, {
+    userId, type: "security_review", dedupeKey: `security_review:${actionId}:v${version}`, payload: { actionId },
+  });
 }
 
 export function evaluateAction(db: DB, userId: UserId, actionId: string): TransferAction {
@@ -207,7 +216,7 @@ export function approveAction(db: DB, userId: UserId, actionId: string, input: u
     const { policy, recipient } = runPolicy(db, userId, row);
     if (policy.decision === "HOLD") {
       applyEvaluation(db, userId, row, "system");
-      return { error: conflict("POLICY_HOLD", "Policy checks no longer pass; the action is held", { reasons: policy.reasons }) };
+      return { error: conflict("POLICY_HOLD", msg("Policy checks no longer pass; the action is held"), { reasons: policy.reasons }) };
     }
     const hash = approvalHash(toAction(row), recipient);
     const now = new Date().toISOString();

@@ -1,13 +1,13 @@
 # Guidance for AI coding assistants (Claude, Codex, Gemini)
 
-ClearFi is a hackathon finance demo whose whole pitch is that AI can't move money without enforced controls. Keep these invariants intact when you change code.
+Onera is a hackathon finance demo whose whole pitch is that AI can't move money without enforced controls. Keep these invariants intact when you change code.
 
 ## Invariants — do not break
 
 1. **Money is integer cents + `"USD"`.** Never use floats for amounts. Format only for display (`lib/finance/money.ts`).
 2. **The user ID comes from the server session** (`getSessionUserId()` in routes, `ToolContext.userId` in AI tools). No route, service or tool may accept a user ID from a request body, query string or model input. Every SQL query on private tables filters on `user_id`.
 3. **Records owned by another user are "not found" (404)**, never "forbidden".
-4. **The assistant gets read tools plus `propose_transfer` only** (`lib/ai/tools.ts`). Never add tools that approve, execute, verify recipients, change limits or pause/unpause. `tests/ai-boundary.test.ts` asserts the exact tool list; update it only with team agreement.
+4. **The assistant gets read tools plus two proposal tools only: `propose_transfer` and `propose_order`** (`lib/ai/tools.ts`). Proposals always wait for the user's exact-version approval. Each assistant agent (`lib/ai/agents.ts`) gets a subset of tools, enforced in `runTool`; only the Trade drafter has `propose_order`. Never add tools that approve, execute, verify recipients, change limits or pause/unpause. `tests/ai-boundary.test.ts` and `tests/ai-agents.test.ts` assert the exact tool lists; update them only with team agreement.
 5. **All writes go through `lib/actions/service.ts` and `lib/actions/simulator.ts`.** Don't update `actions.state`, balances or approvals from routes, UI code or AI code.
 6. **Approvals bind to an exact version.** Any material edit must bump `version` and clear `approval_hash`. The client never sends or receives the hash.
 7. **Policy (`lib/policy/evaluate.ts`) is deterministic.** Model output must never feed into a policy decision.
@@ -20,8 +20,10 @@ ClearFi is a hackathon finance demo whose whole pitch is that AI can't move mone
 - Feature modules (`lib/providers`, `lib/markets`, `lib/agents`) call each other only through their `index.ts`. They register tables via their own `db.ts`, never by editing `lib/db/schema.ts`.
 - Delegating to subagents: follow `docs/agents/SUBAGENT_DELEGATION.md`.
 - Services throw `ServiceError` (`lib/errors.ts`); routes wrap handlers with `handler()` from `lib/http.ts`.
+- Chat safety lives in `lib/chatguard`: inline gates run before a reply or tool result is released; the background monitor only explains afterwards. Security events are written by server code only, with redacted excerpts. Don't stream replies past the output gate (docs/api/chat-security.md).
 - New state-changing logic needs a Vitest test in `tests/` (use `freshDb()` from `tests/helpers.ts`, an in-memory seeded database).
 - UI code talks to the server only through `/api/*` fetches; never import `lib/db`, `lib/actions` or `lib/ai` into client components.
+- UI text is translated (Settings → Accessibility → Language). In client components write `const { t, tp, tr } = useI18n()` and wrap every user-visible string: `t("English text")` — the English is the key. Use `{name}` placeholders (never template literals), `tp(n, "{n} item", "{n} items")` for plurals, `msg("…")` for module-level constants, and `getServerT()` in server components. `npm test` fails if a message in the code is missing from any `lib/i18n/locales/*.ts`; list gaps with `npx tsx scripts/i18n-missing.ts <code>`.
 - Run `npm run typecheck` and `npm test` before pushing.
 
 <!-- BEGIN:nextjs-agent-rules -->

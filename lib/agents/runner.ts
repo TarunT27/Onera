@@ -13,15 +13,18 @@ import type { DB } from "@/lib/db";
 import type { UserId } from "@/lib/types";
 import { buildAgentContext, type AgentHandler, type ContextTracker } from "./context";
 import { PermanentJobError, ScopeViolationError } from "./errors";
+import { assistantBriefing } from "./monitors/assistant";
 import { syncConnectionJob } from "./monitors/connections";
 import { portfolioReview } from "./monitors/portfolio";
 import { securityReview } from "./monitors/security";
 import { spendingReview } from "./monitors/spending";
 import { subscriptionReview } from "./monitors/subscriptions";
+import { threatSweep } from "./monitors/threats";
 import { claimNextJob, completeJob, failJob, requeueExpiredJobs, toJob, type JobRow } from "./queue";
 import { agentForJobType } from "./registry";
 import { finishRun, startRun } from "./runs";
 import type { AgentId, JobOutcome, RunReport } from "./types";
+import { msg } from "@/lib/i18n/msg";
 
 const HANDLERS: Record<AgentId, AgentHandler> = {
   spending_monitor: spendingReview,
@@ -29,6 +32,8 @@ const HANDLERS: Record<AgentId, AgentHandler> = {
   security_sentinel: securityReview,
   portfolio_monitor: portfolioReview,
   connection_monitor: syncConnectionJob,
+  threat_monitor: threatSweep,
+  personal_assistant: assistantBriefing,
 };
 
 export const DEFAULT_RUN_LIMIT = 25;
@@ -50,7 +55,7 @@ function processJob(db: DB, row: JobRow, now: Date): JobOutcome {
     const status = failJob(db, job.id, `No agent registered for job type "${job.type}"`, now, { permanent: true });
     writeAudit(db, { userId, actor: "system", eventType: "agent.job_dead",
       detail: { jobId: job.id, jobType: job.type, error: "No agent registered" } });
-    return { jobId: job.id, userId, type: job.type, agentId: null, status, summary: "No agent registered" };
+    return { jobId: job.id, userId, type: job.type, agentId: null, status, summary: msg("No agent registered") };
   }
 
   const actor = `agent:${agent.id}`;

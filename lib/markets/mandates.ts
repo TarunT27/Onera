@@ -6,19 +6,24 @@
  * proposeMandateOrder is the only way an agent order can execute without the
  * user approving it, and it goes through the same propose → policy →
  * authorize → execute functions as every other order.
+ *
+ * Writes (create, revoke, propose) read the real clock; callers cannot pass a
+ * time, so expiry and daily budgets are always judged at the current moment.
+ * Reads (list, get) still accept `now` for display.
  */
 import { randomBytes } from "node:crypto";
 import { writeAudit } from "@/lib/audit";
 import type { DB } from "@/lib/db";
 import { badRequest, notFound, ServiceError } from "@/lib/errors";
 import type { UserId } from "@/lib/types";
-import { executeOrder } from "./broker";
+import { executeMandateOrder } from "./broker";
 import { findInstrument } from "./instruments";
 import { createOrderInternal, getOrder } from "./orders";
 import { toMandate, type MandateRow } from "./rows";
 import { AGENT_ID_PATTERN, CreateMandateSchema, MandateOrderSchema } from "./schemas";
-import { assertTradable, loadMandateRow, loadOwnedAccount, mandateUsedTodayCents } from "./store";
+import { assertTradable, brokerLinkFor, loadMandateRow, loadOwnedAccount, mandateUsedTodayCents } from "./store";
 import type { Mandate, MandateOrderResult } from "./types";
+import { msg, tpl } from "@/lib/i18n/msg";
 
 export const MAX_MANDATE_DAYS = 90;
 const DAY_MS = 86_400_000;
@@ -41,18 +46,24 @@ export function getMandate(db: DB, userId: UserId, mandateId: string, now: Date 
 }
 
 /** User route only. Paper accounts only; buy side only; must expire within 90 days. */
-export function createMandate(db: DB, userId: UserId, input: unknown, now: Date = new Date()): Mandate {
+export function createMandate(db: DB, userId: UserId, input: unknown): Mandate {
   const data = CreateMandateSchema.parse(input);
-  assertTradable(loadOwnedAccount(db, userId, data.accountId));
+  const now = new Date();
+  const account = loadOwnedAccount(db, userId, data.accountId);
+  // Autonomous trading stays in Onera's simulated paper broker: never against an Alpaca account.
+  if (brokerLinkFor(db, userId, data.accountId)) {
+    throw badRequest(msg("Mandates only cover Onera paper accounts. Alpaca orders always need your approval."));
+  }
+  assertTradable(account);
 
   const symbols = [...new Set(data.symbols)];
   const unknown = symbols.filter((s) => !findInstrument(s));
-  if (unknown.length > 0) throw badRequest(`Unsupported symbols: ${unknown.join(", ")}`);
+  if (unknown.length > 0) throw badRequest(tpl("Unsupported symbols: {symbols}", { symbols: unknown.join(", ") }));
 
   const expires = new Date(data.expiresAt);
-  if (expires.getTime() <= now.getTime()) throw badRequest("expiresAt must be in the future");
+  if (expires.getTime() <= now.getTime()) throw badRequest(msg("expiresAt must be in the future"));
   if (expires.getTime() > now.getTime() + MAX_MANDATE_DAYS * DAY_MS) {
-    throw badRequest(`Mandates expire within ${MAX_MANDATE_DAYS} days`);
+    throw badRequest(tpl("Mandates expire within {days} days", { days: MAX_MANDATE_DAYS }));
   }
 
   const id = `mdt_${randomBytes(5).toString("hex")}`;
@@ -73,17 +84,18 @@ export function createMandate(db: DB, userId: UserId, input: unknown, now: Date 
 }
 
 /** User route only. Idempotent: revoking a revoked mandate changes nothing. */
-export function revokeMandate(db: DB, userId: UserId, mandateId: string, now: Date = new Date()): Mandate {
-  const row = loadMandateRow(db, userId, mandateId);
-  if (!row) throw notFound("Mandate");
-  if (row.revoked_at === null) {
-    db.transaction(() => {
-      db.prepare("UPDATE mandates SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL")
-        .run(now.toISOString(), mandateId, userId);
-      writeAudit(db, { userId, actor: `user:${userId}`, eventType: "mandate.revoked",
-        detail: { mandateId, agentId: row.agent_id } });
-    })();
-  }
+export function revokeMandate(db: DB, userId: UserId, mandateId: string): Mandate {
+  const now = new Date();
+  db.transaction(() => {
+    const row = loadMandateRow(db, userId, mandateId);
+    if (!row) throw notFound("Mandate");
+    if (row.revoked_at !== null) return;
+    const revoked = db.prepare("UPDATE mandates SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL")
+      .run(now.toISOString(), mandateId, userId);
+    if (revoked.changes !== 1) return;
+    writeAudit(db, { userId, actor: `user:${userId}`, eventType: "mandate.revoked",
+      detail: { mandateId, agentId: row.agent_id } });
+  }).immediate();
   return getMandate(db, userId, mandateId, now);
 }
 
@@ -95,6 +107,13 @@ export function revokeMandate(db: DB, userId: UserId, mandateId: string, now: Da
  * the symbol/side, fits the per-order cap and remaining daily budget). Only
  * then is it authorized as `mandate:<id>` and executed by the paper broker.
  * Otherwise the order stays HELD (e.g. MANDATE_INVALID) for the user to review.
+ *
+ * Authorization and execution both use the real clock; there is no time
+ * parameter. Execution goes through the internal executeMandateOrder, which
+ * refuses anything but this agent's own mandate-authorized order.
+ *
+ * Product note (unchanged here): `agentId` is validated for format only, not
+ * against the agents registry; a mismatched agent is HELD with MANDATE_INVALID.
  */
 export function proposeMandateOrder(
   db: DB,
@@ -102,9 +121,8 @@ export function proposeMandateOrder(
   mandateId: string,
   agentId: string,
   input: unknown,
-  now: Date = new Date(),
 ): MandateOrderResult {
-  if (!AGENT_ID_PATTERN.test(agentId)) throw badRequest("Invalid agentId");
+  if (!AGENT_ID_PATTERN.test(agentId)) throw badRequest(msg("Invalid agentId"));
   const data = MandateOrderSchema.parse(input);
   const mandate = loadMandateRow(db, userId, mandateId);
   if (!mandate) throw notFound("Mandate");
@@ -112,12 +130,12 @@ export function proposeMandateOrder(
   const order = createOrderInternal(
     db, userId,
     { accountId: mandate.account_id, symbol: data.symbol, side: "buy", notionalCents: data.notionalCents },
-    `agent:${agentId}`, mandate.id, now,
+    `agent:${agentId}`, mandate.id,
   );
   if (order.state !== "APPROVED") return { order, fill: null, executed: false, refusal: null };
 
   try {
-    const result = executeOrder(db, userId, order.id, { actor: `agent:${agentId}`, now });
+    const result = executeMandateOrder(db, userId, order.id, mandate.id, agentId);
     return { order: result.order, fill: result.fill, executed: true, refusal: null };
   } catch (err) {
     if (err instanceof ServiceError && err.status === 409) {

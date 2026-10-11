@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { AGENT_REGISTRY, lastRunByAgent, permissionMatrix } from "@/lib/agents";
 import { getDb } from "@/lib/db";
 import { handler } from "@/lib/http";
+import { msg } from "@/lib/i18n/msg";
 import { getSessionUserId } from "@/lib/session";
 
-export const AGENTS_NOTICE =
+const AGENTS_NOTICE = msg(
   "Monitoring agents run deterministic rules over synthetic data; no model is called. Each can read only its " +
-  "listed scopes and write insights. None can approve, execute, create mandates, verify recipients or change controls.";
+    "listed scopes and write insights. None can approve, execute, create mandates, verify recipients or change controls.",
+);
 
 /** Agent registry (the permission matrix) plus this user's last run of each agent. */
 export const GET = handler(async () => {

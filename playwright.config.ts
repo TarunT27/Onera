@@ -37,6 +37,11 @@ export default defineConfig({
       CLEARFI_NEXT_DIR: ".next-e2e",
       CLEARFI_DB_PATH: path.join(os.tmpdir(), `clearfi-e2e-${process.pid}.db`),
       ANTHROPIC_API_KEY: "",
+      // Never trade against a real Alpaca account from e2e: simulated prices and paper broker only.
+      ALPACA_API_KEY_ID: "",
+      ALPACA_API_SECRET_KEY: "",
+      // Keep e2e runs deterministic: no in-process background agents.
+      CLEARFI_BACKGROUND: "off",
     },
   },
 });

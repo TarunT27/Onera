@@ -19,7 +19,7 @@ const DOCUMENTS: ResearchDocumentMeta[] = [
   {
     id: "research_etf_primer",
     title: "Broad-market index ETFs: a short primer",
-    source: "ClearFi demo research pack (synthetic)",
+    source: "Onera demo research pack (synthetic)",
     publishedAt: "2026-09-02",
     file: "etf-primer.md",
     synthetic: true,

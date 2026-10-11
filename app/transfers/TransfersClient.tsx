@@ -12,12 +12,15 @@ import {
   type RecipientsResponse,
 } from "../components/api";
 import { PageHeader } from "../components/Card";
+import { useT } from "../components/I18nContext";
 import { useApiData } from "../components/useApiData";
 import { ActionDetail } from "./ActionDetail";
 import { ActionList } from "./ActionList";
 import { NewTransferForm } from "./NewTransferForm";
+import "./transfers-screen.css";
 
 export function TransfersClient() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedId = searchParams.get("id");
@@ -50,57 +53,64 @@ export function TransfersClient() {
     select(action.id);
   }
 
+  function closeDetail() {
+    if (selectedId) document.getElementById(`transfer-list-${selectedId}`)?.focus({ preventScroll: true });
+    select(null);
+  }
+
   const paused = controls.data?.controls.paused === true;
 
   return (
-    <div>
-      <PageHeader
-        title="Transfers"
-        description="Every transfer is a proposal first. ClearFi checks it against your controls, you approve the exact version, and only then can it execute — as a simulation."
-      />
+    <div className="screen transfers-screen">
+      <div className="screen-title tf-title">
+        <PageHeader
+          title={t("Transfers")}
+          description={t("Move money between your banks and Onera in a couple of taps. Onera checks every transfer against your limits and sends nothing without your OK. All money here is simulated.")}
+        />
+      </div>
 
       {paused && (
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200">
+        <div className="tf-paused mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-red-400/10 px-4 py-3 text-sm text-red-100 shadow-[inset_0_0_0_1px_rgb(248_113_113/0.25)]">
           <span>
-            <strong>Execution is paused.</strong> No transfer can execute — including ones you already approved — until you
-            resume.
+            <strong>{t("Transfers are paused.")}</strong> {t("Even approved transfers can’t be sent until you resume.")}
           </span>
           <Link href="/control" className="font-medium underline underline-offset-2">
-            Open Control
+            {t("Open Control")}
           </Link>
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        {/* Detail first in the DOM so it leads on phones; placed in the right column on desktop. */}
-        <div className={`min-w-0 lg:col-span-7 lg:col-start-6 lg:row-start-1 ${selectedId ? "" : "hidden lg:block"}`}>
+      <div className="screen-body tf-body grid items-start gap-6 lg:grid-cols-12">
+        {/* One working area: the composer, or the transfer you're reviewing. */}
+        <div className="screen-pane tf-work min-w-0 lg:col-span-7">
           {selectedId ? (
-            <ActionDetail key={selectedId} id={selectedId} onChanged={reloadAll} onClose={() => select(null)} />
+            <ActionDetail key={selectedId} id={selectedId} onChanged={reloadAll} onClose={closeDetail} />
           ) : (
-            <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-              <div>
-                <p className="font-medium text-zinc-700 dark:text-zinc-300">Select a transfer to review</p>
-                <p className="mt-1">Policy checks, recipient changes, approval and the simulated receipt appear here.</p>
-              </div>
-            </div>
+            <NewTransferForm
+              initialSourceId={searchParams.get("source") ?? undefined}
+              accounts={accounts.data?.accounts ?? null}
+              accountsError={accounts.error}
+              accountsLoading={accounts.loading}
+              recipients={recipients.data?.recipients ?? null}
+              recipientsError={recipients.error}
+              recipientsLoading={recipients.loading}
+              perTransferLimitCents={controls.data?.controls.perTransferLimitCents ?? null}
+              onRetryAccounts={() => void accounts.reload()}
+              onRetryRecipients={() => void recipients.reload()}
+              onCreated={onCreated}
+            />
           )}
         </div>
 
-        <div className="min-w-0 space-y-6 lg:col-span-5 lg:col-start-1 lg:row-start-1">
-          <NewTransferForm
-            initialSourceId={searchParams.get("source") ?? undefined}
-            accounts={accounts.data?.accounts ?? null}
-            accountsError={accounts.error}
-            recipients={recipients.data?.recipients ?? null}
-            recipientsError={recipients.error}
-            onCreated={onCreated}
-          />
+        <div className="tf-list min-w-0 lg:col-span-5">
           <ActionList
             actions={actions.data?.actions ?? null}
+            accounts={accounts.data?.accounts ?? null}
             loading={actions.loading && !actions.data}
             error={actions.error}
             selectedId={selectedId}
             onSelect={select}
+            onNew={selectedId ? () => select(null) : undefined}
             onRefresh={() => void actions.reload()}
           />
         </div>

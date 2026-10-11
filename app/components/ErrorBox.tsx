@@ -1,6 +1,7 @@
 "use client";
 
 import { ApiRequestError, errorMessage } from "./api";
+import { useT } from "./I18nContext";
 
 /**
  * Shows the server's exact refusal. For API errors the status + code is
@@ -19,39 +20,40 @@ export function ErrorBox({
   onRetry?: () => void;
   className?: string;
 }) {
+  const t = useT();
   if (error === null || error === undefined || error === false) return null;
   const isApi = error instanceof ApiRequestError;
   return (
     <div
       role="alert"
-      className={`min-w-0 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200 ${className}`}
+      className={`min-w-0 rounded-2xl bg-red-400/10 px-4 py-3 text-sm text-red-100 shadow-[inset_0_0_0_1px_rgb(248_113_113/0.2)] ${className}`}
     >
       <div className="flex items-start gap-3">
         <span aria-hidden className="mt-0.5 font-bold">
           ✕
         </span>
         <div className="min-w-0 flex-1">
-          {title && <p className="font-semibold">{title}</p>}
+          {title && <p className="font-semibold">{t(title)}</p>}
           {isApi ? (
             <p className="break-words">
-              <code className="mr-1.5 rounded bg-red-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-red-800 dark:bg-red-900/60 dark:text-red-100">
+              <code className="mr-1.5 rounded-md bg-red-400/20 px-1.5 py-0.5 font-mono text-xs font-semibold text-red-100">
                 {error.status > 0 ? `${error.status} ${error.code}` : error.code}
               </code>
-              {error.serverMessage}
+              {t(error.serverMessage)}
             </p>
           ) : (
-            <p className="break-words">{errorMessage(error)}</p>
+            <p className="break-words">{errorMessage(error, t)}</p>
           )}
           {(onRetry || onDismiss) && (
             <div className="mt-2 flex gap-3 text-xs font-medium">
               {onRetry && (
                 <button type="button" onClick={onRetry} className="underline underline-offset-2 hover:no-underline">
-                  Retry
+                  {t("Retry")}
                 </button>
               )}
               {onDismiss && (
                 <button type="button" onClick={onDismiss} className="underline underline-offset-2 hover:no-underline">
-                  Dismiss
+                  {t("Dismiss")}
                 </button>
               )}
             </div>

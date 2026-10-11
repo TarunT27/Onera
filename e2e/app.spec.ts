@@ -1,4 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
+// Pure data module (governance copy); shared with the UI so wording can't drift.
+import { HOLD_MESSAGES } from "../lib/policy/messages";
 
 // Every run owns a separate synthetic DB and port. Never reset a developer's DB.
 test.beforeEach(async ({ request }) => {
@@ -12,17 +14,23 @@ async function checkLayout(page: Page) {
     ),
   ).toBeTruthy();
 }
+/** Opens a From/To picker and chooses the option with this visible name. */
+async function pickAccount(page: Page, slot: "From" | "To", name: string) {
+  const list = page.getByRole("radiogroup", { name: `${slot} account` });
+  if (!(await list.isVisible())) {
+    await page.getByRole("button", { name: new RegExp(`^${slot}:`) }).click();
+  }
+  await list.getByText(name, { exact: true }).click();
+  await expect(list).toHaveCount(0);
+}
 async function createRent(page: Page) {
   await page.goto("/transfers");
-  await page
-    .getByLabel("From", { exact: true })
-    .selectOption("acct_alice_checking");
-  await page
-    .getByLabel("To", { exact: true })
-    .selectOption("rcp_alice_landlord");
+  await page.getByRole("radio", { name: "Pay someone", exact: true }).click();
+  await pickAccount(page, "From", "Everyday Checking");
+  await pickAccount(page, "To", "Oak Street Properties (landlord)");
   await page.getByLabel("Amount", { exact: false }).fill("1850");
   await page
-    .getByRole("button", { name: "Propose transfer", exact: true })
+    .getByRole("button", { name: "Review transfer", exact: true })
     .click();
   await expect(page).toHaveURL(/id=/);
 }
@@ -33,9 +41,11 @@ test("all navigation, overview links, evidence and responsive layout", async ({
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
-  await expect(page).toHaveTitle("ClearFi");
+  await expect(page).toHaveTitle("Onera");
   await expect(
-    page.getByRole("heading", { name: "Hello, Alice." }),
+    page.getByRole("heading", {
+      name: /^Good (morning|afternoon|evening), Alice\.$/,
+    }),
   ).toBeVisible();
   await expect(
     page.getByText("Individual Brokerage", { exact: true }),
@@ -50,12 +60,13 @@ test("all navigation, overview links, evidence and responsive layout", async ({
   await expect(
     page.getByRole("heading", { name: "Everyday Checking" }),
   ).toBeVisible();
-  for (const [label, heading] of [
+  for (const [label, heading] of <[string, string | RegExp][]>[
     ["Transfers", "Transfers"],
-    ["Assistant", "Ask ClearFi"],
+    ["Assistant", "Ask Onera"],
+    ["Trade", "Trade"],
     ["Controls", "Control"],
     ["Accounts", "Your accounts"],
-    ["Overview", "Hello, Alice."],
+    ["Overview", /^Good (morning|afternoon|evening), Alice\.$/],
   ]) {
     await page
       .getByRole("navigation", { name: "Main" })
@@ -75,13 +86,14 @@ test("all navigation, overview links, evidence and responsive layout", async ({
   }
   await page.getByRole("link", { name: "New transfer", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Propose transfer" }),
+    page.getByRole("button", { name: "Review transfer" }),
   ).toBeVisible();
   expect(errors).toEqual([]);
 });
 
 test("accounts search, currency, holdings and preselected transfer source", async ({
   page,
+  request,
 }) => {
   await page.goto("/accounts");
   await expect(
@@ -90,9 +102,20 @@ test("accounts search, currency, holdings and preselected transfer source", asyn
   const activity = page.locator("section").filter({
     has: page.getByRole("heading", { name: "Recent activity", exact: true }),
   });
-  await expect(activity.getByRole("listitem")).toHaveCount(12);
-  await page.getByRole("button", { name: /Show more activity/ }).click();
-  await expect(activity.getByRole("listitem")).toHaveCount(24);
+  await expect(activity.getByRole("listitem")).toHaveCount(16);
+  const scrollArea = activity.getByRole("region", { name: "Scrollable transactions" });
+  const pageHeight = await page.locator("body").evaluate((el) => el.scrollHeight);
+  await scrollArea.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect(activity.getByRole("listitem")).toHaveCount(32);
+  expect(await page.locator("body").evaluate((el) => el.scrollHeight)).toBe(pageHeight);
+  await page.getByLabel("Account type").selectOption("checking");
+  const accountResponse = await request.get("/api/accounts");
+  const { accounts: accountRows } = await accountResponse.json();
+  const checkingIds = accountRows.filter((a: { type: string }) => a.type === "checking").map((a: { id: string }) => a.id);
+  await expect(activity.locator("li[data-account-id]").first()).toBeVisible();
+  const activityIds = await activity.locator("li[data-account-id]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-account-id")));
+  expect(activityIds.every((id) => checkingIds.includes(id))).toBe(true);
+  await page.getByLabel("Account type").selectOption("all");
   await page.getByLabel("Search accounts or activity").fill("no-such-account");
   await expect(page.getByText(/No matching accounts/)).toBeVisible();
   await page.getByLabel("Search accounts or activity").fill("");
@@ -104,15 +127,20 @@ test("accounts search, currency, holdings and preselected transfer source", asyn
   await expect(
     page.getByRole("listitem").filter({ hasText: "VTI" }).first(),
   ).toBeVisible();
+  await page.getByRole("button", { name: "All accounts", exact: true }).click();
   await page.getByLabel("Account type").selectOption("all");
   await page.getByRole("button", { name: /High-Yield Savings/ }).click();
   await page.getByRole("link", { name: "Transfer from this account" }).click();
-  await expect(page.getByLabel("From", { exact: true })).toHaveValue(
-    "acct_alice_savings",
-  );
+  await expect(
+    page.getByRole("button", { name: /^From: High-Yield Savings/ }),
+  ).toBeVisible();
   await page.goto("/accounts");
   await page.getByLabel("Search accounts or activity").fill("Barclays");
   await expect(page.getByRole("button", { name: /£/ }).first()).toBeVisible();
+  const barclaysIds = accountRows.filter((a: { institution: string }) => a.institution.includes("Barclays")).map((a: { id: string }) => a.id);
+  await expect(activity.locator("li[data-account-id]").first()).toBeVisible();
+  expect(await activity.locator("li[data-account-id]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-account-id")))).toEqual(expect.arrayContaining([barclaysIds[0]]));
+  expect((await activity.locator("li[data-account-id]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-account-id")))).every((id) => barclaysIds.includes(id))).toBe(true);
   await checkLayout(page);
 });
 
@@ -169,8 +197,15 @@ test("held transfer verification, exact approval, execution and duplicate receip
   page,
 }) => {
   await createRent(page);
+  const changed = HOLD_MESSAGES.RECIPIENT_CHANGED;
+  const why = page.getByRole("region", {
+    name: "Why Onera held this transfer",
+  });
+  await expect(why.getByText(changed.label, { exact: true })).toBeVisible();
+  await expect(why.getByText(changed.explanation)).toBeVisible();
+  await expect(why.getByText(changed.recovery)).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /Approve exact transfer/ }),
+    page.getByRole("button", { name: /^Approve/ }),
   ).toHaveCount(0);
   await page
     .getByRole("button", { name: "Try to execute anyway", exact: true })
@@ -184,21 +219,18 @@ test("held transfer verification, exact approval, execution and duplicate receip
       exact: true,
     })
     .click();
-  await page.getByRole("button", { name: "Re-evaluate", exact: true }).click();
-  await page.getByRole("button", { name: /Approve exact transfer/ }).click();
-  await page
-    .getByRole("button", { name: "Execute (simulated)", exact: true })
-    .click();
-  await expect(page.getByText("Receipt ID", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Check again", exact: true }).click();
+  await page.getByRole("button", { name: /^Approve & send/ }).click();
+  await expect(page.getByText("✓ Transfer complete", { exact: true })).toBeVisible();
   await page
     .getByRole("button", {
-      name: "Execute again (duplicate check)",
+      name: "Check receipt",
       exact: true,
     })
     .click();
   await expect(
     page.getByText(
-      "Already executed — same receipt returned, no second transfer.",
+      "No second transfer was made.",
       { exact: true },
     ),
   ).toBeVisible();
@@ -210,24 +242,20 @@ test("edit invalidates approval; paused controls stop execution; limits save", a
   request,
 }) => {
   await page.goto("/transfers");
-  await page
-    .getByLabel("From", { exact: true })
-    .selectOption("acct_alice_checking");
-  await page
-    .getByLabel("To", { exact: true })
-    .selectOption("rcp_alice_savings");
+  await pickAccount(page, "From", "Everyday Checking");
+  await pickAccount(page, "To", "High-Yield Savings");
   await page.getByLabel("Amount", { exact: false }).fill("25");
-  await page.getByRole("button", { name: "Propose transfer" }).click();
+  await page.getByRole("button", { name: "Review transfer" }).click();
   await expect(page).toHaveURL(/id=/);
-  await page.getByRole("button", { name: /Approve exact transfer/ }).click();
+  await page.getByRole("button", { name: "Approve only", exact: true }).click();
   await page.getByRole("button", { name: "Edit amount" }).click();
   await page.getByLabel("New amount in dollars").fill("30");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save new amount", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: /Approve exact transfer \(v2\)/ }),
+    page.getByRole("button", { name: "Approve only", exact: true }),
   ).toBeEnabled();
   const actionUrl = page.url();
-  await page.getByRole("button", { name: /Approve exact transfer/ }).click();
+  await page.getByRole("button", { name: "Approve only", exact: true }).click();
   await page.goto("/control");
   await page.getByRole("button", { name: /Pause all execution/ }).click();
   await expect(page.getByRole("button", { name: /Resume/ })).toBeVisible();
@@ -259,8 +287,9 @@ test("assistant fallback is labeled and demo-user switch clears history", async 
       exact: true,
     }),
   ).toBeVisible();
-  await page.getByLabel("Demo user").selectOption("bob");
-  await expect(page.getByLabel("Demo user")).toHaveValue("bob");
+  await page.getByRole("button", { name: /^Demo user:/ }).click();
+  await page.getByRole("menuitemradio", { name: "Bob Okafor" }).click();
+  await expect(page.getByRole("button", { name: "Demo user: Bob Okafor" })).toBeVisible();
   await expect(
     page.getByText("Fallback — model unavailable, deterministic summary", {
       exact: true,
@@ -268,7 +297,9 @@ test("assistant fallback is labeled and demo-user switch clears history", async 
   ).toHaveCount(0);
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Hello, Bob." }),
+    page.getByRole("heading", {
+      name: /^Good (morning|afternoon|evening), Bob\.$/,
+    }),
   ).toBeVisible();
   await expect(
     page.getByText("Everyday Checking", { exact: true }),
@@ -341,4 +372,192 @@ test("overview rent scenario opens a real proposal and close returns to the list
   await expect(
     page.getByRole("button", { name: "Review transfer", exact: true }),
   ).toBeVisible();
+});
+
+test("AI monitoring panel runs advisory agents and manages the StreamFlix insight", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const panel = page.getByRole("region", { name: "AI monitoring" });
+  await expect(
+    panel.getByText("Advisory — agents can't approve or move money"),
+  ).toBeVisible();
+  await expect(panel.getByText(/No open findings/)).toBeVisible();
+  await panel
+    .getByRole("button", { name: "Run monitoring agents", exact: true })
+    .click();
+  await expect(
+    panel
+      .getByRole("status")
+      .filter({ hasText: /Processed \d+ jobs? · \d+ succeeded/ }),
+  ).toBeVisible();
+  const insight = panel.getByRole("article").filter({
+    has: page.getByRole("heading", { name: /StreamFlix went up/ }),
+  });
+  await expect(insight).toBeVisible();
+  await expect(insight.getByText("Subscription monitor")).toBeVisible();
+  await insight.getByRole("button", { name: "Details", exact: true }).click();
+  await expect(insight.getByText(/^Evidence · \d+$/)).toBeVisible();
+  await expect(
+    insight.getByRole("link", { name: /StreamFlix/ }).first(),
+  ).toBeVisible();
+  // Advisory only: no approve/execute/verify controls anywhere in the panel.
+  await expect(
+    panel.getByRole("button", { name: /approve|execute|verify/i }),
+  ).toHaveCount(0);
+  await insight.getByRole("button", { name: "Mark seen", exact: true }).click();
+  await expect(
+    insight.getByRole("button", { name: "Mark seen", exact: true }),
+  ).toHaveCount(0);
+  await expect(insight.getByText("Seen", { exact: true })).toBeVisible();
+  await insight.getByRole("button", { name: /^Dismiss/ }).click();
+  await expect(
+    panel.getByRole("heading", { name: /StreamFlix went up/ }),
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(
+    page
+      .getByRole("region", { name: "AI monitoring" })
+      .getByRole("button", { name: "Run monitoring agents" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /StreamFlix went up/ }),
+  ).toHaveCount(0);
+  await checkLayout(page);
+
+  await page.goto("/control");
+  const matrix = page.getByRole("table", { name: "Agent permission matrix" });
+  await expect(matrix).toBeVisible();
+  const row = matrix.getByRole("row", { name: /Subscription monitor/ });
+  await expect(
+    row.getByRole("cell", { name: "Transactions", exact: true }),
+  ).toBeVisible();
+  await expect(row.getByText("No", { exact: true })).toHaveCount(3);
+  await expect(matrix.getByText("Yes", { exact: true })).toHaveCount(0);
+  await checkLayout(page);
+});
+
+test("paper account is labeled, excluded from net worth and read-only", async ({
+  page,
+  request,
+}) => {
+  const res = await request.get("/api/accounts");
+  const { netWorthCents } = (await res.json()) as { netWorthCents: number };
+  const expected = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(netWorthCents / 100);
+  await page.goto("/");
+  await expect(page.locator(".balance-amount")).toHaveText(expected);
+  const paperLink = page.getByRole("link", { name: /Paper Portfolio/ });
+  await expect(
+    paperLink.getByText("Paper · simulated money, not in net worth"),
+  ).toBeVisible();
+  await paperLink.click();
+  await expect(page).toHaveURL(/accounts\?id=acct_alice_paper/);
+  await expect(
+    page.getByRole("heading", { name: "Paper Portfolio" }),
+  ).toBeVisible();
+  // Opening an account shows its full detail page (no list preview region).
+  const detail = page.locator("main");
+  await expect(
+    detail.getByText("Paper · simulated money, not in net worth"),
+  ).toBeVisible();
+  await expect(
+    detail.getByText(
+      /Trade it on the Trade page/,
+    ),
+  ).toBeVisible();
+  await expect(
+    detail.getByRole("heading", { name: "Holdings", exact: true }),
+  ).toBeVisible();
+  await expect(
+    detail.getByRole("listitem").filter({ hasText: "VOO" }).first(),
+  ).toBeVisible();
+  await expect(
+    detail.getByRole("button", { name: /buy|sell|trade|order/i }),
+  ).toHaveCount(0);
+  // Back on the accounts list, the paper row keeps its label too.
+  await page.getByRole("button", { name: "All accounts" }).click();
+  await expect(
+    page
+      .getByRole("button", { name: /Paper Portfolio/ })
+      .getByText("Paper · simulated money, not in net worth"),
+  ).toBeVisible();
+  await checkLayout(page);
+});
+
+test("trade page: propose, hold to approve and execute a paper order", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/trade");
+  await expect(page.getByRole("heading", { name: "Trade", exact: true })).toBeVisible();
+  await expect(page.getByText("Paper · simulated money, not in net worth").first()).toBeVisible();
+  // Scope to the chart: a hidden streamed copy of the page can also contain the text.
+  await expect(
+    page.getByRole("region", { name: /chart$/ }).getByText("Simulated prices — not real market data"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /^VTI/ }).click();
+  await page.getByLabel("Amount (USD)").fill("50");
+  await page.getByRole("button", { name: "Propose buy" }).click();
+
+  const review = page.getByRole("region", { name: "Order review" });
+  await expect(review.getByText("Buy $50.00 of VTI")).toBeVisible();
+  await expect(review.getByText("Awaiting your approval")).toBeVisible();
+  // A tap is not an approval: it needs a deliberate press and hold.
+  const hold = review.getByRole("button", { name: /Hold to approve version 1/ });
+  await hold.click();
+  await expect(review.getByText("Awaiting your approval")).toBeVisible();
+  await hold.scrollIntoViewIfNeeded();
+  const box = (await hold.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(1500);
+  await page.mouse.up();
+  await review.getByRole("button", { name: "Execute paper order" }).click();
+  await expect(review.getByText("Executed · simulated fill")).toBeVisible();
+  await expect(review.getByText(/Paper money only, not counted in net worth/)).toBeVisible();
+  await checkLayout(page);
+  expect(errors).toEqual([]);
+});
+
+test("family cards: kids' spend, blocked-category decline, freeze and limits", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/family");
+  await expect(page.getByRole("heading", { name: "Family", level: 1 })).toBeVisible();
+  const maya = page.getByRole("region", { name: "Maya" });
+  const leo = page.getByRole("region", { name: "Leo" });
+  await expect(maya.getByText("Age 16 · Card ••3318")).toBeVisible();
+  await expect(maya.getByText(/% of the monthly limit used/)).toBeVisible();
+
+  // Leo's rules decline a gaming purchase; nothing is charged.
+  await leo.getByText("Try a purchase").click();
+  await leo.getByRole("button", { name: "Tap card" }).click();
+  await expect(leo.getByRole("status").filter({ hasText: "Declined · Category blocked" })).toBeVisible();
+
+  // An allowed purchase is approved.
+  await leo.getByLabel("Merchant").fill("Chipotle");
+  await leo.getByLabel("Category").selectOption("dining");
+  await leo.getByLabel("Amount").fill("9.50");
+  await leo.getByRole("button", { name: "Tap card" }).click();
+  await expect(leo.getByRole("status").filter({ hasText: "Approved · $9.50 at Chipotle" })).toBeVisible();
+
+  // Freeze, then the next purchase is declined; unfreeze restores it.
+  await leo.getByRole("button", { name: "Freeze card" }).click();
+  await expect(leo.getByText("Frozen", { exact: true })).toBeVisible();
+  await leo.getByRole("button", { name: "Tap card" }).click();
+  await expect(leo.getByRole("status").filter({ hasText: "Declined · Card is frozen" })).toBeVisible();
+  await leo.getByRole("button", { name: "Unfreeze" }).click();
+  await expect(leo.getByText("Active", { exact: true })).toBeVisible();
+
+  // Parent raises Maya's limit and unblocks nothing new: the saved limit persists after reload.
+  await maya.getByText("Limits & blocked categories").click();
+  await maya.getByLabel("Monthly limit", { exact: true }).fill("500");
+  await maya.getByRole("button", { name: "Save limits" }).click();
+  await expect(maya.getByText("Saved")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Maya" }).getByText("of $500.00")).toBeVisible();
+  await checkLayout(page);
+  expect(errors).toEqual([]);
 });

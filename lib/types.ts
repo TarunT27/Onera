@@ -1,10 +1,11 @@
 /**
- * Shared ClearFi contract. UI, API routes, policy, simulator and AI tools all
+ * Shared Onera contract. UI, API routes, policy, simulator and AI tools all
  * use these types — change them deliberately and tell the team.
  *
  * Money is always integer cents plus an explicit currency. Never use floats
  * for amounts.
  */
+import { LOCALE_CODES } from "@/lib/i18n/languages";
 import { z } from "zod";
 
 export const DEMO_USER_IDS = ["alice", "bob"] as const;
@@ -298,7 +299,25 @@ export const UpdateControlsSchema = z
   .refine((v) => Object.keys(v).length > 0, "No changes supplied");
 export type UpdateControlsInput = z.infer<typeof UpdateControlsSchema>;
 
+/**
+ * Assistant personas. Each one is the same model with a narrower tool set,
+ * enforced in lib/ai/agents.ts (the tool list sent to the model AND runTool).
+ */
+export const ASSISTANT_AGENTS = ["general", "research", "chart", "risk", "drafter"] as const;
+export type AssistantAgentId = (typeof ASSISTANT_AGENTS)[number];
+
 export const ChatRequestSchema = z.object({
+  /** Defaults to "general". */
+  agent: z.enum(ASSISTANT_AGENTS).optional(),
+  /**
+   * Client-generated grouping key for security monitoring. Scoped to the session user on the server; it is a label,
+   * never an identity. The server makes one when it is missing and returns it.
+   */
+  conversationId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).optional(),
+  /** "voice" when the last message was spoken (ElevenLabs transcript). Shapes reply style only; grants nothing. */
+  source: z.enum(["text", "voice"]).optional(),
+  /** UI language from Settings. Only picks the language the reply is written in; grants nothing. */
+  locale: z.enum(LOCALE_CODES).optional(),
   messages: z
     .array(
       z.object({
@@ -334,7 +353,26 @@ export interface ChatResponse {
   trace: ToolTraceEntry[];
   /** Proposals created during this turn. Approval still happens in the UI. */
   proposedActionIds: string[];
+  /** Paper-order proposals created during this turn (Trade drafter only). Approval still happens in the UI. */
+  proposedOrderIds: string[];
+  /** The agent that answered. */
+  agent: AssistantAgentId;
   notice?: string;
+  /** Echo of (or the server-made) conversation ID; send it back on the next turn. */
+  conversationId?: string;
+  /** What the inline gates did this turn. */
+  guard?: ChatGuardInfo;
+}
+
+export interface ChatGuardInfo {
+  /** The draft reply failed an inline check and was replaced with a status built from Onera's records. */
+  withheld: boolean;
+  /** Server reason codes, e.g. SENSITIVE_DATA, UNSUPPORTED_EXECUTION_CLAIM, AMBIGUOUS_CLAIM. */
+  reasons: string[];
+  /** Tool calls the dispatcher refused this turn (forbidden, malformed, over budget). */
+  blockedToolCalls: number;
+  /** Untrusted content with embedded instructions was read this turn. */
+  untrustedInstructions: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -349,6 +387,7 @@ export type ApiErrorCode =
   | "APPROVAL_INVALID"
   | "POLICY_HOLD"
   | "UNSUPPORTED"
+  | "RATE_LIMITED"
   | "INTERNAL";
 
 export interface ApiError {
