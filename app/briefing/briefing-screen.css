@@ -1,0 +1,110 @@
+/* ─── Personal assistant briefing: one-screen layout (desktop) ───
+   From 901px up the page fills the window (see "One-screen pages" in
+   globals.css). Left pane: headline, numbers, what needs you and the tips.
+   Right pane: where the money went, market movers and the research desk. Each
+   pane scrolls inside itself. Phones and tablets (≤900px) keep the natural
+   scrolling layout. */
+@media (min-width: 901px) {
+  /* The page's vertical rhythm comes from the shell, not space-y. */
+  .briefing-screen > *,
+  .briefing-screen .brief-title > *,
+  .briefing-screen .brief-main > *,
+  .briefing-screen .brief-side > * {
+    margin-block: 0;
+  }
+
+  /* Compact header: assistant tabs, title + explainer, then Refresh. */
+  .briefing-screen .brief-title {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 18px;
+    margin: 0 4px 10px;
+  }
+  .briefing-screen .brief-title > nav {
+    flex-shrink: 0;
+  }
+  .briefing-screen .brief-title > div {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+  }
+  .briefing-screen .brief-title > div > div {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+  }
+  .briefing-screen .brief-title > div > button {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .briefing-screen .brief-title h1 {
+    flex-shrink: 0;
+    font-size: 28px;
+  }
+  .briefing-screen .brief-title p {
+    margin: 0;
+    max-width: 640px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .briefing-screen .brief-meta {
+    margin: 0 4px 12px;
+    font-size: 12.5px;
+  }
+  /* Error boxes sit between the meta line and the panes. */
+  .briefing-screen > [role="alert"],
+  .briefing-screen > .skeleton,
+  .briefing-screen > p.rounded-2xl {
+    margin-bottom: 12px;
+  }
+
+  .briefing-screen .brief-body {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  /* Headline tile a touch tighter so the numbers below stay in view. */
+  .briefing-screen .brief-main > section:first-child {
+    padding: 20px 26px;
+  }
+  .briefing-screen .brief-main > section:first-child h2 {
+    font-size: 22px;
+  }
+  .briefing-screen .brief-main > section:first-child .text-\[38px\] {
+    font-size: 34px;
+  }
+  .briefing-screen .brief-stats {
+    gap: 12px;
+  }
+  .briefing-screen .brief-stats > section {
+    padding: 14px 16px;
+  }
+  .briefing-screen .brief-stats > section p:first-child {
+    font-size: 11px;
+  }
+  .briefing-screen .brief-stats > section p:nth-child(2) {
+    font-size: 22px;
+  }
+  /* The pane is narrower than the full-width row these tiles were made for:
+     let the detail wrap so labels like "Simulated prices" stay readable. */
+  .briefing-screen .brief-stats > section p:nth-child(3) {
+    overflow: visible;
+    white-space: normal;
+    text-overflow: clip;
+    line-height: 1.35;
+  }
+
+  /* One research note per row in the narrower right pane. */
+  .briefing-screen .brief-research {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Narrow desktops: stats in three columns so the values aren't squeezed. */
+@media (min-width: 901px) and (max-width: 1180px) {
+  .briefing-screen .brief-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

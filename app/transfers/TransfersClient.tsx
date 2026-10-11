@@ -17,6 +17,7 @@ import { useApiData } from "../components/useApiData";
 import { ActionDetail } from "./ActionDetail";
 import { ActionList } from "./ActionList";
 import { NewTransferForm } from "./NewTransferForm";
+import "./transfers-screen.css";
 
 export function TransfersClient() {
   const t = useT();
@@ -60,14 +61,16 @@ export function TransfersClient() {
   const paused = controls.data?.controls.paused === true;
 
   return (
-    <div>
-      <PageHeader
-        title={t("Transfers")}
-        description={t("Move money between your banks and Onera in a couple of taps. Onera checks every transfer against your limits and sends nothing without your OK. All money here is simulated.")}
-      />
+    <div className="screen transfers-screen">
+      <div className="screen-title tf-title">
+        <PageHeader
+          title={t("Transfers")}
+          description={t("Move money between your banks and Onera in a couple of taps. Onera checks every transfer against your limits and sends nothing without your OK. All money here is simulated.")}
+        />
+      </div>
 
       {paused && (
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-red-400/10 px-4 py-3 text-sm text-red-100 shadow-[inset_0_0_0_1px_rgb(248_113_113/0.25)]">
+        <div className="tf-paused mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-red-400/10 px-4 py-3 text-sm text-red-100 shadow-[inset_0_0_0_1px_rgb(248_113_113/0.25)]">
           <span>
             <strong>{t("Transfers are paused.")}</strong> {t("Even approved transfers can’t be sent until you resume.")}
           </span>
@@ -77,9 +80,9 @@ export function TransfersClient() {
         </div>
       )}
 
-      <div className="grid items-start gap-6 lg:grid-cols-12">
+      <div className="screen-body tf-body grid items-start gap-6 lg:grid-cols-12">
         {/* One working area: the composer, or the transfer you're reviewing. */}
-        <div className="min-w-0 lg:col-span-7">
+        <div className="screen-pane tf-work min-w-0 lg:col-span-7">
           {selectedId ? (
             <ActionDetail key={selectedId} id={selectedId} onChanged={reloadAll} onClose={closeDetail} />
           ) : (
@@ -99,7 +102,7 @@ export function TransfersClient() {
           )}
         </div>
 
-        <div className="min-w-0 lg:col-span-5">
+        <div className="tf-list min-w-0 lg:col-span-5">
           <ActionList
             actions={actions.data?.actions ?? null}
             accounts={accounts.data?.accounts ?? null}

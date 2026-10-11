@@ -23,6 +23,7 @@ import { ErrorBox } from "../components/ErrorBox";
 import { PaperLabel } from "../components/Badge";
 import { BankLogo, BankMark } from "../components/BankLogo";
 import "./account-explorer.css";
+import "./accounts-screen.css";
 import { AccountPanel } from "./AccountPanel";
 import { CurrencyValue } from "./CurrencyValue";
 import { directoryActivityScope, CONNECTION_STATUS_LABEL } from "./presentation";
@@ -108,11 +109,13 @@ export function AccountsClient() {
   if (selected) {
     const openedAccount = accounts.data?.accounts.find((a) => a.id === selected);
     return (
-      <div className="account-detail-page">
-        <Button variant="ghost" className="account-back" onClick={() => choose(null)}><ArrowLeft size={18} aria-hidden />{t("All accounts")}</Button>
-        <div className="page-intro account-detail-intro">
-          <h1 id="account-heading" tabIndex={-1}>{openedAccount?.name ?? t("Account details")}</h1>
-          <p>{openedAccount ? `${openedAccount.institution} · ••${openedAccount.mask} · ${openedAccount.currency}` : t("Your account information")}</p>
+      <div className="account-detail-page screen">
+        <div className="account-detail-head">
+          <Button variant="ghost" className="account-back" onClick={() => choose(null)}><ArrowLeft size={18} aria-hidden />{t("All accounts")}</Button>
+          <div className="page-intro account-detail-intro">
+            <h1 id="account-heading" tabIndex={-1}>{openedAccount?.name ?? t("Account details")}</h1>
+            <p>{openedAccount ? `${openedAccount.institution} · ••${openedAccount.mask} · ${openedAccount.currency}` : t("Your account information")}</p>
+          </div>
         </div>
         <p className="account-disclaimer">{openedAccount?.paper ? `${t("Paper account · Excluded from total balance.")} ` : ""}{t("Synthetic account and transaction data. No real funds or bank credentials are used.")}</p>
         <ErrorBox error={accounts.error} onRetry={() => void accounts.reload()} />
@@ -133,8 +136,8 @@ export function AccountsClient() {
     );
   }
   return (
-    <div className="account-directory">
-      <div className="page-intro flex flex-wrap items-end justify-between gap-4">
+    <div className="account-directory screen">
+      <div className="page-intro screen-title flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1>{t("Your accounts")}</h1>
           <p>{t("One clear view. Every balance, every bank.")}</p>
@@ -166,11 +169,14 @@ export function AccountsClient() {
           {notice}
         </p>
       )}
+      {/* Desktop (901px+): one screen. The toolbar, account list, activity and
+          bank connections sit side by side and each scrolls inside itself. */}
+      <div className="screen-body account-screen-body">
       {showBanks && (
         <Card
           title={t("Choose a demo bank")}
           subtitle={t("Explore realistic synthetic accounts and 90 days of activity.")}
-          className="mb-6"
+          className="account-bank-picker mb-6"
         >
           <ErrorBox error={institutions.error} />
           {institutions.loading && !institutions.data ? (
@@ -313,7 +319,7 @@ export function AccountsClient() {
           />}
         </div>
       </div>
-      <div className="mt-8">
+      <div className="account-connections mt-8">
         <Card
           title={t("Bank connections")}
           subtitle={t("Sync, reconnect or disconnect your simulated institutions.")}
@@ -444,6 +450,7 @@ export function AccountsClient() {
             </div>
           )}
         </Card>
+      </div>
       </div>
     </div>
   );

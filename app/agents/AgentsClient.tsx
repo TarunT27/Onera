@@ -147,6 +147,8 @@ export function AgentsClient() {
   const [selected, setSelected] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  /** Desktop side column: 0 = agent cards, 1 = live activity. */
+  const [sideTab, setSideTab] = useState(0);
 
   // Server clock offset, so "ago" and activity windows use the server's timeline.
   const offset = useRef(0);
@@ -177,17 +179,19 @@ export function AgentsClient() {
 
   const data = live.data;
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={t("Agents")}
-        description={t("Seven background agents watch your synthetic accounts. Each one reads only what it needs and can only write findings. Watch them work live.")}
-        action={
-          <Button onClick={() => void runAll()} busy={running}>
-            {t("Run all agents now")}
-          </Button>
-        }
-      />
-      <p className="flex flex-wrap items-center gap-2 text-[13px] text-white/55">
+    <div className="agents-screen screen space-y-6">
+      <div className="agents-head">
+        <PageHeader
+          title={t("Agents")}
+          description={t("Seven background agents watch your synthetic accounts. Each one reads only what it needs and can only write findings. Watch them work live.")}
+          action={
+            <Button onClick={() => void runAll()} busy={running}>
+              {t("Run all agents now")}
+            </Button>
+          }
+        />
+      </div>
+      <p className="agents-note flex flex-wrap items-center gap-2 text-[13px] text-white/55">
         <SyntheticLabel />
         <Lock size={15} weight="fill" aria-hidden />
         {t("Rule-based, no AI model. No agent can approve, execute, verify recipients or change your controls.")}
@@ -201,25 +205,45 @@ export function AgentsClient() {
       ) : (
         <>
           <WorkerStrip data={data} now={now} />
-          <Card
-            title={t("Live map")}
-            subtitle={t("Lines light up and data flows while an agent works. Select an agent to trace what it touches.")}
-          >
-            <FlowMap agents={data.agents} now={now} selected={selected} onSelect={setSelected} />
-          </Card>
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <div className="grid gap-4 md:grid-cols-2">
-              {data.agents.map((a) => (
-                <AgentCard
-                  key={a.id}
-                  agent={a}
-                  now={now}
-                  selected={selected === a.id}
-                  onSelect={() => setSelected(selected === a.id ? null : a.id)}
-                />
-              ))}
+          <div className="agents-body screen-body space-y-6">
+            <Card
+              title={t("Live map")}
+              subtitle={t("Lines light up and data flows while an agent works. Select an agent to trace what it touches.")}
+              className="agents-map"
+              bodyClassName="agents-map-body"
+            >
+              <FlowMap agents={data.agents} now={now} selected={selected} onSelect={setSelected} />
+            </Card>
+            <div className="agents-side grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]" data-tab={sideTab === 0 ? "agents" : "activity"}>
+              {/* Desktop only (hidden below 901px): the side column shows the agent cards or the live feed. */}
+              <div className="agents-seg-wrap hidden">
+                <div
+                  className="seg agents-seg"
+                  role="radiogroup"
+                  aria-label={t("Show agents or live activity")}
+                  style={{ ["--n" as string]: 2, ["--idx" as string]: sideTab }}
+                >
+                  <span className="seg-lens" aria-hidden />
+                  {[t("Agents ({count})", { count: data.agents.length }), t("Live activity")].map((label, i) => (
+                    <button key={i} type="button" role="radio" aria-checked={sideTab === i} onClick={() => setSideTab(i)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="agents-list screen-pane grid gap-4 md:grid-cols-2">
+                {data.agents.map((a) => (
+                  <AgentCard
+                    key={a.id}
+                    agent={a}
+                    now={now}
+                    selected={selected === a.id}
+                    onSelect={() => setSelected(selected === a.id ? null : a.id)}
+                  />
+                ))}
+              </div>
+              <ActivityFeed feed={data.feed} agents={data.agents} now={now} />
             </div>
-            <ActivityFeed feed={data.feed} agents={data.agents} now={now} />
           </div>
         </>
       )}
@@ -242,7 +266,7 @@ function WorkerStrip({ data, now }: { data: AgentsLiveResponse; now: number }) {
         : { cls: "is-off", title: t("Background worker not running"), text: t("Agents run only when you click Run all agents now") };
   const pending = b.due + b.waiting + b.running;
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))]">
+    <div className="worker-strip grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))]">
       <section className={`glass worker-status ${status.cls} !rounded-[24px]`} aria-live="polite">
         <span className="worker-dot" aria-hidden />
         <div className="min-w-0">
@@ -269,7 +293,7 @@ function WorkerStrip({ data, now }: { data: AgentsLiveResponse; now: number }) {
 
 function Metric({ label, value, hint, tone = "text-zinc-50" }: { label: string; value: number | string; hint: string; tone?: string }) {
   return (
-    <section className="glass min-w-0 !rounded-[24px] px-5 py-4">
+    <section className="agents-metric glass min-w-0 !rounded-[24px] px-5 py-4">
       <p className="text-xs font-semibold tracking-wide text-white/45 uppercase">{label}</p>
       <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone}`}>{value}</p>
       <p className="mt-0.5 truncate text-xs text-white/45">{hint}</p>
@@ -331,7 +355,7 @@ function FlowMap({ agents, now, selected, onSelect }: {
   const dimOthers = selected !== null;
 
   return (
-    <div className="-mx-1 overflow-x-auto px-1 pb-1">
+    <div className="flow-map-wrap -mx-1 overflow-x-auto px-1 pb-1">
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="flow-map min-w-[760px]"
@@ -525,7 +549,12 @@ function ActivityFeed({ feed, agents, now }: { feed: AgentRun[]; agents: AgentLi
   }, [feed]);
 
   return (
-    <Card title={t("Live activity")} subtitle={t("Every agent run, newest first")} className="xl:sticky xl:top-28 xl:self-start">
+    <Card
+      title={t("Live activity")}
+      subtitle={t("Every agent run, newest first")}
+      className="agents-feed xl:sticky xl:top-28 xl:self-start"
+      bodyClassName="agents-feed-body"
+    >
       {feed.length === 0 ? (
         <EmptyState>{t("No runs yet. Agents start as soon as there is activity to review.")}</EmptyState>
       ) : (

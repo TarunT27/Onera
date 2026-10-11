@@ -1,0 +1,172 @@
+/* ─── Overview: one-screen layout (desktop) ───
+   From 901px up the Overview fills the window like Trade: a compact greeting
+   row, then three columns that each scroll inside themselves:
+     money  — balance hero + accounts wallet (+ paper accounts)
+     today  — "needs your review" banner, insight, recent activity
+     agents — personal assistant briefing + agent monitoring
+   Between 901px and 1199px the agents pane sits under "today" in the right
+   column. Phones and tablets (≤900px) keep the natural scrolling layout: the
+   column wrappers are display: contents there, so the grid is as before. */
+
+@media (max-width: 900px) {
+  .overview .ov-col {
+    display: contents;
+  }
+}
+
+@media (min-width: 901px) {
+  .app-main:has(.overview.screen) {
+    width: min(1400px, calc(100% - 56px));
+  }
+
+  /* Greeting: one compact line, the date to its right. */
+  .overview.screen .overview-heading {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    align-items: baseline;
+    margin: 0 4px 12px;
+  }
+  .overview.screen .overview-heading h1 {
+    margin: 0;
+    font-size: 28px;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+  }
+  .overview.screen > [role="alert"] {
+    margin-bottom: 10px;
+  }
+
+  .overview.screen .overview-grid {
+    grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  /* Columns stretch to the full height so each pane scrolls on its own. */
+  .overview.screen .ov-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-bottom: 6px;
+  }
+
+  /* Money: a compact hero so the accounts wallet is in view. */
+  .overview.screen .hero-shell {
+    padding: 5px;
+    border-radius: 32px;
+  }
+  .overview.screen .balance-hero {
+    min-height: 0;
+    padding: 24px 26px 22px;
+    border-radius: 27px;
+  }
+  .overview.screen .balance-amount {
+    padding-top: 22px;
+    font-size: clamp(44px, 3.9vw, 64px);
+  }
+  .overview.screen .balance-note {
+    margin-top: 10px;
+    font-size: 14px;
+  }
+  .overview.screen .hero-actions {
+    margin-top: 20px;
+  }
+  .overview.screen .hero-actions .pill {
+    min-height: 46px;
+    font-size: 14px;
+  }
+  .overview.screen .hero-actions .pill .knob {
+    width: 34px;
+    height: 34px;
+  }
+  .overview.screen .wallet-panel .panel-head {
+    padding-bottom: 10px;
+  }
+  .overview.screen .wallet-panel .panel-head h2 {
+    font-size: 19px;
+  }
+
+  /* Today: the review banner wraps to fit a column. */
+  .overview.screen .attention {
+    flex-wrap: wrap;
+    gap: 12px 14px;
+    padding: 14px;
+    border-radius: 24px;
+  }
+  .overview.screen .attention-content {
+    flex-basis: calc(100% - 64px);
+  }
+  .overview.screen .attention .route {
+    width: 100%;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    white-space: normal;
+  }
+  .overview.screen .attention .pill {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .overview.screen .overview-bottom {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .overview.screen .tile {
+    padding: 20px 22px 18px;
+  }
+  .overview.screen .tile-head {
+    margin-bottom: 14px;
+  }
+  .overview.screen .insight {
+    gap: 16px;
+  }
+  .overview.screen .insight-figure {
+    font-size: clamp(42px, 3.4vw, 56px);
+  }
+  .overview.screen .insight-copy {
+    margin-top: 12px;
+    font-size: 16px;
+  }
+  .overview.screen .bars {
+    height: 120px;
+    gap: 8px;
+  }
+  .overview.screen .bar i {
+    width: 26px;
+  }
+  .overview.screen .evidence {
+    margin-top: 16px;
+  }
+
+  /* Agents: single-column cards in a narrow pane. */
+  .overview.screen .ov-agents .surface-head {
+    padding: 20px 22px 14px;
+  }
+  .overview.screen .ov-agents .insight-body {
+    padding: 0 22px 20px;
+  }
+  .overview.screen .ov-agents .agent-filter {
+    margin-inline: -22px;
+    padding-inline: 22px;
+  }
+  .overview.screen .ov-agents .monitoring-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Two columns: agents move under "today" on the right. */
+@media (min-width: 901px) and (max-width: 1199px) {
+  .overview.screen .overview-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr);
+  }
+  .overview.screen .ov-money {
+    grid-row: 1 / span 2;
+  }
+  .overview.screen .ov-today {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .overview.screen .ov-agents {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}

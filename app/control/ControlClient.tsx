@@ -14,6 +14,7 @@ import { msg } from "@/lib/i18n/msg";
 import { centsToDollarInput, formatDateTime, parseDollarsToCents } from "../components/format";
 import { Money } from "../components/Money";
 import { useApiData } from "../components/useApiData";
+import "./control-screen.css";
 
 export function ControlClient() {
   const t = useT();
@@ -26,54 +27,103 @@ export function ControlClient() {
     void audit.reload();
   }
 
+  // Desktop only: which of the right-hand panels is shown (phones stack both).
+  const [sideView, setSideView] = useState<"audit" | "permissions">("audit");
+
+  // Deep links such as /control#agents open the panel that holds the target.
+  useEffect(() => {
+    function syncFromHash() {
+      if (window.location.hash === "#agents") setSideView("permissions");
+      else if (window.location.hash === "#audit") setSideView("audit");
+    }
+    syncFromHash();
+    window.addEventListener("hashchange", syncFromHash);
+    return () => window.removeEventListener("hashchange", syncFromHash);
+  }, []);
+
   const c = controls.data?.controls;
   const usage = controls.data?.usage.executedTodayCents ?? 0;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={t("Control")}
-        description={t("Your rules, enforced by the server — not by the assistant's good behavior. Every decision lands in the audit log.")}
-      />
+    <div className="control-screen screen space-y-6">
+      <div className="control-head screen-title">
+        <PageHeader
+          title={t("Control")}
+          description={t("Your rules, enforced by the server — not by the assistant's good behavior. Every decision lands in the audit log.")}
+        />
+      </div>
 
-      <ErrorBox error={controls.error} title={t("Couldn't load controls")} onRetry={() => void controls.reload()} />
+      <div className="control-body screen-body space-y-6">
+        {/* Left: the live controls (pause, limits, today's usage). */}
+        <div className="control-main screen-pane screen-stack space-y-6">
+          <ErrorBox error={controls.error} title={t("Couldn't load controls")} onRetry={() => void controls.reload()} />
 
-      {controls.loading && !controls.data ? (
-        <Loading label={t("Loading controls…")} />
-      ) : c ? (
-        <>
-          <PauseCard controls={c} onSaved={onControlsSaved} />
-          <div className="grid gap-6 lg:grid-cols-2">
-            <LimitsCard controls={c} onSaved={onControlsSaved} />
-            <UsageCard controls={c} executedTodayCents={usage} />
+          {controls.loading && !controls.data ? (
+            <Loading label={t("Loading controls…")} />
+          ) : c ? (
+            <>
+              <PauseCard controls={c} onSaved={onControlsSaved} />
+              <div className="control-limits grid gap-6 lg:grid-cols-2">
+                <LimitsCard controls={c} onSaved={onControlsSaved} />
+                <UsageCard controls={c} executedTodayCents={usage} />
+              </div>
+            </>
+          ) : null}
+        </div>
+
+        {/* Right: audit log and permissions. On desktop a switch shows one at a time; phones see both. */}
+        <div className="control-side space-y-6" data-view={sideView}>
+          <div className="control-switch hidden">
+            <div
+              className="seg control-seg"
+              role="radiogroup"
+              aria-label={t("Show audit log or permissions")}
+              style={{ ["--n" as string]: 2, ["--idx" as string]: sideView === "audit" ? 0 : 1 }}
+            >
+              <span className="seg-lens" aria-hidden />
+              {(
+                [
+                  ["audit", t("Audit log")],
+                  ["permissions", t("Permissions")],
+                ] as const
+              ).map(([view, label]) => (
+                <button key={view} type="button" role="radio" aria-checked={sideView === view} onClick={() => setSideView(view)}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-        </>
-      ) : null}
 
-      <PermissionsCard />
+          <div className="control-views screen-pane space-y-6">
+            <div className="control-perms screen-stack space-y-6">
+              <PermissionsCard />
 
-      <AgentPermissionsCard />
+              <AgentPermissionsCard />
+            </div>
 
-      <Card
-        id="audit"
-        className="scroll-mt-28"
-        title={t("Audit log")}
-        subtitle={t("Latest 100 events, newest first")}
-        action={
-          <Button size="sm" variant="ghost" onClick={() => void audit.reload()} busy={audit.loading && !!audit.data}>
-            ↻ {t("Refresh")}
-          </Button>
-        }
-      >
-        <ErrorBox error={audit.error} title={t("Couldn't load audit log")} className="mb-3" />
-        {audit.loading && !audit.data ? (
-          <Loading />
-        ) : audit.data && audit.data.events.length > 0 ? (
-          <AuditList events={audit.data.events} variant="table" />
-        ) : audit.error ? null : (
-          <EmptyState>{t("No audit events yet.")}</EmptyState>
-        )}
-      </Card>
+            <Card
+              id="audit"
+              className="control-audit scroll-mt-28"
+              title={t("Audit log")}
+              subtitle={t("Latest 100 events, newest first")}
+              action={
+                <Button size="sm" variant="ghost" onClick={() => void audit.reload()} busy={audit.loading && !!audit.data}>
+                  ↻ {t("Refresh")}
+                </Button>
+              }
+            >
+              <ErrorBox error={audit.error} title={t("Couldn't load audit log")} className="mb-3" />
+              {audit.loading && !audit.data ? (
+                <Loading />
+              ) : audit.data && audit.data.events.length > 0 ? (
+                <AuditList events={audit.data.events} variant="table" />
+              ) : audit.error ? null : (
+                <EmptyState>{t("No audit events yet.")}</EmptyState>
+              )}
+            </Card>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

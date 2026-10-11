@@ -1,0 +1,155 @@
+/* ─── Control: one-screen layout (desktop) ───
+   From 901px up the Control page fills the window like Trade: the live
+   controls (pause, limits, today's usage) sit in a left pane, and the right
+   pane switches between the audit log and the permission tables. Each pane
+   scrolls inside itself; the page never does. Phones and tablets (≤900px)
+   keep the natural stacked layout, so every rule here is desktop-only. */
+@media (min-width: 901px) {
+  /* The shared .screen shell lays the page out; drop the stacked spacing. */
+  /* :where() keeps this at zero specificity so .screen-pane's edge margin still applies. */
+  :where(.control-screen, .control-body, .control-main, .control-side, .control-views, .control-perms) > * {
+    margin-block: 0;
+  }
+
+  /* Compact one-line header: title and description side by side. */
+  .control-head > div {
+    flex: 1 1 auto;
+    margin: 0;
+    align-items: center;
+  }
+  .control-head > div > .min-w-0 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 16px;
+  }
+  .control-head p {
+    margin: 0;
+    max-width: none;
+    font-size: 13.5px;
+  }
+
+  .control-body {
+    grid-template-columns: minmax(340px, 400px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  /* Left pane: the cards stack in one column. */
+  .control-limits {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  /* Slightly tighter tiles so pause, limits and usage fit the pane. */
+  .control-main > section {
+    padding: 14px 20px;
+  }
+  .control-main section > header {
+    padding-top: 20px;
+  }
+  .control-main section > header + div {
+    padding-bottom: 20px;
+  }
+
+  /* Right pane: a switch row above one panel at a time. */
+  .control-side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    min-height: 0;
+  }
+  .control-switch {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    padding: 0 4px;
+  }
+  .control-seg {
+    grid-template-columns: repeat(2, 112px);
+  }
+  .control-views {
+    flex: 1 1 auto;
+  }
+
+  /* Deep links (#audit, #agents) land at the top of the pane, not 112px below it. */
+  .control-views [id] {
+    scroll-margin-top: 0;
+  }
+
+  .control-side[data-view="audit"] .control-perms,
+  .control-side[data-view="permissions"] .control-audit {
+    display: none;
+  }
+
+  /* Permission matrix: a little denser so all seven columns fit the pane. */
+  .control-perms .agent-matrix th,
+  .control-perms .agent-matrix td {
+    padding: 9px 10px;
+  }
+  .control-perms .agent-matrix thead th {
+    white-space: normal;
+  }
+  .control-perms .agent-matrix th.min-w-52 {
+    min-width: 11rem;
+  }
+  .control-perms .agent-matrix td.min-w-32 {
+    min-width: 6.5rem;
+  }
+  .control-perms .agent-matrix td.whitespace-nowrap {
+    min-width: 7.5rem;
+    white-space: normal;
+  }
+
+  /* The audit card fills the pane: its header (with Refresh) stays put and
+     the event list scrolls inside the card. */
+  .control-side[data-view="audit"] .control-views {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .control-audit {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .control-audit > header {
+    flex: 0 0 auto;
+  }
+  .control-audit > div {
+    flex: 1 1 auto;
+    padding-top: 14px;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+  }
+  /* Column labels stay visible while the events scroll under them. */
+  .control-audit > div > div > div:first-child.xl\:grid {
+    position: sticky;
+    top: -14px;
+    z-index: 1;
+    margin-top: -14px;
+    padding-top: 14px;
+    background: rgb(19 21 24 / 0.98);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  /* Long agent actor names stay inside the Actor column (full name on hover). */
+  .control-audit li > span:nth-child(2) {
+    min-width: 0;
+  }
+  .control-audit li > span:nth-child(2) > span {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+  }
+}
+@media (min-width: 901px) and (max-width: 1100px) {
+  .control-body {
+    grid-template-columns: minmax(300px, 340px) minmax(0, 1fr);
+  }
+}
