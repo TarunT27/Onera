@@ -44,6 +44,7 @@ import {
   type AlpacaPosition,
 } from "./alpaca";
 import { executeOrder, isTransientLockError, verifyApprovedOrder } from "./broker";
+import { refreshAssets } from "./assets";
 import { findInstrument } from "./instruments";
 import { cacheBrokerPrice, refreshBars, refreshClock, refreshQuotes } from "./marketdata";
 import {
@@ -56,6 +57,7 @@ import {
   mulDiv,
 } from "./math";
 import { getOrder, loadOrderRow } from "./orders";
+import { listWatchlist } from "./watchlist";
 import type { BrokerLinkRow, OrderRow } from "./rows";
 import { venueOf } from "./rows";
 import type { BrokerConnection, OrderFill, PaperOrder, PlaceOrderResult } from "./types";
@@ -278,13 +280,22 @@ export interface MarketRefreshReport {
 export async function refreshMarketData(
   db: DB,
   userId: UserId | null,
-  opts: { force?: boolean } = {},
+  opts: { force?: boolean; symbols?: string[] } = {},
 ): Promise<MarketRefreshReport> {
   if (!alpacaConfigured()) return { ok: true, errors: [] };
+  // The catalog, plus the user's watchlist and any symbol the caller is about to show or price.
+  const extra = [...(userId ? listWatchlist(db, userId) : []), ...(opts.symbols ?? [])]
+    .map((s) => s.trim().toUpperCase())
+    .filter((s) => /^[A-Z][A-Z.]{0,9}$/.test(s) && !findInstrument(s));
+  if (extra.length) {
+    // Non-catalog symbols are only valid once Alpaca's asset list is cached (daily).
+    await refreshAssets(db).catch((err: unknown) =>
+      console.warn("[clearfi] Alpaca assets:", err instanceof Error ? err.message : err));
+  }
   const results = await Promise.allSettled([
-    refreshQuotes(db, { force: opts.force }),
+    refreshQuotes(db, { force: opts.force, extra }),
     refreshClock(db),
-    refreshBars(db),
+    refreshBars(db, { extra }),
     userId ? syncBrokerAccount(db, userId, { force: opts.force }) : Promise.resolve(),
   ]);
   const errors = results
@@ -425,7 +436,7 @@ export async function submitOrder(db: DB, userId: UserId, orderId: string): Prom
   // Phase 0: fresh price and balances, and the asset's fractional support. Nothing changes on failure.
   let fractionable = true;
   try {
-    await refreshQuotes(db, { force: true });
+    await refreshQuotes(db, { force: true, extra: [first.symbol] });
     await syncBrokerAccount(db, userId, { force: true });
     const asset = await getAsset(first.symbol);
     if (!asset.tradable) throw badRequest(tpl("{symbol} is not tradable at Alpaca right now.", { symbol: first.symbol }));

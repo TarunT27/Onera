@@ -33,6 +33,15 @@ export interface Instrument {
   name: string;
   type: InstrumentType;
   sector: string | null;
+  /** Listing exchange (Alpaca assets only), e.g. "NASDAQ". */
+  exchange?: string | null;
+}
+
+/** A search hit: an instrument plus whether it is already on the user's watchlist. */
+export interface InstrumentSearchResult extends Instrument {
+  /** Always shown: part of Onera's built-in list. */
+  builtIn: boolean;
+  inWatchlist: boolean;
 }
 
 export interface Quote {

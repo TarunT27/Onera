@@ -15,10 +15,12 @@
  */
 import type { DB } from "@/lib/db";
 import type { UserId } from "@/lib/types";
-import { catalogInstruments } from "./instruments";
+import { instrumentFor, refreshAssets, searchInstruments } from "./assets";
+import { catalogInstruments, findInstrument } from "./instruments";
+import { listWatchlist } from "./watchlist";
 import { historyFor, marketStatusFor, quoteFor } from "./marketdata";
 import { computePortfolio } from "./portfolio";
-import type { Instrument, MarketStatus, Portfolio, PriceHistory, Quote } from "./types";
+import type { Instrument, InstrumentSearchResult, MarketStatus, Portfolio, PriceHistory, Quote } from "./types";
 
 export type * from "./types";
 export {
@@ -49,6 +51,27 @@ export function getPortfolio(db: DB, userId: UserId, now: Date = new Date()): Po
 // --- Market data ------------------------------------------------------------------
 
 export { findInstrument } from "./instruments";
+export { addToWatchlist, listWatchlist, MAX_WATCHLIST, removeFromWatchlist, watchlistInstruments } from "./watchlist";
+
+/** Catalog symbol, or (Alpaca mode) any tradable US stock/ETF Alpaca lists. */
+export function getInstrument(symbol: string, db?: DB): Instrument | null {
+  return instrumentFor(db, symbol);
+}
+
+/**
+ * Searches stocks and ETFs by ticker or name. Simulated mode searches the built-in catalog;
+ * Alpaca mode searches every tradable US equity (the asset list is fetched about once a day).
+ */
+export async function searchMarket(db: DB, userId: UserId, query: string): Promise<InstrumentSearchResult[]> {
+  await refreshAssets(db).catch((err: unknown) =>
+    console.warn("[clearfi] Alpaca assets:", err instanceof Error ? err.message : err));
+  const watched = new Set(listWatchlist(db, userId));
+  return searchInstruments(db, query).map((i) => ({
+    ...i,
+    builtIn: findInstrument(i.symbol) !== null,
+    inWatchlist: watched.has(i.symbol),
+  }));
+}
 export { MAX_HISTORY_DAYS } from "./simulator";
 export { pricesDisclaimer, quoteSource } from "./marketdata";
 

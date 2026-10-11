@@ -22,7 +22,8 @@ export const POST = handler(async (req: Request) => {
   const db = getDb();
   const userId = await getSessionUserId();
   const body = await readJson(req);
-  await refreshMarketData(db, userId);
+  const symbol = (body as { symbol?: unknown } | null)?.symbol;
+  await refreshMarketData(db, userId, { symbols: typeof symbol === "string" ? [symbol] : [] });
   const order = createOrder(db, userId, body, "user");
   return NextResponse.json({ order }, { status: 201 });
 });

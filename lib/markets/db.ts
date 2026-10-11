@@ -73,6 +73,25 @@ CREATE TABLE IF NOT EXISTS market_bars (
   source      TEXT NOT NULL,
   PRIMARY KEY (symbol, date)
 );
+-- Searchable US equities from Alpaca (Alpaca mode only; refreshed daily). Catalog symbols live in code.
+CREATE TABLE IF NOT EXISTS market_assets (
+  symbol       TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  exchange     TEXT,
+  type         TEXT NOT NULL CHECK (type IN ('stock','etf')),
+  fractionable INTEGER NOT NULL DEFAULT 0,
+  updated_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_market_assets_name ON market_assets(name);
+
+-- Symbols a user added to their Trade watchlist (on top of the built-in catalog).
+CREATE TABLE IF NOT EXISTS watchlist (
+  user_id  TEXT NOT NULL REFERENCES users(id),
+  symbol   TEXT NOT NULL,
+  added_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, symbol)
+);
+
 CREATE TABLE IF NOT EXISTS market_data_state (
   key        TEXT PRIMARY KEY,            -- 'clock' | 'bars:<SYMBOL>'
   value      TEXT NOT NULL,               -- JSON
@@ -134,6 +153,8 @@ CREATE INDEX IF NOT EXISTS idx_orders_open ON orders(state) WHERE state IN ('SUB
 const DROP_SQL = /* sql */ `
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS market_data_state;
+DROP TABLE IF EXISTS watchlist;
+DROP TABLE IF EXISTS market_assets;
 DROP TABLE IF EXISTS market_bars;
 DROP TABLE IF EXISTS market_quotes;
 DROP TABLE IF EXISTS broker_links;
