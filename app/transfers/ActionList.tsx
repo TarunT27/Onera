@@ -1,48 +1,63 @@
 "use client";
 
-import type { TransferAction } from "@/lib/types";
-import { ActionStateBadge, CreatorBadge } from "../components/Badge";
+import { ArrowClockwise, Plus } from "@phosphor-icons/react";
+import type { Account, TransferAction } from "@/lib/types";
+import { ActionStateBadge, Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Card, EmptyState, Loading } from "../components/Card";
 import { BankLogo } from "../components/BankLogo";
 import { ErrorBox } from "../components/ErrorBox";
-import { formatDateTime, mask } from "../components/format";
+import { formatDateTime } from "../components/format";
 import { Money } from "../components/Money";
+import { shortInstitution, shortRecipientName } from "./accountLabels";
 
 export function ActionList({
   actions,
+  accounts,
   loading,
   error,
   selectedId,
   onSelect,
+  onNew,
   onRefresh,
 }: {
   actions: TransferAction[] | null;
+  accounts: Account[] | null;
   loading: boolean;
   error: unknown;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  /** Shown while a transfer is open, to go back to the composer. */
+  onNew?: () => void;
   onRefresh: () => void;
 }) {
+  const accountById = new Map((accounts ?? []).map((a) => [a.id, a]));
   return (
     <Card
-      title="Your transfers"
-      subtitle="Created by you or proposed by the assistant"
+      title="Recent transfers"
       action={
-        <Button size="sm" variant="ghost" onClick={onRefresh}>
-          ↻ Refresh
-        </Button>
+        <div className="flex items-center gap-1">
+          {onNew && (
+            <Button size="sm" variant="secondary" onClick={onNew}>
+              <Plus size={14} weight="bold" aria-hidden /> New transfer
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={onRefresh} aria-label="Refresh transfers">
+            <ArrowClockwise size={14} weight="bold" aria-hidden />
+          </Button>
+        </div>
       }
     >
       <ErrorBox error={error} title="Couldn't load transfers" className="mb-3" />
       {loading ? (
         <Loading />
       ) : error && !actions ? null : !actions || actions.length === 0 ? (
-        <EmptyState>No transfers yet. Create one above or ask the assistant to propose one.</EmptyState>
+        <EmptyState>No transfers yet. Move some money or ask the assistant to propose one.</EmptyState>
       ) : (
-        <ul className="space-y-2">
+        <ul className="-mx-2 space-y-0.5">
           {actions.map((a) => {
             const selected = a.id === selectedId;
+            const source = accountById.get(a.sourceAccountId);
             return (
               <li key={a.id}>
                 <button
@@ -50,30 +65,29 @@ export function ActionList({
                   type="button"
                   onClick={() => onSelect(a.id)}
                   aria-current={selected ? "true" : undefined}
-                  className={`w-full rounded-xl border p-3 text-left transition-colors ${
-                    selected
-                      ? "border-brand-500 bg-brand-50/60 ring-1 ring-brand-500 dark:border-brand-600 dark:bg-brand-950/40 dark:ring-brand-600"
-                      : "border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/50"
+                  className={`flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left transition-colors ${
+                    selected ? "bg-white/[0.09] shadow-[inset_0_0_0_1px_rgb(140_185_204/0.35)]" : "hover:bg-white/[0.05]"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <BankLogo institution={a.destination.institution} size={32} className="mr-2" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{a.destination.displayName}</p>
-                      <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                        {a.destination.institution} {mask(a.destination.accountMask)}
-                        {a.memo ? ` · ${a.memo}` : ""}
-                      </p>
-                    </div>
-                    <Money cents={a.amountCents} className="shrink-0 font-semibold" />
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                    <ActionStateBadge state={a.state} />
-                    <CreatorBadge createdBy={a.createdBy} />
-                    <span className="tabular-nums">v{a.version}</span>
-                    <span aria-hidden>·</span>
-                    <span>{formatDateTime(a.createdAt)}</span>
-                  </div>
+                  <BankLogo institution={a.destination.institution} size={18} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-zinc-50">{shortRecipientName(a.destination.displayName)}</span>
+                    <span className="block truncate text-xs text-white/45">
+                      {source ? `from ${source.name} · ${shortInstitution(source.institution)}` : formatDateTime(a.createdAt)}
+                      {a.memo ? ` · ${a.memo}` : ""}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 flex-col items-end gap-1">
+                    <Money cents={a.amountCents} className="text-sm font-semibold text-zinc-50" />
+                    <span className="flex items-center gap-1">
+                      {a.createdBy === "assistant" && (
+                        <Badge tone="violet" title="Proposed by the Onera assistant">
+                          AI
+                        </Badge>
+                      )}
+                      <ActionStateBadge state={a.state} />
+                    </span>
+                  </span>
                 </button>
               </li>
             );

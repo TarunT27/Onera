@@ -61,11 +61,11 @@ export function TransfersClient() {
     <div>
       <PageHeader
         title="Transfers"
-        description="Review and approve every transfer. Onera checks your limits before sending. All transfers here are simulated."
+        description="Move money between your banks and Onera in a couple of taps. Onera checks every transfer against your limits and sends nothing without your OK. All money here is simulated."
       />
 
       {paused && (
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-red-400/10 px-4 py-3 text-sm text-red-100 shadow-[inset_0_0_0_1px_rgb(248_113_113/0.25)]">
           <span>
             <strong>Transfers are paused.</strong> Even approved transfers can’t be sent until you resume.
           </span>
@@ -75,40 +75,37 @@ export function TransfersClient() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        {/* Detail first in the DOM so it leads on phones; placed in the right column on desktop. */}
-        <div className={`min-w-0 lg:col-span-7 lg:col-start-6 lg:row-start-1 ${selectedId ? "" : "hidden lg:block"}`}>
+      <div className="grid items-start gap-6 lg:grid-cols-12">
+        {/* One working area: the composer, or the transfer you're reviewing. */}
+        <div className="min-w-0 lg:col-span-7">
           {selectedId ? (
             <ActionDetail key={selectedId} id={selectedId} onChanged={reloadAll} onClose={closeDetail} />
           ) : (
-            <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-              <div>
-                <p className="font-medium text-zinc-700 dark:text-zinc-300">Select a transfer to review</p>
-                <p className="mt-1">Review the recipient, safety checks and demo receipt here.</p>
-              </div>
-            </div>
+            <NewTransferForm
+              initialSourceId={searchParams.get("source") ?? undefined}
+              accounts={accounts.data?.accounts ?? null}
+              accountsError={accounts.error}
+              accountsLoading={accounts.loading}
+              recipients={recipients.data?.recipients ?? null}
+              recipientsError={recipients.error}
+              recipientsLoading={recipients.loading}
+              perTransferLimitCents={controls.data?.controls.perTransferLimitCents ?? null}
+              onRetryAccounts={() => void accounts.reload()}
+              onRetryRecipients={() => void recipients.reload()}
+              onCreated={onCreated}
+            />
           )}
         </div>
 
-        <div className="min-w-0 space-y-6 lg:col-span-5 lg:col-start-1 lg:row-start-1">
-          <NewTransferForm
-            initialSourceId={searchParams.get("source") ?? undefined}
-            accounts={accounts.data?.accounts ?? null}
-            accountsError={accounts.error}
-            accountsLoading={accounts.loading}
-            recipients={recipients.data?.recipients ?? null}
-            recipientsError={recipients.error}
-            recipientsLoading={recipients.loading}
-            onRetryAccounts={() => void accounts.reload()}
-            onRetryRecipients={() => void recipients.reload()}
-            onCreated={onCreated}
-          />
+        <div className="min-w-0 lg:col-span-5">
           <ActionList
             actions={actions.data?.actions ?? null}
+            accounts={accounts.data?.accounts ?? null}
             loading={actions.loading && !actions.data}
             error={actions.error}
             selectedId={selectedId}
             onSelect={select}
+            onNew={selectedId ? () => select(null) : undefined}
             onRefresh={() => void actions.reload()}
           />
         </div>
