@@ -26,6 +26,7 @@ import { ErrorBox } from "../components/ErrorBox";
 import { formatCents, formatDateTime, formatPct } from "../components/format";
 import { SEVERITY } from "../components/InsightCard";
 import { useApiData } from "../components/useApiData";
+import "./briefing-screen.css";
 
 const POLL_MS = 30_000;
 
@@ -75,19 +76,21 @@ export function BriefingClient() {
   const tipsBy = (kind: BriefingTip["kind"]) => (b?.tips ?? []).filter((t) => t.kind === kind);
 
   return (
-    <div className="space-y-6">
-      <AssistantTabs className="" />
-      <PageHeader
-        title="Personal assistant"
-        description="Works in the background: watches your spending, subscriptions and investments, looks for ways to save, researches your holdings and lists what needs you. It can't move money, propose, approve or change anything."
-        action={
-          <Button onClick={() => void refresh()} busy={refreshing}>
-            Refresh briefing
-          </Button>
-        }
-      />
+    <div className="screen briefing-screen space-y-6">
+      <div className="screen-title brief-title space-y-6">
+        <AssistantTabs className="" />
+        <PageHeader
+          title="Personal assistant"
+          description="Works in the background: watches your spending, subscriptions and investments, looks for ways to save, researches your holdings and lists what needs you. It can't move money, propose, approve or change anything."
+          action={
+            <Button onClick={() => void refresh()} busy={refreshing}>
+              Refresh briefing
+            </Button>
+          }
+        />
+      </div>
 
-      <p className="flex flex-wrap items-center gap-2 text-[13px] text-white/55">
+      <p className="brief-meta flex flex-wrap items-center gap-2 text-[13px] text-white/55">
         <SyntheticLabel />
         <Sparkle size={16} weight="fill" aria-hidden />
         {b ? `Prepared ${formatDateTime(b.generatedAt)}` : "Not prepared yet"} · refreshes every 30 minutes in the background ·
@@ -104,133 +107,133 @@ export function BriefingClient() {
           <EmptyState>Your assistant hasn&apos;t prepared a briefing yet. Use Refresh briefing to run it now.</EmptyState>
         )
       ) : (
-        <>
-          <section className="glass flex flex-wrap items-end justify-between gap-6 !rounded-[28px] px-6 py-6 sm:px-8 sm:py-7" aria-label="Briefing headline">
-            <div className="min-w-0 max-w-2xl">
-              <p className="text-xs font-semibold tracking-wide text-white/45 uppercase">Today&apos;s briefing</p>
-              <h2 className="mt-2 text-[22px] font-semibold leading-snug tracking-[-0.02em] text-zinc-50 sm:text-[26px]">
-                {b.headline}
-              </h2>
-            </div>
-            <div className="sm:text-right">
-              <p className="text-xs font-semibold tracking-wide text-white/45 uppercase">Potential savings</p>
-              <p className="mt-1 text-[38px] font-light leading-none tracking-[-0.04em] tabular-nums text-emerald-200">
-                {formatCents(b.potentialAnnualSavingsCents, { whole: true })}
-                <span className="text-base text-white/45"> /yr</span>
-              </p>
-            </div>
-          </section>
+        <div className="screen-body brief-body space-y-6">
+          {/* Left: today's headline, numbers, what needs you and the tips. */}
+          <div className="screen-pane screen-stack brief-main space-y-6">
+            <section className="glass flex flex-wrap items-end justify-between gap-6 !rounded-[28px] px-6 py-6 sm:px-8 sm:py-7" aria-label="Briefing headline">
+              <div className="min-w-0 max-w-2xl">
+                <p className="text-xs font-semibold tracking-wide text-white/45 uppercase">Today&apos;s briefing</p>
+                <h2 className="mt-2 text-[22px] font-semibold leading-snug tracking-[-0.02em] text-zinc-50 sm:text-[26px]">
+                  {b.headline}
+                </h2>
+              </div>
+              <div className="sm:text-right">
+                <p className="text-xs font-semibold tracking-wide text-white/45 uppercase">Potential savings</p>
+                <p className="mt-1 text-[38px] font-light leading-none tracking-[-0.04em] tabular-nums text-emerald-200">
+                  {formatCents(b.potentialAnnualSavingsCents, { whole: true })}
+                  <span className="text-base text-white/45"> /yr</span>
+                </p>
+              </div>
+            </section>
 
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
-            <Stat label="Monthly income" value={formatCents(b.snapshot.monthlyIncomeCents, { whole: true })} detail={`Average of ${b.snapshot.windowDays} days`} />
-            <Stat label="Monthly spending" value={formatCents(b.snapshot.monthlySpendingCents, { whole: true })} detail="Own-account moves excluded" />
-            <Stat
-              label="Savings rate"
-              value={b.snapshot.savingsRatePct === null ? "—" : `${b.snapshot.savingsRatePct}%`}
-              tone={b.snapshot.savingsRatePct !== null && b.snapshot.savingsRatePct < 0 ? "text-red-300" : "text-zinc-50"}
-            />
-            <Stat
-              label="Emergency fund"
-              value={b.snapshot.emergencyFundMonths === null ? "—" : `${b.snapshot.emergencyFundMonths} mo`}
-              detail={`${formatCents(b.snapshot.savingsCents, { whole: true })} in savings`}
-            />
-            <Stat label="Invested" value={formatCents(b.snapshot.investedCents, { whole: true })} detail="Simulated prices · paper excluded" />
-          </div>
-
-          {b.attention.length > 0 && (
-            <Card title="Needs your attention" subtitle="Your assistant can't act on these. Each link opens the page where you can.">
-              <ul className="grid gap-2">
-                {b.attention.map((a) => (
-                  <AttentionRow key={a.id} item={a} />
-                ))}
-              </ul>
-            </Card>
-          )}
-
-          <div className="grid gap-6 lg:grid-cols-12">
-            <div className="min-w-0 space-y-6 lg:col-span-7">
-              {(["spending", "save", "invest"] as const).map((kind) =>
-                tipsBy(kind).length === 0 ? null : (
-                  <Card key={kind} title={KIND[kind].title} subtitle={KIND[kind].subtitle}>
-                    <ul className="grid gap-3">
-                      {tipsBy(kind).map((t) => (
-                        <TipCard key={t.id} tip={t} />
-                      ))}
-                    </ul>
-                  </Card>
-                ),
-              )}
-              {b.tips.length === 0 && (
-                <Card title="Tips">
-                  <EmptyState>Nothing stands out right now. Your assistant keeps checking in the background.</EmptyState>
-                </Card>
-              )}
+            <div className="brief-stats grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+              <Stat label="Monthly income" value={formatCents(b.snapshot.monthlyIncomeCents, { whole: true })} detail={`Average of ${b.snapshot.windowDays} days`} />
+              <Stat label="Monthly spending" value={formatCents(b.snapshot.monthlySpendingCents, { whole: true })} detail="Own-account moves excluded" />
+              <Stat
+                label="Savings rate"
+                value={b.snapshot.savingsRatePct === null ? "—" : `${b.snapshot.savingsRatePct}%`}
+                tone={b.snapshot.savingsRatePct !== null && b.snapshot.savingsRatePct < 0 ? "text-red-300" : "text-zinc-50"}
+              />
+              <Stat
+                label="Emergency fund"
+                value={b.snapshot.emergencyFundMonths === null ? "—" : `${b.snapshot.emergencyFundMonths} mo`}
+                detail={`${formatCents(b.snapshot.savingsCents, { whole: true })} in savings`}
+              />
+              <Stat label="Invested" value={formatCents(b.snapshot.investedCents, { whole: true })} detail="Simulated prices · paper excluded" />
             </div>
 
-            <div className="min-w-0 space-y-6 lg:col-span-5">
-              <Card title="Where your money went" subtitle="Last 30 days, by category">
-                {b.snapshot.topCategories.length === 0 ? (
-                  <EmptyState>No spending in the last 30 days.</EmptyState>
-                ) : (
-                  <ul className="space-y-3" aria-label="Spending by category">
-                    {b.snapshot.topCategories.map((c) => (
-                      <li key={c.category}>
-                        <div className="flex items-baseline justify-between gap-3 text-sm">
-                          <span className="text-zinc-100">{titleCase(c.category)}</span>
-                          <span className="tabular-nums text-white/60">
-                            {formatCents(c.cents)} · {c.pct}%
-                          </span>
-                        </div>
-                        <div className="mt-1.5 h-1.5 rounded-full bg-white/[0.06]" aria-hidden>
-                          <div className="h-1.5 rounded-full bg-brand-400" style={{ width: `${Math.max(2, Math.min(100, c.pct))}%` }} />
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
-
-              <Card title="Market movers today" subtitle="Simulated prices — not real market data">
-                <ul className="divide-y divide-white/[0.06]">
-                  {b.movers.map((m) => (
-                    <li key={m.symbol} className="flex items-center justify-between gap-3 py-2 text-sm">
-                      <span className="min-w-0 truncate">
-                        <span className="font-semibold text-zinc-50">{m.symbol}</span>{" "}
-                        <span className="text-white/50">{m.name}</span>
-                      </span>
-                      <span className={`shrink-0 tabular-nums ${m.changePct >= 0 ? "text-emerald-300" : "text-red-300"}`}>
-                        {formatPct(m.changePct)}
-                      </span>
-                    </li>
+            {b.attention.length > 0 && (
+              <Card title="Needs your attention" subtitle="Your assistant can't act on these. Each link opens the page where you can.">
+                <ul className="grid gap-2">
+                  {b.attention.map((a) => (
+                    <AttentionRow key={a.id} item={a} />
                   ))}
                 </ul>
               </Card>
-            </div>
+            )}
+
+            {(["spending", "save", "invest"] as const).map((kind) =>
+              tipsBy(kind).length === 0 ? null : (
+                <Card key={kind} title={KIND[kind].title} subtitle={KIND[kind].subtitle}>
+                  <ul className="grid gap-3">
+                    {tipsBy(kind).map((t) => (
+                      <TipCard key={t.id} tip={t} />
+                    ))}
+                  </ul>
+                </Card>
+              ),
+            )}
+            {b.tips.length === 0 && (
+              <Card title="Tips">
+                <EmptyState>Nothing stands out right now. Your assistant keeps checking in the background.</EmptyState>
+              </Card>
+            )}
           </div>
 
-          <Card
-            title="Research desk"
-            subtitle="Each of your holdings over the last 90 days of simulated prices. Describes the past; not a forecast or advice."
-          >
-            {b.research.length === 0 ? (
-              <EmptyState>You don&apos;t hold any investments yet.</EmptyState>
-            ) : (
-              <ul className="grid gap-3 md:grid-cols-2">
-                {b.research.map((r) => (
-                  <ResearchCard key={r.symbol} note={r} />
+          {/* Right: where the money went, markets and the research desk. */}
+          <div className="screen-pane screen-stack brief-side space-y-6">
+            <Card title="Where your money went" subtitle="Last 30 days, by category">
+              {b.snapshot.topCategories.length === 0 ? (
+                <EmptyState>No spending in the last 30 days.</EmptyState>
+              ) : (
+                <ul className="space-y-3" aria-label="Spending by category">
+                  {b.snapshot.topCategories.map((c) => (
+                    <li key={c.category}>
+                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                        <span className="text-zinc-100">{titleCase(c.category)}</span>
+                        <span className="tabular-nums text-white/60">
+                          {formatCents(c.cents)} · {c.pct}%
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 rounded-full bg-white/[0.06]" aria-hidden>
+                        <div className="h-1.5 rounded-full bg-brand-400" style={{ width: `${Math.max(2, Math.min(100, c.pct))}%` }} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+
+            <Card title="Market movers today" subtitle="Simulated prices — not real market data">
+              <ul className="divide-y divide-white/[0.06]">
+                {b.movers.map((m) => (
+                  <li key={m.symbol} className="flex items-center justify-between gap-3 py-2 text-sm">
+                    <span className="min-w-0 truncate">
+                      <span className="font-semibold text-zinc-50">{m.symbol}</span>{" "}
+                      <span className="text-white/50">{m.name}</span>
+                    </span>
+                    <span className={`shrink-0 tabular-nums ${m.changePct >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                      {formatPct(m.changePct)}
+                    </span>
+                  </li>
                 ))}
               </ul>
-            )}
-          </Card>
+            </Card>
 
-          <p className="text-xs text-white/40">
-            {b.disclaimer} See what each background agent may read on the{" "}
-            <Link href="/security" className="underline underline-offset-2">
-              Security
-            </Link>{" "}
-            page.
-          </p>
-        </>
+            <Card
+              title="Research desk"
+              subtitle="Each of your holdings over the last 90 days of simulated prices. Describes the past; not a forecast or advice."
+            >
+              {b.research.length === 0 ? (
+                <EmptyState>You don&apos;t hold any investments yet.</EmptyState>
+              ) : (
+                <ul className="brief-research grid gap-3 md:grid-cols-2">
+                  {b.research.map((r) => (
+                    <ResearchCard key={r.symbol} note={r} />
+                  ))}
+                </ul>
+              )}
+            </Card>
+
+            <p className="text-xs text-white/40">
+              {b.disclaimer} See what each background agent may read on the{" "}
+              <Link href="/security" className="underline underline-offset-2">
+                Security
+              </Link>{" "}
+              page.
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );

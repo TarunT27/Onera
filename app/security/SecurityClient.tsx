@@ -30,6 +30,7 @@ import { ErrorBox } from "../components/ErrorBox";
 import { formatDateTime } from "../components/format";
 import { InsightCard } from "../components/InsightCard";
 import { useApiData } from "../components/useApiData";
+import "./security-screen.css";
 
 const SECURITY_AGENTS = new Set(["threat_monitor", "security_sentinel"]);
 const POLL_MS = 10_000;
@@ -134,18 +135,20 @@ export function SecurityClient() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Security"
-        description="Background monitors watch your audit log and every assistant conversation for attack patterns and flag them here. They can only raise alerts: they can't pause, approve or move money."
-        action={
-          <Button onClick={() => void runSweep()} busy={running}>
-            Run sweep now
-          </Button>
-        }
-      />
+    <div className="security-screen screen space-y-6">
+      <div className="security-head">
+        <PageHeader
+          title="Security"
+          description="Background monitors watch your audit log and every assistant conversation for attack patterns and flag them here. They can only raise alerts: they can't pause, approve or move money."
+          action={
+            <Button onClick={() => void runSweep()} busy={running}>
+              Run sweep now
+            </Button>
+          }
+        />
+      </div>
 
-      <p className="flex flex-wrap items-center gap-2 text-[13px] text-white/55">
+      <p className="security-note flex flex-wrap items-center gap-2 text-[13px] text-white/55">
         <SyntheticLabel />
         <ShieldCheck size={16} weight="fill" aria-hidden />
         Rule-based monitoring of synthetic activity. Advisory only; it doesn&apos;t block transfers, and it isn&apos;t a
@@ -154,7 +157,7 @@ export function SecurityClient() {
 
       <ErrorBox error={error} onDismiss={() => setError(null)} />
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div className="security-stats grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Stat label="Critical" value={count("critical")} tone="text-red-300" />
         <Stat label="Warnings" value={count("warning")} tone="text-amber-200" />
         <Stat
@@ -170,48 +173,56 @@ export function SecurityClient() {
         />
       </div>
 
-      <Card
-        title="Alerts"
-        subtitle={`${open.length} open · refreshes every ${POLL_MS / 1000} s`}
-      >
-        <ErrorBox error={insights.error} title="Couldn't load alerts" className="mb-3" onRetry={() => void insights.reload()} />
-        {insights.loading && !insights.data ? (
-          <Loading label="Loading alerts…" />
-        ) : alerts.length === 0 ? (
-          <EmptyState>No security alerts. The monitor flags suspicious activity here as soon as it sees it.</EmptyState>
-        ) : (
-          <ul className="monitoring-list is-single" aria-label="Security alerts">
-            {alerts.map((i) => (
-              <Alert
-                key={i.id}
-                insight={i}
-                cited={((i.evidence.auditEventIds as number[] | undefined) ?? []).flatMap((id) => eventById.get(id) ?? [])}
-                busy={busyId === i.id}
-                disabled={busyId !== null}
-                paused={paused}
-                onMark={(s) => void mark(i, s)}
-                onPause={pauseTransfers}
-              />
-            ))}
-          </ul>
-        )}
-      </Card>
+      <div className="security-body screen-body space-y-6">
+        <div className="security-findings space-y-6">
+          <Card
+            title="Alerts"
+            subtitle={`${open.length} open · refreshes every ${POLL_MS / 1000} s`}
+            className="security-card security-alerts"
+            bodyClassName="security-card-body"
+          >
+            <ErrorBox error={insights.error} title="Couldn't load alerts" className="mb-3" onRetry={() => void insights.reload()} />
+            {insights.loading && !insights.data ? (
+              <Loading label="Loading alerts…" />
+            ) : alerts.length === 0 ? (
+              <EmptyState>No security alerts. The monitor flags suspicious activity here as soon as it sees it.</EmptyState>
+            ) : (
+              <ul className="monitoring-list is-single" aria-label="Security alerts">
+                {alerts.map((i) => (
+                  <Alert
+                    key={i.id}
+                    insight={i}
+                    cited={((i.evidence.auditEventIds as number[] | undefined) ?? []).flatMap((id) => eventById.get(id) ?? [])}
+                    busy={busyId === i.id}
+                    disabled={busyId !== null}
+                    paused={paused}
+                    onMark={(s) => void mark(i, s)}
+                    onPause={pauseTransfers}
+                  />
+                ))}
+              </ul>
+            )}
+          </Card>
 
-      <AssistantMonitor chat={chat} />
+          <AssistantMonitor chat={chat} className="security-card security-monitor" bodyClassName="security-card-body" />
+        </div>
 
-      <Card
-        title="Security events"
-        subtitle="Refused requests, holds, recipient and control changes from your audit log, newest first"
-      >
-        <ErrorBox error={audit.error} title="Couldn't load audit log" className="mb-3" />
-        {audit.loading && !audit.data ? (
-          <Loading />
-        ) : timeline.length > 0 ? (
-          <AuditList events={timeline} variant="table" />
-        ) : audit.error ? null : (
-          <EmptyState>No security events yet.</EmptyState>
-        )}
-      </Card>
+        <Card
+          title="Security events"
+          subtitle="Refused requests, holds, recipient and control changes from your audit log, newest first"
+          className="security-card security-events"
+          bodyClassName="security-card-body"
+        >
+          <ErrorBox error={audit.error} title="Couldn't load audit log" className="mb-3" />
+          {audit.loading && !audit.data ? (
+            <Loading />
+          ) : timeline.length > 0 ? (
+            <AuditList events={timeline} variant="table" />
+          ) : audit.error ? null : (
+            <EmptyState>No security events yet.</EmptyState>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }
@@ -223,7 +234,7 @@ function Stat({ label, value, tone = "text-zinc-50", detail }: {
   detail?: ReactNode;
 }) {
   return (
-    <section className="glass min-w-0 !rounded-[24px] px-5 py-4">
+    <section className="security-stat glass min-w-0 !rounded-[24px] px-5 py-4">
       <p className="text-xs font-semibold tracking-wide text-white/45 uppercase">{label}</p>
       <p className={`mt-1 text-2xl font-semibold tracking-tight tabular-nums ${tone}`}>{value}</p>
       {detail && <p className="mt-1 truncate text-xs text-white/45">{detail}</p>}

@@ -13,6 +13,7 @@ import { ErrorBox } from "../components/ErrorBox";
 import { formatTxnDate, prettyJson } from "../components/format";
 import { Money } from "../components/Money";
 import { useApiData } from "../components/useApiData";
+import "./chat-screen.css";
 
 type UiMessage =
   | { id: number; role: "user"; content: string; delivery?: "unknown" }
@@ -90,6 +91,8 @@ export function ChatClient() {
   const [elapsed, setElapsed] = useState(0);
   const nextId = useRef(1);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  const jumpedToLatest = useRef(false);
   const research = useApiData<ResearchResponse>(paths.research);
   const monitor = useApiData<ChatSecurityResponse>(`${paths.chatSecurity}?limit=5`);
   const restored = useRef(false);
@@ -126,6 +129,13 @@ export function ChatClient() {
   }, [pending]);
 
   useEffect(() => {
+    // Desktop: the log scrolls inside its pane. Open a restored conversation at the newest message, instantly.
+    const log = logRef.current;
+    if (!jumpedToLatest.current && messages.length > 0 && log && log.scrollHeight > log.clientHeight) {
+      jumpedToLatest.current = true;
+      log.scrollTop = log.scrollHeight;
+      return;
+    }
     if (messages.length > 0 || pending) {
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       bottomRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "nearest" });
@@ -176,124 +186,131 @@ export function ChatClient() {
   }
 
   return (
-    <div>
-      <AssistantTabs />
-      <PageHeader
-        title="Ask Onera"
-        description="Ask about your synthetic accounts in plain English. The assistant can read your data and propose transfers — it cannot approve, execute, change limits or verify recipients."
-        action={
-          messages.length > 0 ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={pending}
-              onClick={() => {
-                setMessages([]);
-                setError(null);
-                conversationId.current = storeConversationId(newConversationId());
-              }}
-            >
-              Clear conversation
-            </Button>
-          ) : undefined
-        }
-      />
-
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="min-w-0 lg:col-span-8">
-          <Card bodyClassName="space-y-4">
-            {messages.length === 0 && !pending ? (
-              <div className="py-6 text-center">
-                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Start with a suggestion or ask your own question.</p>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                  Answers can take 10–30 seconds while the assistant calls tools.
-                </p>
-              </div>
-            ) : (
-              <ol className="space-y-5" aria-live="polite">
-                {messages.map((m) =>
-                  m.role === "user" ? (
-                    <UserBubble key={m.id} content={m.content} delivery={m.delivery} />
-                  ) : (
-                    <AssistantMessage key={m.id} response={m.response} />
-                  ),
-                )}
-                {pending && (
-                  <li className="flex items-center gap-3 rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300">
-                    <Spinner className="text-brand-600" />
-                    <span>
-                      Onera is thinking and calling tools…{" "}
-                      <span aria-hidden className="tabular-nums text-zinc-400">
-                        {elapsed}s
-                      </span>
-                      <span className="block text-xs text-zinc-500 dark:text-zinc-400">This can take 10–30 seconds.</span>
-                    </span>
-                  </li>
-                )}
-              </ol>
-            )}
-            <div ref={bottomRef} />
-
-            <ErrorBox error={error} title="The assistant request failed" onDismiss={() => setError(null)} />
-            {error !== null && (
-              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-                A tool call may have completed before the response was lost. Check{" "}
-                <Link href="/transfers" className="font-semibold underline underline-offset-2">
-                  Transfers
-                </Link>{" "}
-                before repeating an action request.
-              </p>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
+    <div className="screen chat-screen">
+      <div className="screen-title chat-title">
+        <AssistantTabs />
+        <PageHeader
+          title="Ask Onera"
+          description="Ask about your synthetic accounts in plain English. The assistant can read your data and propose transfers — it cannot approve, execute, change limits or verify recipients."
+          action={
+            messages.length > 0 ? (
+              <Button
+                size="sm"
+                variant="ghost"
                 disabled={pending}
-                onClick={() => void send(INJECTION_PROMPT)}
-                className="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-left text-xs font-semibold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70"
+                onClick={() => {
+                  setMessages([]);
+                  setError(null);
+                  conversationId.current = storeConversationId(newConversationId());
+                }}
               >
-                🚨 Red-Team: Injected Invoice Attack
-              </button>
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  disabled={pending}
-                  onClick={() => void send(s)}
-                  className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-left text-xs font-medium text-zinc-700 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-brand-700 dark:hover:bg-brand-950/50 dark:hover:text-brand-300"
-                >
-                  {s}
-                </button>
-              ))}
+                Clear conversation
+              </Button>
+            ) : undefined
+          }
+        />
+      </div>
+
+      <div className="screen-body chat-body grid gap-6 lg:grid-cols-12">
+        <div className="chat-main min-w-0 lg:col-span-8">
+          <Card bodyClassName="space-y-4">
+            {/* The conversation scrolls on its own on desktop; the composer below stays pinned. */}
+            <div ref={logRef} className="chat-log space-y-4">
+              {messages.length === 0 && !pending ? (
+                <div className="py-6 text-center">
+                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Start with a suggestion or ask your own question.</p>
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    Answers can take 10–30 seconds while the assistant calls tools.
+                  </p>
+                </div>
+              ) : (
+                <ol className="space-y-5" aria-live="polite">
+                  {messages.map((m) =>
+                    m.role === "user" ? (
+                      <UserBubble key={m.id} content={m.content} delivery={m.delivery} />
+                    ) : (
+                      <AssistantMessage key={m.id} response={m.response} />
+                    ),
+                  )}
+                  {pending && (
+                    <li className="flex items-center gap-3 rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300">
+                      <Spinner className="text-brand-600" />
+                      <span>
+                        Onera is thinking and calling tools…{" "}
+                        <span aria-hidden className="tabular-nums text-zinc-400">
+                          {elapsed}s
+                        </span>
+                        <span className="block text-xs text-zinc-500 dark:text-zinc-400">This can take 10–30 seconds.</span>
+                      </span>
+                    </li>
+                  )}
+                </ol>
+              )}
+              <div ref={bottomRef} />
             </div>
 
-            <form onSubmit={onSubmit} className="space-y-2">
-              <label htmlFor="chat-input" className="sr-only">
-                Message
-              </label>
-              <textarea
-                id="chat-input"
-                name="message"
-                rows={3}
-                maxLength={MAX_CONTENT}
-                autoComplete="off"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={onKeyDown}
-                placeholder="Ask about spending, subscriptions, or say “Pay Oak Street Properties $1,850 for rent”…"
-                className="block w-full min-w-0 resize-y rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-              />
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">Enter to send · Shift+Enter for a new line</p>
-                <Button type="submit" variant="primary" busy={pending} disabled={!input.trim()}>
-                  Send
-                </Button>
+            <div className="chat-composer space-y-4">
+              <ErrorBox error={error} title="The assistant request failed" onDismiss={() => setError(null)} />
+              {error !== null && (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                  A tool call may have completed before the response was lost. Check{" "}
+                  <Link href="/transfers" className="font-semibold underline underline-offset-2">
+                    Transfers
+                  </Link>{" "}
+                  before repeating an action request.
+                </p>
+              )}
+
+              <div className="chat-suggestions flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => void send(INJECTION_PROMPT)}
+                  className="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-left text-xs font-semibold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70"
+                >
+                  🚨 Red-Team: Injected Invoice Attack
+                </button>
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    disabled={pending}
+                    onClick={() => void send(s)}
+                    className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-left text-xs font-medium text-zinc-700 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-brand-700 dark:hover:bg-brand-950/50 dark:hover:text-brand-300"
+                  >
+                    {s}
+                  </button>
+                ))}
               </div>
-            </form>
+
+              <form onSubmit={onSubmit} className="space-y-2">
+                <label htmlFor="chat-input" className="sr-only">
+                  Message
+                </label>
+                <textarea
+                  id="chat-input"
+                  name="message"
+                  rows={3}
+                  maxLength={MAX_CONTENT}
+                  autoComplete="off"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  placeholder="Ask about spending, subscriptions, or say “Pay Oak Street Properties $1,850 for rent”…"
+                  className="block w-full min-w-0 resize-y rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Enter to send · Shift+Enter for a new line</p>
+                  <Button type="submit" variant="primary" busy={pending} disabled={!input.trim()}>
+                    Send
+                  </Button>
+                </div>
+              </form>
+            </div>
           </Card>
         </div>
 
-        <aside className="min-w-0 space-y-6 lg:col-span-4">
+        <aside className="screen-pane screen-stack chat-aside min-w-0 space-y-6 lg:col-span-4">
           <Card title="Security monitor" subtitle="Reviews every turn in the background">
             {monitor.data ? (
               <div className="space-y-2 text-sm">

@@ -33,6 +33,7 @@ import { Card, EmptyState, Loading, PageHeader } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
 import { centsToDollarInput, formatCents, formatTxnDate, parseDollarsToCents } from "../components/format";
 import { useApiData } from "../components/useApiData";
+import "./family-screen.css";
 
 const CATEGORY_META: Record<CardCategory, { label: string; Icon: typeof ForkKnife }> = {
   dining: { label: "Dining", Icon: ForkKnife },
@@ -68,7 +69,7 @@ export function FamilyClient() {
   const parent = cards[0]?.parentAccount;
 
   return (
-    <div className="space-y-6">
+    <div className="family-screen screen space-y-6">
       <PageHeader
         title="Family"
         description="Secondary cards for your kids on your credit card. See what they spend, set limits, and freeze a card in one tap."
@@ -89,8 +90,10 @@ export function FamilyClient() {
           <EmptyState>No family cards yet. In the demo, Alice has secondary cards for Maya and Leo — switch to Alice to see them.</EmptyState>
         </Card>
       ) : (
-        <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+        // Desktop (901px+): one screen. Totals sit in a narrow column beside one
+        // column per kid; each column scrolls inside itself.
+        <div className="screen-body family-body space-y-6">
+          <div className="family-stats screen-pane grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
             <Stat
               label="Spent this month"
               value={formatCents(totalSpent)}
@@ -110,12 +113,12 @@ export function FamilyClient() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <div className="family-kids grid grid-cols-1 gap-5 xl:grid-cols-2">
             {cards.map((card) => (
               <KidCard key={card.id} card={card} onChange={replaceCard} />
             ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -164,7 +167,7 @@ function KidCard({ card, onChange }: { card: FamilyCard; onChange: (c: FamilyCar
   }
 
   return (
-    <section className="glass min-w-0 !rounded-[28px] p-5 sm:p-6" aria-labelledby={`kid-${card.id}`}>
+    <section className="family-kid glass min-w-0 !rounded-[28px] p-5 sm:p-6" aria-labelledby={`kid-${card.id}`}>
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3.5">
@@ -219,6 +222,8 @@ function KidCard({ card, onChange }: { card: FamilyCard; onChange: (c: FamilyCar
         </div>
       </div>
 
+      {/* Alerts, spending and settings scroll inside the card on desktop. */}
+      <div className="family-kid-scroll">
       {/* Alerts */}
       {card.alerts.length > 0 && (
         <ul className="mt-4 space-y-2">
@@ -279,6 +284,7 @@ function KidCard({ card, onChange }: { card: FamilyCard; onChange: (c: FamilyCar
       <div className="mt-5 space-y-3">
         <Controls card={card} onChange={onChange} />
         <TryPurchase card={card} onChange={onChange} />
+      </div>
       </div>
     </section>
   );

@@ -52,7 +52,11 @@ export function monitorLabel(s: MonitorStatus): string {
   }
 }
 
-export function AssistantMonitor({ chat }: { chat: ApiData<ChatSecurityResponse> }) {
+export function AssistantMonitor({ chat, className, bodyClassName }: {
+  chat: ApiData<ChatSecurityResponse>;
+  className?: string;
+  bodyClassName?: string;
+}) {
   const s = chat.data?.status;
   const findings = chat.data?.findings ?? [];
   const events = chat.data?.events ?? [];
@@ -61,6 +65,8 @@ export function AssistantMonitor({ chat }: { chat: ApiData<ChatSecurityResponse>
     <Card
       title="Assistant security monitor"
       subtitle="A background worker reviews every chat turn for unsafe instructions, blocked tool use and unsupported claims"
+      className={className}
+      bodyClassName={bodyClassName}
     >
       <ErrorBox error={chat.error} title="Couldn't load the assistant monitor" className="mb-3" onRetry={() => void chat.reload()} />
       {!chat.data ? (

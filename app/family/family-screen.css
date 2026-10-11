@@ -1,0 +1,117 @@
+/* Family: one-screen layout (desktop only).
+   From 901px up the page fills the window (see "One-screen pages" in
+   globals.css): totals sit in a narrow column beside one column per kid card.
+   Each kid card keeps its name, freeze button and monthly spend in view while
+   alerts, spending, activity and settings scroll inside it. Phones and
+   tablets (≤900px) keep the natural scrolling layout. */
+@media (min-width: 901px) {
+  /* The shell's flex column spaces the rows; drop the mobile space-y margins. */
+  .family-screen.screen > *,
+  .family-body > * {
+    margin-block: 0;
+  }
+
+  /* Compact title: "Family" with its description on one line. */
+  .family-screen > div:first-child {
+    align-items: center;
+    margin: 0 4px 6px;
+  }
+  .family-screen > div:first-child > div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 16px;
+  }
+  .family-screen > div:first-child h1 {
+    font-size: 28px;
+    line-height: 1.1;
+  }
+  .family-screen > div:first-child h1 + p {
+    max-width: none;
+    margin-top: 0;
+    font-size: 14px;
+  }
+  .family-screen > div:first-child + p {
+    margin: 0 4px 14px;
+  }
+  .family-screen > [role="alert"] {
+    margin-bottom: 12px;
+  }
+
+  /* Totals | kid cards. */
+  .family-body {
+    grid-template-columns: minmax(200px, 250px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .family-stats {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 12px;
+  }
+  .family-stats > section {
+    order: 0;
+    grid-column: auto;
+  }
+  .family-stats > section > p:first-child {
+    white-space: normal;
+  }
+  .family-kids {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 16px;
+    min-height: 0;
+  }
+
+  /* A kid card fills its column; the summary stays, the rest scrolls inside
+     the glass (so the hairline edge never scrolls away). */
+  .family-kid {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .family-kid > * {
+    flex-shrink: 0;
+  }
+  .family-kid > div:first-child {
+    flex-wrap: nowrap;
+  }
+  .family-kid > div:first-child > div:last-child {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  .family-kid > .family-kid-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+    margin: 18px -12px 0 0;
+    padding: 0 12px 2px 0;
+    border-top: 1px solid rgb(255 255 255 / 0.06);
+  }
+  .family-kid > .family-kid-scroll > :first-child {
+    margin-top: 16px;
+  }
+  /* Spend summary sits a little tighter under the name. */
+  .family-kid > div:first-child + div,
+  .family-kid > [role="alert"] + div {
+    margin-top: 18px;
+  }
+}
+
+/* Narrow desktop: kid columns are ~330px, so stack the purchase form fields. */
+@media (min-width: 901px) and (max-width: 1180px) {
+  .family-body {
+    grid-template-columns: minmax(180px, 200px) minmax(0, 1fr);
+  }
+  .family-kid {
+    padding: 18px;
+  }
+  .family-kid-scroll details .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

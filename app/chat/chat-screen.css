@@ -1,0 +1,134 @@
+/* ─── Ask Onera: one-screen chat (desktop) ───
+   From 901px up the page fills the window (see "One-screen pages" in
+   globals.css). The conversation scrolls inside the chat card with the
+   suggestions and composer pinned at its bottom; the side cards scroll in their
+   own pane. Phones and tablets (≤900px) keep the natural scrolling layout. */
+@media (min-width: 901px) {
+  /* Compact header: assistant tabs, title + explainer, then the action. */
+  .chat-screen .chat-title {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 18px;
+  }
+  .chat-screen .chat-title > nav {
+    flex-shrink: 0;
+    margin: 0;
+  }
+  .chat-screen .chat-title > div {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+    margin-bottom: 0;
+  }
+  .chat-screen .chat-title > div > div {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+  }
+  .chat-screen .chat-title > div > button {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .chat-screen .chat-title h1 {
+    flex-shrink: 0;
+    font-size: 28px;
+  }
+  .chat-screen .chat-title p {
+    margin: 0;
+    max-width: 640px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .chat-screen .chat-body {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  /* Two plain columns: undo the lg:col-span-* of the 12-column fallback grid. */
+  .chat-screen .chat-body > * {
+    grid-column: auto;
+  }
+
+  /* Classic chat: the card fills the column, the message list scrolls and the
+     composer stays at the bottom. */
+  .chat-screen .chat-main {
+    display: flex;
+    min-height: 0;
+  }
+  .chat-screen .chat-main > section {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .chat-screen .chat-main > section > div {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 18px;
+  }
+  .chat-screen .chat-log {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+    /* Room so bubbles don't touch the card edge; the scrollbar sits in the gutter. */
+    margin: 0 -14px 14px -6px;
+    padding: 20px 14px 4px 6px;
+    /* Soft fade where messages slide under the card top. */
+    mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
+  }
+  /* An empty conversation sits in the middle of the log. */
+  .chat-screen .chat-log:has(> .py-6) {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .chat-screen .chat-composer {
+    flex-shrink: 0;
+    padding-top: 14px;
+    border-top: 1px solid rgb(255 255 255 / 0.07);
+  }
+  .chat-screen .chat-composer textarea {
+    max-height: 30vh;
+  }
+
+  /* Side cards: a stack that scrolls in its own pane. */
+  .chat-screen .chat-aside > * {
+    margin-block: 0;
+  }
+}
+
+/* Short windows: a two-line composer leaves more room for the conversation. */
+@media (min-width: 901px) and (max-height: 820px) {
+  .chat-screen .chat-composer textarea {
+    height: 64px;
+  }
+}
+
+/* Narrow desktops: slimmer side column, and the suggestions become one row
+   that scrolls sideways so the conversation keeps its height. */
+@media (min-width: 901px) and (max-width: 1100px) {
+  .chat-screen .chat-body {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+  .chat-screen .chat-suggestions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-inline: -4px;
+    padding: 2px 4px;
+    /* Hints that more suggestions continue to the right. */
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  .chat-screen .chat-suggestions > button {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}

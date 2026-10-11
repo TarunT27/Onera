@@ -1,0 +1,114 @@
+/* Security: one-screen layout (desktop only).
+   From 901px up the page fits the window (see "One-screen pages" in
+   globals.css): a compact header and stat strip, then findings on the left
+   (alerts above the assistant monitor) and the security event log on the
+   right. Each card keeps its header in view and scrolls its body. Phones and
+   tablets (≤900px) keep the natural scrolling layout. */
+@media (min-width: 901px) {
+  .security-screen {
+    gap: 12px;
+  }
+  .security-screen > *,
+  .security-body > *,
+  .security-findings > * {
+    margin-block: 0;
+  }
+
+  /* Compact header: title, description and the sweep button in a row. */
+  .security-head > div {
+    flex-wrap: nowrap;
+    align-items: center;
+    margin: 0 4px;
+    gap: 6px 24px;
+  }
+  .security-head > div > :first-child {
+    flex: 1 1 auto;
+  }
+  .security-head > div > :last-child {
+    flex-shrink: 0;
+  }
+  .security-head h1 {
+    font-size: 28px;
+    line-height: 1.1;
+  }
+  .security-head p {
+    max-width: 860px;
+    margin-top: 4px;
+    font-size: 13px;
+  }
+  .security-note {
+    margin: 0 4px;
+    font-size: 12.5px;
+  }
+
+  /* Stat strip: shorter tiles. */
+  .security-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .security-stat {
+    padding: 8px 18px;
+  }
+  .security-stat > p:nth-child(2) {
+    margin-top: 0;
+    font-size: 20px;
+    line-height: 1.25;
+  }
+  .security-stat > p:nth-child(3) {
+    margin-top: 0;
+  }
+
+  .security-body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  }
+  .security-findings {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  /* Cards are panes: the header stays put and the body scrolls. */
+  .security-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  /* Alerts take what they need (up to 60%); the assistant monitor gets the rest. */
+  .security-findings > .security-alerts {
+    flex: 0 1 auto;
+    max-height: 60%;
+    min-height: 168px;
+  }
+  .security-findings > .security-monitor {
+    flex: 1 1 0;
+    min-height: 168px;
+  }
+  .security-card > header {
+    flex-shrink: 0;
+    padding-top: 18px;
+  }
+  .security-card-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-top: 12px;
+    padding-bottom: 18px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+  }
+  /* Shorter empty states so both findings cards show their content. */
+  .security-card-body .rounded-2xl.text-center {
+    padding-block: 18px;
+  }
+}
+
+/* The audit table's columns are sized for a full-width page; fit them to the pane. */
+@media (min-width: 1280px) {
+  .security-events [class*="xl:grid-cols"] {
+    grid-template-columns: 8.5rem 5.5rem minmax(0, 1fr) 6rem 7.5rem;
+    column-gap: 12px;
+  }
+}

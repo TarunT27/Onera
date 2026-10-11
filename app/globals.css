@@ -3505,3 +3505,84 @@
     height: 34px;
   }
 }
+
+/* ─── One-screen pages (desktop) ───
+   The Trade layout, generalized. A page whose root carries .screen fills the
+   window between the top bar and the floating voice button from 901px up:
+   the page never scrolls, and each .screen-pane scrolls inside itself.
+   .screen-body is the flexible grid that takes the remaining height; pages set
+   its columns. The synthetic-data footer becomes a small fixed label so it
+   stays in view. Tablets and phones (≤900px) keep the natural scrolling layout. */
+@media (min-width: 901px) {
+  .app-main:has(.screen) {
+    --screen-top: 92px;
+    /* Room for the floating voice button (56px at 20px from the bottom). */
+    --screen-bottom: 88px;
+    padding-top: var(--screen-top);
+    min-height: 0;
+  }
+  .app-main:has(.screen) ~ .app-footer {
+    position: fixed;
+    left: 28px;
+    bottom: 26px;
+    z-index: 5;
+    width: auto;
+    max-width: calc(50vw - 150px);
+    margin: 0;
+    line-height: 1.45;
+    pointer-events: none;
+  }
+  .screen {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--screen-top) - var(--screen-bottom));
+    /* 720px-tall windows leave 540px; below ~460px the page scrolls a little instead of crushing panes. */
+    min-height: 460px;
+  }
+  .screen > * {
+    flex-shrink: 0;
+  }
+  .screen > .screen-body {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .screen-body {
+    display: grid;
+    gap: 16px;
+    align-items: stretch;
+  }
+  .screen-pane {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.16) transparent;
+    /* Keeps tile hairlines and focus rings from being clipped at the pane edge. */
+    padding: 2px;
+    margin: -2px;
+  }
+  /* A stack of tiles inside a pane. */
+  .screen-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .screen-stack > * {
+    flex-shrink: 0;
+  }
+  /* Compact one-line page title, as on Trade. */
+  .screen-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    margin: 0 4px 12px;
+  }
+  .screen-title h1 {
+    margin: 0;
+    font-size: 28px;
+    line-height: 1.1;
+  }
+}
