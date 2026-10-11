@@ -28,4 +28,8 @@ npm run worker -- --limit 50      # max jobs per tick (default 25)
 
 Each tick logs one line: `scheduled`, `deduped`, `processed`, `succeeded`, `failed`, `dead`. A tick that throws is logged and the loop continues. SIGINT/SIGTERM lets the current tick finish, closes the database and exits; a second signal exits immediately. Crashed workers are safe: leased jobs are requeued when the lease expires.
 
-The worker is optional for the demo. The demo endpoint `POST /api/agents/run` (for a "run agents now" button) does one bounded tick (up to 50 jobs) synchronously for the session user only.
+**In-process worker (default).** `instrumentation.ts` starts the same loop inside the Next.js server process (Node.js runtime, not during `next build`), so the agents run in the background with no second terminal. Set `CLEARFI_INPROCESS_WORKER=off` to rely on `npm run worker` instead; running both is safe because job leases stop a job running twice.
+
+**Heartbeat.** Every worker records a heartbeat after each tick in `worker_heartbeats` (process status and tick counts only, no user data). `GET /api/agents/live` returns the session user's live view: each agent's state (`running | queued | idle | failing`), recent runs and open findings, the user's job backlog, the latest runs feed and worker health (`live` if a worker beat within 60 s, `stale` if one beat earlier, `offline` if none ever did). The `/agents` page renders it as a live map.
+
+The demo endpoint `POST /api/agents/run` (for a "run agents now" button) does one bounded tick (up to 50 jobs) synchronously for the session user only.

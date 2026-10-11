@@ -11,6 +11,7 @@ import {
   ChartLineUp,
   ArrowCounterClockwise,
   ShieldWarning,
+  Robot,
 } from "@phosphor-icons/react";
 import { clearfi, errorMessage } from "./api";
 import { useSession } from "./SessionContext";
@@ -24,6 +25,7 @@ const navigation = [
   { href: "/transfers", label: "Transfers", icon: ArrowsLeftRight },
   { href: "/trade", label: "Trade", icon: ChartLineUp },
   { href: "/chat", label: "Assistant", icon: ChatCircle },
+  { href: "/agents", label: "Agents", icon: Robot },
   { href: "/security", label: "Security", icon: ShieldWarning },
   { href: "/control", label: "Controls", icon: SlidersHorizontal },
 ];

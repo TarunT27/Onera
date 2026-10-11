@@ -11,6 +11,7 @@
  * finishes, then the loop returns so the caller can close the database.
  */
 import type { DB } from "@/lib/db";
+import { recordHeartbeat, type WorkerMode } from "./health";
 import { DEFAULT_RUN_LIMIT, runPendingJobs } from "./runner";
 import { scheduleRecurring } from "./scheduler";
 import type { RunReport, ScheduleReport } from "./types";
@@ -52,6 +53,8 @@ export interface WorkerLoopOptions extends WorkerTickOptions {
   signal?: AbortSignal;
   /** Stop after this many ticks (tests). */
   maxTicks?: number;
+  /** Record a heartbeat after every tick so the UI can show the worker as live (lib/agents/health.ts). */
+  heartbeat?: { workerId: string; mode: WorkerMode };
   /** Injection points for tests. */
   tick?: (db: DB, now: Date, opts: WorkerTickOptions) => WorkerTickReport;
   clock?: () => Date;
@@ -89,16 +92,28 @@ export async function runWorkerLoop(db: DB, opts: WorkerLoopOptions = {}): Promi
   const logError = opts.logError ?? ((message: string, err: unknown) => console.error(message, err));
   const intervalMs = Math.max(opts.intervalMs ?? DEFAULT_WORKER_INTERVAL_MS, 0);
   const result: WorkerLoopResult = { ticks: 0, errors: 0, last: null };
+  const startedAt = clock().toISOString();
+  const beat = (ok: boolean, summary?: string) => {
+    if (!opts.heartbeat) return;
+    try {
+      recordHeartbeat(db, { ...opts.heartbeat, intervalMs, startedAt, ok, summary }, clock());
+    } catch (err) {
+      logError("[worker] could not record heartbeat", err);
+    }
+  };
 
   while (!opts.signal?.aborted) {
     result.ticks++;
     try {
       const report = tick(db, clock(), { limit: opts.limit });
       result.last = report;
-      log(formatTickSummary(report));
+      const summary = formatTickSummary(report);
+      log(summary);
+      beat(true, summary);
     } catch (err) {
       result.errors++;
       logError("[worker] tick failed; continuing", err);
+      beat(false);
     }
     if (opts.once || (opts.maxTicks !== undefined && result.ticks >= opts.maxTicks) || opts.signal?.aborted) break;
     await sleep(intervalMs, opts.signal);

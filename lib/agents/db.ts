@@ -1,8 +1,9 @@
 import type { DbModule } from "@/lib/db/modules";
 
 /**
- * Tables for the agents module: the durable job queue, persisted insights and
- * the agent run log. Every row carries user_id; every query filters on it.
+ * Tables for the agents module: the durable job queue, persisted insights, the
+ * agent run log and worker heartbeats. Every user-data row carries user_id and
+ * every query on it filters on it; heartbeats hold process status only.
  * No seed data: insights come from running the agents.
  */
 export const agentsModule: DbModule = {
@@ -59,8 +60,22 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   error       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_agent_runs_user ON agent_runs(user_id, started_at DESC);
+
+-- Worker liveness (system status, no user data): one row per worker process, updated every tick.
+CREATE TABLE IF NOT EXISTS worker_heartbeats (
+  worker_id     TEXT PRIMARY KEY,
+  mode          TEXT NOT NULL CHECK (mode IN ('in-process','standalone')),
+  pid           INTEGER NOT NULL,
+  interval_ms   INTEGER NOT NULL,
+  started_at    TEXT NOT NULL,
+  last_beat_at  TEXT NOT NULL,
+  ticks         INTEGER NOT NULL DEFAULT 0,
+  tick_errors   INTEGER NOT NULL DEFAULT 0,
+  last_summary  TEXT                      -- counts only
+);
 `,
   dropSql: /* sql */ `
+DROP TABLE IF EXISTS worker_heartbeats;
 DROP TABLE IF EXISTS agent_runs;
 DROP TABLE IF EXISTS insights;
 DROP TABLE IF EXISTS jobs;

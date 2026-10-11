@@ -29,6 +29,7 @@ import type {
 import type {
   AgentDefinition,
   AgentRun,
+  AgentsLive,
   Insight,
   PermissionRow,
   RunReport,
@@ -214,6 +215,7 @@ export interface AgentRunResponse {
   insights: Insight[];
 }
 export type { Insight as AgentInsight };
+export type AgentsLiveResponse = AgentsLive;
 export interface ExecuteResponse {
   action: TransferAction;
   receipt: ExecutionReceipt;
@@ -248,6 +250,7 @@ export const paths = {
   action: (id: string) => `/api/actions/${enc(id)}`,
   agents: "/api/agents",
   agentInsights: "/api/agents/insights",
+  agentsLive: "/api/agents/live",
 };
 
 export const clearfi = {

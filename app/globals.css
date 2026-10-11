@@ -1495,13 +1495,26 @@
 }
 
 /* ─── Responsive ─── */
-@media (max-width: 1280px) and (min-width: 1101px) {
+@media (max-width: 1440px) and (min-width: 1241px) {
   .island {
-    --nav-w: 88px;
+    --nav-w: 86px;
   }
   .island a {
     gap: 5px;
     font-size: 12.5px;
+  }
+}
+/* Icon-only tabs from 1240px down (≤1100px repeats this below with other layout changes). */
+@media (max-width: 1240px) and (min-width: 1101px) {
+  .island {
+    --nav-w: 52px;
+  }
+  .island a span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
   }
 }
 @media (max-width: 1100px) {
@@ -1542,14 +1555,15 @@
     left: 50%;
     bottom: max(14px, env(safe-area-inset-bottom));
     transform: translateX(-50%);
-    --nav-w: 50px;
+    --nav-w: 44px;
     padding: 6px;
   }
   .island a {
     flex-direction: column;
     gap: 2px;
     height: 52px;
-    font-size: 10px;
+    font-size: 9.5px;
+    letter-spacing: -0.01em;
   }
   .island a span {
     position: static;

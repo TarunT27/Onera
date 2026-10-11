@@ -66,7 +66,10 @@ async function main(): Promise<number> {
       (args.limit ? ` limit=${args.limit}` : ""),
   );
   try {
-    const result = await runWorkerLoop(db, { once: args.once, limit: args.limit, intervalMs, signal: stop.signal });
+    const result = await runWorkerLoop(db, {
+      once: args.once, limit: args.limit, intervalMs, signal: stop.signal,
+      heartbeat: { workerId: `standalone:${process.pid}`, mode: "standalone" },
+    });
     console.log(`[worker] stopped after ${result.ticks} tick(s), ${result.errors} error(s)`);
     return args.once && result.errors > 0 ? 1 : 0;
   } finally {
