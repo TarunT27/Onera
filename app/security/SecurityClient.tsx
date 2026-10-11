@@ -28,7 +28,7 @@ import { Button } from "../components/Button";
 import { Card, EmptyState, Loading, PageHeader } from "../components/Card";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatDateTime } from "../components/format";
-import { SEVERITY } from "../components/MonitoringPanel";
+import { InsightCard } from "../components/InsightCard";
 import { useApiData } from "../components/useApiData";
 
 const SECURITY_AGENTS = new Set(["threat_monitor", "security_sentinel"]);
@@ -180,7 +180,7 @@ export function SecurityClient() {
         ) : alerts.length === 0 ? (
           <EmptyState>No security alerts. The monitor flags suspicious activity here as soon as it sees it.</EmptyState>
         ) : (
-          <ul className="grid gap-3" aria-label="Security alerts">
+          <ul className="monitoring-list is-single" aria-label="Security alerts">
             {alerts.map((i) => (
               <Alert
                 key={i.id}
@@ -240,7 +240,6 @@ function Alert({ insight: i, cited, busy, disabled, paused, onMark, onPause }: {
   onMark: (status: "seen" | "dismissed") => void;
   onPause: () => Promise<void>;
 }) {
-  const sev = SEVERITY[i.severity] ?? SEVERITY.info;
   const [confirming, setConfirming] = useState(false);
   const [pausing, setPausing] = useState(false);
   const actionIds = i.evidence.actionIds ?? [];
@@ -253,39 +252,28 @@ function Alert({ insight: i, cited, busy, disabled, paused, onMark, onPause }: {
   }
 
   return (
-    <li className={`monitoring-item sev-${i.severity}`}>
-      <article aria-labelledby={`alert-${i.id}`}>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Badge tone={sev.tone}>
-            <sev.Icon size={13} weight="fill" aria-hidden />
-            {sev.label}
-          </Badge>
-          <Badge tone="violet">{signalLabel(i)}</Badge>
-          {i.status === "new" ? <Badge tone="brand">New</Badge> : <Badge tone="gray">Seen</Badge>}
-          <span className="text-xs text-white/40">
-            {i.agentId === "threat_monitor" ? "Threat monitor" : "Security sentinel"} · {formatDateTime(i.updatedAt)}
-          </span>
-        </div>
-        <h3 id={`alert-${i.id}`} className="monitoring-title">{i.title}</h3>
-        <p className="monitoring-body whitespace-pre-line">{i.body}</p>
-
-        {(cited.length > 0 || actionIds.length > 0) && (
-          <details className="monitoring-evidence">
-            <summary>Evidence ({cited.length + actionIds.length})</summary>
-            {actionIds.length > 0 && (
-              <ul>
-                {actionIds.map((id) => (
-                  <li key={id}>
-                    <Link href={`/transfers?id=${encodeURIComponent(id)}`}>Transfer {id}</Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {cited.length > 0 && <AuditList events={cited} showActionLink={false} />}
-          </details>
-        )}
-
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+    <InsightCard
+      insight={i}
+      agentName={i.agentId === "threat_monitor" ? "Threat monitor" : "Security sentinel"}
+      meta={formatDateTime(i.updatedAt)}
+      tags={<Badge tone="violet">{signalLabel(i)}</Badge>}
+      evidenceCount={cited.length + actionIds.length}
+      evidence={
+        <>
+          {actionIds.length > 0 && (
+            <ul>
+              {actionIds.map((id) => (
+                <li key={id}>
+                  <Link href={`/transfers?id=${encodeURIComponent(id)}`}>Transfer {id}</Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {cited.length > 0 && <AuditList events={cited} showActionLink={false} />}
+        </>
+      }
+      actions={
+        <>
           {i.severity === "critical" && !paused && (
             confirming ? (
               <>
@@ -311,8 +299,8 @@ function Alert({ insight: i, cited, busy, disabled, paused, onMark, onPause }: {
           <Button size="sm" variant="ghost" disabled={disabled} onClick={() => onMark("dismissed")} aria-label={`Dismiss: ${i.title}`}>
             Dismiss
           </Button>
-        </div>
-      </article>
-    </li>
+        </>
+      }
+    />
   );
 }

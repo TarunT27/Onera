@@ -397,7 +397,8 @@ test("AI monitoring panel runs advisory agents and manages the StreamFlix insigh
   });
   await expect(insight).toBeVisible();
   await expect(insight.getByText("Subscription monitor")).toBeVisible();
-  await insight.getByText(/^Evidence \(\d+\)$/).click();
+  await insight.getByRole("button", { name: "Details", exact: true }).click();
+  await expect(insight.getByText(/^Evidence · \d+$/)).toBeVisible();
   await expect(
     insight.getByRole("link", { name: /StreamFlix/ }).first(),
   ).toBeVisible();

@@ -1343,13 +1343,36 @@
   flex-wrap: wrap;
   align-items: flex-start;
 }
+.monitoring-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.monitoring-count {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgb(140 185 204 / 0.16);
+  color: var(--azure-mist);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 .monitoring-advisory {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   margin-top: 6px;
   color: var(--azure-mist);
   font-size: 14px;
+}
+.monitoring-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--text-3);
+  font-size: 12.5px;
 }
 .monitoring-status {
   margin-bottom: 16px;
@@ -1361,85 +1384,287 @@
   font-size: 14px;
 }
 .monitoring-empty {
-  padding: 22px;
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 26px 22px;
   border-radius: var(--r-md);
   background: var(--fill-1);
   color: var(--text-2);
   font-size: 14px;
   text-align: center;
 }
+
+/* Overlapping agent avatars: "these are watching". */
+.agent-avatar {
+  display: block;
+  flex-shrink: 0;
+}
+.agent-stack {
+  display: flex;
+}
+.agent-stack .agent-avatar {
+  border-radius: 50%;
+  box-shadow: 0 0 0 2.5px #15181c;
+}
+.agent-stack .agent-avatar + .agent-avatar {
+  margin-left: -7px;
+}
+
+/* Agent filter chips */
+.agent-filter {
+  display: flex;
+  gap: 8px;
+  margin: 0 -26px 16px;
+  padding: 2px 26px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.agent-filter::-webkit-scrollbar {
+  display: none;
+}
+.agent-filter button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--fill-1);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background-color 0.3s var(--ease),
+    color 0.3s var(--ease),
+    box-shadow 0.3s var(--ease);
+}
+.agent-filter button:has(.agent-avatar) {
+  padding-left: 6px;
+}
+.agent-filter button:hover {
+  background: var(--fill-2);
+  color: var(--text);
+}
+.agent-filter button[aria-pressed="true"] {
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: none;
+  color: #07090b;
+}
+.agent-filter-count {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.agent-filter button[aria-pressed="true"] .agent-filter-count {
+  color: rgb(7 9 11 / 0.5);
+}
+
 .monitoring-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
-/* Severity reads from a lit dot, not a left-border stripe. */
-.monitoring-item {
-  position: relative;
+.monitoring-list.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Insight card: the avatar says who, the title says what; fine print waits behind Details. */
+.insight-card {
+  display: flex;
   min-width: 0;
-  padding: 16px 18px 16px 34px;
-  border-radius: 20px;
+  border-radius: 22px;
   background: var(--fill-1);
   box-shadow: inset 0 0 0 1px var(--hairline);
+  transition:
+    background-color 0.3s var(--ease),
+    box-shadow 0.3s var(--ease);
 }
-.monitoring-item::before {
-  content: "";
+.insight-card:hover {
+  background: rgb(255 255 255 / 0.05);
+}
+.insight-card.sev-warning {
+  box-shadow: inset 0 0 0 1px rgb(232 183 90 / 0.16);
+}
+.insight-card.sev-critical {
+  background: rgb(255 155 147 / 0.05);
+  box-shadow: inset 0 0 0 1px rgb(255 155 147 / 0.24);
+}
+.insight-card > article {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: 16px 18px 12px;
+}
+.insight-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  min-width: 0;
+}
+.insight-avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+.insight-new-dot {
   position: absolute;
-  top: 22px;
-  left: 16px;
-  width: 8px;
-  height: 8px;
+  top: -1px;
+  right: -1px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: var(--azure-light);
-  box-shadow: 0 0 10px currentColor;
+  background: var(--azure-mist);
+  box-shadow: 0 0 0 2.5px #15181c;
 }
-.monitoring-item.sev-critical::before {
-  background: var(--negative);
-  color: var(--negative);
+.insight-source {
+  display: flex;
+  flex: 1 1 9.5rem;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
 }
-.monitoring-item.sev-warning::before {
-  background: var(--amber);
-  color: var(--amber);
+.insight-agent {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.monitoring-item.sev-info::before {
-  color: var(--azure-light);
+.insight-when {
+  color: var(--text-3);
+  font-size: 12px;
 }
-.monitoring-title {
-  margin-top: 10px;
+.insight-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.insight-status {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 500;
+}
+.insight-status.is-new {
+  color: var(--azure-mist);
+}
+.insight-title {
+  margin-top: 14px;
   font-size: 16px;
   font-weight: 600;
-  line-height: 1.35;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
-.monitoring-body {
+.insight-lede {
+  display: -webkit-box;
   margin-top: 6px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 13.5px;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
-.monitoring-evidence {
-  margin-top: 10px;
+.insight-card[data-open] .insight-lede {
+  -webkit-line-clamp: unset;
+}
+.insight-more {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+  animation: insight-open 0.4s var(--ease);
+}
+@keyframes insight-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.insight-fine {
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.insight-evidence {
   font-size: 13px;
 }
-.monitoring-evidence summary {
-  display: flex;
-  align-items: center;
-  min-height: 32px;
-  color: var(--text-2);
+.insight-evidence-head {
+  margin-bottom: 4px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
-.monitoring-evidence li {
+.insight-evidence li {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 6px 0;
+  padding: 7px 0;
   border-top: 1px solid var(--hairline);
   color: var(--text-2);
   overflow-wrap: anywhere;
 }
-.monitoring-evidence a {
+.insight-evidence li:first-child {
+  border-top: 0;
+}
+.insight-evidence a {
   color: var(--azure-mist);
   text-decoration: underline;
+  text-decoration-color: rgb(191 216 227 / 0.35);
   text-underline-offset: 3px;
+}
+.insight-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+.insight-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  margin-left: -8px;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+.insight-toggle:hover {
+  background: var(--fill-2);
+  color: var(--text);
+}
+.insight-toggle svg {
+  transition: transform 0.3s var(--ease);
+}
+.insight-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.insight-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-left: auto;
 }
 .agent-matrix {
   width: 100%;
