@@ -8,11 +8,14 @@ The signature demo: **a rent payment to a landlord whose bank details changed af
 
 > **Demo only.** Every person, account, balance and transaction is synthetic. All bank money movement is simulated, and the user switcher is a demo mechanism, not authentication. Run it locally with synthetic data only. Trading uses Onera's simulated paper broker unless you configure Alpaca (see [Brokerage and market data](#brokerage-and-market-data)).
 
+![Onera overview: total balance, a held $1,850 rent transfer that needs review, accounts, and the personal assistant's briefing](docs/screenshots/overview.jpg)
+
 ---
 
 ## Contents
 
 - [What's in the app](#whats-in-the-app)
+- [Screenshots](#screenshots)
 - [Quick start](#quick-start)
 - [Architecture](#architecture)
   - [System overview](#system-overview)
@@ -51,6 +54,31 @@ The signature demo: **a rent payment to a landlord whose bank details changed af
 | **Settings** | `/settings` | Accessibility and language (11 languages including Arabic RTL). |
 
 A voice dock ("Talk to Onera") sits at the bottom of every page. It works once `ELEVENLABS_API_KEY` is set and otherwise shows "Voice off" with how to enable it. Bounded autonomous-trading mandates exist as an API only (`/api/mandates`), with no UI.
+
+## Screenshots
+
+All data is synthetic and every transfer is simulated. Captured at 1440×900 from a freshly reset demo.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/transfer-held.jpg" alt="Transfers: the rent transfer is held because the landlord's bank details changed since they were last verified"><br><b>Transfers.</b> The rent payment is held: the landlord's bank details changed after verification, and Onera shows exactly what changed.</td>
+    <td width="50%"><img src="docs/screenshots/security.jpg" alt="Security: status ring, last 7 days, the four layers that stop a bad transfer, alerts and the event timeline"><br><b>Security.</b> One look tells you if you're OK, then the four layers that stop a bad transfer, alerts and what happened.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/assistant.jpg" alt="Ask Onera: greeting with starter cards and the guardrails rail"><br><b>Ask Onera.</b> Starter prompts, including a red-team prompt-injection demo, next to what the assistant can and can never do.</td>
+    <td><img src="docs/screenshots/assistant-reply.jpg" alt="Ask Onera reply showing the tool step, the answer and the inline safety check"><br><b>A live reply.</b> Each tool the assistant used, the answer, and the inline safety check for the turn.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/trade.jpg" alt="Trade: watchlist, price chart, order ticket, positions and the research agents"><br><b>Trade.</b> Paper trading on one screen: watchlist, chart, order ticket with limits, positions and four research agents.</td>
+    <td><img src="docs/screenshots/agents.jpg" alt="Agents: live map of what each background agent reads and writes"><br><b>Agents.</b> A live map of the seven background agents, what each reads, and the actions none of them can take.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/accounts.jpg" alt="Accounts: linked simulated banks and account details"><br><b>Accounts.</b> Linked accounts from simulated banks, connection health and per-account activity.</td>
+    <td><img src="docs/screenshots/controls.jpg" alt="Controls: pause, transfer limits, daily usage and the audit log"><br><b>Controls.</b> The global pause, per-transfer and daily limits, and the audit log.</td>
+  </tr>
+</table>
+
+<p align="center"><img src="docs/screenshots/mobile-overview.jpg" alt="Onera overview on a phone" width="300"><br><b>Phone.</b> The same app at 390px wide.</p>
 
 ---
 
